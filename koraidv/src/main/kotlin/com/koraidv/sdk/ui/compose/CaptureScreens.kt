@@ -2,6 +2,7 @@ package com.koraidv.sdk.ui.compose
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -244,7 +245,7 @@ fun LivenessScreen(
                             val icon = when (challenges.getOrNull(currentChallenge)) {
                                 "Blink" -> Icons.Default.RemoveRedEye
                                 "Smile" -> Icons.Default.SentimentSatisfied
-                                "Turn Left" -> Icons.Default.KeyboardArrowLeft
+                                "Turn Left" -> Icons.AutoMirrored.Filled.KeyboardArrowLeft
                                 else -> Icons.Default.Face
                             }
 

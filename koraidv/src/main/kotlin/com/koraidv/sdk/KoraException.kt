@@ -33,8 +33,8 @@ sealed class KoraException(
 
     // Network Errors
     @Parcelize
-    data class NetworkError(val cause: String) : KoraException(
-        message = "Network error: $cause",
+    data class NetworkError(val errorCause: String) : KoraException(
+        message = "Network error: $errorCause",
         errorCode = "NETWORK_ERROR",
         recoverySuggestion = "Check your internet connection and try again."
     )

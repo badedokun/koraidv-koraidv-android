@@ -3,9 +3,10 @@ package com.koraidv.sdk
 /**
  * SDK Configuration.
  *
- * @property apiKey Your API key (starts with ck_live_ or ck_sandbox_)
+ * @property apiKey Your API key (starts with ck_live_, ck_sandbox_, kora_live_, or kora_sandbox_)
  * @property tenantId Your tenant ID (UUID)
  * @property environment API environment (auto-detected from API key if not specified)
+ * @property baseUrl Custom base URL override (e.g., for self-hosted or Cloud Run deployments)
  * @property documentTypes Allowed document types (default: all types)
  * @property livenessMode Liveness detection mode (default: active)
  * @property theme Custom theme for UI customization
@@ -17,6 +18,7 @@ data class Configuration(
     val apiKey: String,
     val tenantId: String,
     val environment: Environment = detectEnvironment(apiKey),
+    val baseUrl: String? = null,
     val documentTypes: List<DocumentType> = DocumentType.entries,
     val livenessMode: LivenessMode = LivenessMode.ACTIVE,
     val theme: KoraTheme = KoraTheme(),
@@ -24,9 +26,15 @@ data class Configuration(
     val timeout: Long = 600,
     val debugLogging: Boolean = false
 ) {
+    /**
+     * Resolved base URL: uses custom [baseUrl] if provided, otherwise falls back to [environment] default.
+     */
+    val resolvedBaseUrl: String
+        get() = baseUrl ?: environment.baseUrl
+
     companion object {
         private fun detectEnvironment(apiKey: String): Environment {
-            return if (apiKey.startsWith("ck_sandbox_")) {
+            return if (apiKey.startsWith("ck_sandbox_") || apiKey.startsWith("kora_sandbox_")) {
                 Environment.SANDBOX
             } else {
                 Environment.PRODUCTION

@@ -87,7 +87,7 @@ internal class ApiClient(private val configuration: Configuration) {
 
     private fun buildRetrofit(): Retrofit {
         return Retrofit.Builder()
-            .baseUrl(configuration.environment.baseUrl + "/")
+            .baseUrl(configuration.resolvedBaseUrl + "/")
             .client(okHttpClient)
             .addConverterFactory(GsonConverterFactory.create())
             .build()
