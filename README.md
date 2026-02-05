@@ -5,36 +5,59 @@ Native Android SDK for identity verification with document capture, selfie captu
 ## Requirements
 
 - Android API 24+ (Android 7.0)
-- Kotlin 1.9+
-- Jetpack Compose 1.5+
+- Kotlin 2.0.0+
+- Jetpack Compose (BOM 2024.02.00+)
+- AndroidX enabled
 
 ## Installation
 
-### Gradle (Maven Central)
+### JitPack (Recommended)
 
-Add to your module's `build.gradle.kts`:
+**Step 1:** Add JitPack repository to your root `settings.gradle.kts`:
 
 ```kotlin
-dependencies {
-    implementation("com.koraidv:koraidv-sdk:1.0.0")
+dependencyResolutionManagement {
+    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+    repositories {
+        google()
+        mavenCentral()
+        maven { url = uri("https://jitpack.io") }
+    }
 }
 ```
 
-### JitPack (Alternative)
-
-Add JitPack repository to your root `build.gradle.kts`:
-
-```kotlin
-repositories {
-    maven { url = uri("https://jitpack.io") }
-}
-```
-
-Then add the dependency:
+**Step 2:** Add the dependency to your module's `build.gradle.kts`:
 
 ```kotlin
 dependencies {
-    implementation("com.github.koraidv:koraidv-android:1.0.0")
+    implementation("com.github.badedokun:koraidv-koraidv-android:v1.0.2")
+}
+```
+
+**Step 3:** Ensure AndroidX is enabled in `gradle.properties`:
+
+```properties
+android.useAndroidX=true
+android.enableJetifier=true
+```
+
+### Gradle Version Catalog (Optional)
+
+If using version catalogs, add to `libs.versions.toml`:
+
+```toml
+[versions]
+koraidv = "v1.0.2"
+
+[libraries]
+koraidv = { group = "com.github.badedokun", name = "koraidv-koraidv-android", version.ref = "koraidv" }
+```
+
+Then in `build.gradle.kts`:
+
+```kotlin
+dependencies {
+    implementation(libs.koraidv)
 }
 ```
 
@@ -45,16 +68,17 @@ dependencies {
 ```kotlin
 import com.koraidv.sdk.KoraIDV
 import com.koraidv.sdk.Configuration
+import com.koraidv.sdk.Environment
 
 class MyApplication : Application() {
     override fun onCreate() {
         super.onCreate()
 
-        KoraIDV.initialize(
+        KoraIDV.configure(
             Configuration(
                 apiKey = "kora_your_api_key_here",
                 tenantId = "your-tenant-uuid",
-                environment = Environment.PRODUCTION
+                environment = Environment.SANDBOX  // Use PRODUCTION for live
             )
         )
     }
@@ -80,7 +104,9 @@ class MainActivity : ComponentActivity() {
                 Log.d("KoraIDV", "Status: ${verification.status}")
             }
             is VerificationResult.Failure -> {
-                Log.e("KoraIDV", "Error: ${result.exception.message}")
+                val error = result.exception
+                Log.e("KoraIDV", "Error Code: ${error.errorCode}")
+                Log.e("KoraIDV", "Error Message: ${error.message}")
             }
             is VerificationResult.Cancelled -> {
                 Log.d("KoraIDV", "User cancelled verification")
@@ -113,7 +139,7 @@ verificationLauncher.launch(
 
 | Option | Type | Description |
 |--------|------|-------------|
-| `apiKey` | String | Your Kora IDV API key (required) |
+| `apiKey` | String | Your Kora IDV API key (required, starts with `kora_`) |
 | `tenantId` | String | Your tenant UUID (required) |
 | `environment` | Environment | `PRODUCTION` or `SANDBOX` |
 | `documentTypes` | List<DocumentType> | Allowed document types |
@@ -129,7 +155,7 @@ verificationLauncher.launch(
 - US State ID
 - International Passport
 - UK Passport
-- EU ID Cards
+- EU ID Cards (Germany, France, Spain, Italy)
 
 ### Priority 2 (v1.1)
 - Ghana Card
@@ -140,9 +166,13 @@ verificationLauncher.launch(
 ## Theme Customization
 
 ```kotlin
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.dp
+
 val config = Configuration(
     apiKey = "kora_xxx",
     tenantId = "tenant-uuid",
+    environment = Environment.SANDBOX,
     theme = KoraTheme(
         primaryColor = Color(0xFF2563EB),
         backgroundColor = Color.White,
@@ -155,11 +185,9 @@ val config = Configuration(
         cornerRadius = 12.dp
     )
 )
+
+KoraIDV.configure(config)
 ```
-
-## Localization
-
-The SDK supports English and French out of the box. To add additional languages, provide translations in your app's `res/values-XX/strings.xml`.
 
 ## Error Handling
 
@@ -167,15 +195,24 @@ The SDK supports English and French out of the box. To add additional languages,
 is VerificationResult.Failure -> {
     val exception = result.exception
 
-    when (exception.code) {
-        KoraErrorCode.NETWORK_ERROR -> {
+    // Get error code
+    val errorCode = exception.errorCode  // e.g., "NETWORK_ERROR"
+
+    // Get human-readable message
+    val message = exception.message  // e.g., "Network error: ..."
+
+    when (exception) {
+        is KoraException.NetworkError -> {
             // Handle network issues
         }
-        KoraErrorCode.CAMERA_PERMISSION_DENIED -> {
+        is KoraException.CameraAccessDenied -> {
             // Prompt user to enable camera
         }
-        KoraErrorCode.SESSION_EXPIRED -> {
+        is KoraException.SessionExpired -> {
             // Session timed out, restart verification
+        }
+        is KoraException.UserCancelled -> {
+            // User cancelled the flow
         }
         else -> {
             // Show generic error
@@ -186,17 +223,12 @@ is VerificationResult.Failure -> {
     exception.recoverySuggestion?.let { suggestion ->
         showMessage(suggestion)
     }
-
-    // Retry if possible
-    if (exception.isRetryable) {
-        showRetryOption()
-    }
 }
 ```
 
 ## Permissions
 
-The SDK automatically handles camera permissions. Add to your `AndroidManifest.xml`:
+Add to your `AndroidManifest.xml`:
 
 ```xml
 <uses-permission android:name="android.permission.CAMERA" />
@@ -206,14 +238,115 @@ The SDK automatically handles camera permissions. Add to your `AndroidManifest.x
 <uses-feature android:name="android.hardware.camera.autofocus" android:required="false" />
 ```
 
+The SDK automatically handles runtime camera permission requests.
+
 ## ProGuard Rules
 
-If you're using ProGuard, add these rules:
+If you're using ProGuard/R8, add these rules to `proguard-rules.pro`:
 
 ```proguard
 -keep class com.koraidv.sdk.** { *; }
 -keepclassmembers class com.koraidv.sdk.** { *; }
 ```
+
+## Localization
+
+The SDK supports English and French out of the box. To add additional languages, provide translations in your app's `res/values-XX/strings.xml`.
+
+## Troubleshooting
+
+### JitPack Build Fails
+
+If JitPack shows "Tag or commit not found":
+1. Ensure the repository is public
+2. Use a tagged release (e.g., `v1.0.2`) instead of a commit hash
+3. Visit https://jitpack.io/#badedokun/koraidv-koraidv-android to check build status
+
+### Kotlin Version Mismatch
+
+The SDK requires Kotlin 2.0.0+. If you see compose compiler errors:
+
+```kotlin
+// In build.gradle.kts (project level)
+plugins {
+    id("org.jetbrains.kotlin.android") version "2.0.0" apply false
+    id("org.jetbrains.kotlin.plugin.compose") version "2.0.0" apply false
+}
+```
+
+### AndroidX Not Enabled
+
+Ensure `gradle.properties` contains:
+
+```properties
+android.useAndroidX=true
+android.enableJetifier=true
+```
+
+### Dependency Resolution Failed
+
+If you see "Could not find com.github.badedokun:koraidv-koraidv-android":
+1. Verify JitPack repository is in `settings.gradle.kts` (not just `build.gradle.kts`)
+2. Sync project with Gradle files
+3. Check internet connection and try again
+
+## Example Integration (Flutter/Native Bridge)
+
+```kotlin
+// In MainActivity.kt
+import com.koraidv.sdk.KoraIDV
+import com.koraidv.sdk.Configuration
+import com.koraidv.sdk.Environment
+
+class MainActivity : FlutterActivity() {
+    override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
+        super.configureFlutterEngine(flutterEngine)
+
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "koraidv")
+            .setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "configure" -> {
+                        val apiKey = call.argument<String>("apiKey")!!
+                        val tenantId = call.argument<String>("tenantId")!!
+                        val env = call.argument<String>("environment")!!
+
+                        KoraIDV.configure(
+                            Configuration(
+                                apiKey = apiKey,
+                                tenantId = tenantId,
+                                environment = if (env == "sandbox") Environment.SANDBOX else Environment.PRODUCTION
+                            )
+                        )
+                        result.success(null)
+                    }
+                    "startVerification" -> {
+                        // Launch verification activity
+                    }
+                }
+            }
+    }
+}
+```
+
+## Changelog
+
+### v1.0.2
+- Fixed deprecated `Icons.Default.KeyboardArrowLeft` (use AutoMirrored version)
+- Requires Kotlin 2.0.0+
+- JitPack build support
+
+### v1.0.1
+- Initial JitPack release
+- Fixed kotlin-parcelize plugin configuration
+- Fixed AndroidX compatibility
+- Fixed Parcelable/Serializable ambiguity in error handling
+
+### v1.0.0
+- Initial release
+- Document capture with ML Kit detection
+- Selfie capture with face detection
+- Active and passive liveness detection
+- MRZ reading for passports
 
 ## License
 
