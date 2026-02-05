@@ -4,6 +4,7 @@ import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
+import android.os.Parcelable
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
@@ -74,7 +75,7 @@ class VerificationActivity : ComponentActivity() {
 
     private fun finishWithError(error: KoraException) {
         val resultIntent = Intent().apply {
-            putExtra(EXTRA_ERROR, error)
+            putExtra(EXTRA_ERROR, error as Parcelable)
         }
         setResult(Activity.RESULT_CANCELED, resultIntent)
         finish()
