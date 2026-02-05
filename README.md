@@ -52,7 +52,7 @@ class MyApplication : Application() {
 
         KoraIDV.initialize(
             Configuration(
-                apiKey = "ck_live_your_api_key",
+                apiKey = "kora_your_api_key_here",
                 tenantId = "your-tenant-uuid",
                 environment = Environment.PRODUCTION
             )
@@ -141,7 +141,7 @@ verificationLauncher.launch(
 
 ```kotlin
 val config = Configuration(
-    apiKey = "ck_live_xxx",
+    apiKey = "kora_xxx",
     tenantId = "tenant-uuid",
     theme = KoraTheme(
         primaryColor = Color(0xFF2563EB),
