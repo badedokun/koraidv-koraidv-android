@@ -29,16 +29,18 @@
     <string name="koraidv_document_selection_category_other">Other Documents</string>
 
     <!-- Document Types -->
-    <string name="koraidv_document_us_passport">US Passport</string>
-    <string name="koraidv_document_us_drivers_license">US Driver\'s License</string>
-    <string name="koraidv_document_us_state_id">US State ID</string>
-    <string name="koraidv_document_international_passport">International Passport</string>
-    <string name="koraidv_document_uk_passport">UK Passport</string>
-    <string name="koraidv_document_eu_id_card">EU ID Card</string>
+    <string name="koraidv_document_us_drivers_license">Driver\'s License</string>
+    <string name="koraidv_document_us_state_id">State ID Card</string>
+    <string name="koraidv_document_us_green_card">Permanent Resident Card</string>
+    <string name="koraidv_document_international_passport">Passport</string>
+    <string name="koraidv_document_eu_id_germany">National ID Card (Germany)</string>
+    <string name="koraidv_document_eu_id_france">National ID Card (France)</string>
+    <string name="koraidv_document_eu_id_spain">National ID Card (Spain)</string>
+    <string name="koraidv_document_eu_id_italy">National ID Card (Italy)</string>
     <string name="koraidv_document_ghana_card">Ghana Card</string>
-    <string name="koraidv_document_ng_nin">Nigeria NIN</string>
-    <string name="koraidv_document_ke_id">Kenya ID</string>
-    <string name="koraidv_document_za_id">South Africa ID</string>
+    <string name="koraidv_document_ng_nin">NIN Slip</string>
+    <string name="koraidv_document_ke_id">National ID</string>
+    <string name="koraidv_document_za_id">Smart ID Card</string>
 
     <!-- Document Capture -->
     <string name="koraidv_document_capture_title_front">Document Front</string>

@@ -149,9 +149,8 @@ private fun DocumentTypeItem(
 
 private fun getCategory(type: DocumentType): String {
     return when (type) {
-        DocumentType.US_PASSPORT, DocumentType.US_DRIVERS_LICENSE, DocumentType.US_STATE_ID -> "United States"
-        DocumentType.INTERNATIONAL_PASSPORT -> "International"
-        DocumentType.UK_PASSPORT -> "United Kingdom"
+        DocumentType.US_DRIVERS_LICENSE, DocumentType.US_STATE_ID, DocumentType.US_GREEN_CARD -> "United States"
+        DocumentType.INTERNATIONAL_PASSPORT -> "Passport"
         DocumentType.EU_ID_GERMANY, DocumentType.EU_ID_FRANCE, DocumentType.EU_ID_SPAIN, DocumentType.EU_ID_ITALY -> "European Union"
         DocumentType.GHANA_CARD, DocumentType.NIGERIA_NIN, DocumentType.KENYA_ID, DocumentType.SOUTH_AFRICA_ID -> "Africa"
     }
@@ -159,8 +158,9 @@ private fun getCategory(type: DocumentType): String {
 
 private fun getDocumentIcon(type: DocumentType): androidx.compose.ui.graphics.vector.ImageVector {
     return when (type) {
-        DocumentType.US_PASSPORT, DocumentType.INTERNATIONAL_PASSPORT, DocumentType.UK_PASSPORT -> Icons.Default.Book
+        DocumentType.INTERNATIONAL_PASSPORT -> Icons.Default.Book
         DocumentType.US_DRIVERS_LICENSE -> Icons.Default.DirectionsCar
+        DocumentType.US_GREEN_CARD -> Icons.Default.CardMembership
         else -> Icons.Default.Badge
     }
 }

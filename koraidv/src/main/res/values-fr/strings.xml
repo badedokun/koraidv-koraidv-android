@@ -29,16 +29,18 @@
     <string name="koraidv_document_selection_category_other">Autres documents</string>
 
     <!-- Document Types -->
-    <string name="koraidv_document_us_passport">Passeport américain</string>
-    <string name="koraidv_document_us_drivers_license">Permis de conduire américain</string>
-    <string name="koraidv_document_us_state_id">Carte d\'identité américaine</string>
-    <string name="koraidv_document_international_passport">Passeport international</string>
-    <string name="koraidv_document_uk_passport">Passeport britannique</string>
-    <string name="koraidv_document_eu_id_card">Carte d\'identité européenne</string>
+    <string name="koraidv_document_us_drivers_license">Permis de conduire</string>
+    <string name="koraidv_document_us_state_id">Carte d\'identité d\'État</string>
+    <string name="koraidv_document_us_green_card">Carte de résident permanent</string>
+    <string name="koraidv_document_international_passport">Passeport</string>
+    <string name="koraidv_document_eu_id_germany">Carte d\'identité nationale (Allemagne)</string>
+    <string name="koraidv_document_eu_id_france">Carte d\'identité nationale (France)</string>
+    <string name="koraidv_document_eu_id_spain">Documento Nacional de Identidad (Espagne)</string>
+    <string name="koraidv_document_eu_id_italy">Carta d\'identità (Italie)</string>
     <string name="koraidv_document_ghana_card">Carte ghanéenne</string>
-    <string name="koraidv_document_ng_nin">NIN nigérian</string>
-    <string name="koraidv_document_ke_id">Carte d\'identité kenyane</string>
-    <string name="koraidv_document_za_id">Carte d\'identité sud-africaine</string>
+    <string name="koraidv_document_ng_nin">Fiche NIN</string>
+    <string name="koraidv_document_ke_id">Carte d\'identité nationale</string>
+    <string name="koraidv_document_za_id">Carte d\'identité intelligente</string>
 
     <!-- Document Capture -->
     <string name="koraidv_document_capture_title_front">Recto du document</string>

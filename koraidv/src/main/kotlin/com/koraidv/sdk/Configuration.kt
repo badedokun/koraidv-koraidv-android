@@ -76,25 +76,24 @@ enum class DocumentType(
     val requiresBack: Boolean
 ) {
     // US Documents
-    US_PASSPORT("us_passport", "US Passport", true, false),
-    US_DRIVERS_LICENSE("us_drivers_license", "US Driver's License", false, true),
-    US_STATE_ID("us_state_id", "US State ID", false, true),
+    US_DRIVERS_LICENSE("us_drivers_license", "Driver's License", false, true),
+    US_STATE_ID("us_state_id", "State ID Card", false, true),
+    US_GREEN_CARD("us_green_card", "Permanent Resident Card", true, true),
 
-    // International
-    INTERNATIONAL_PASSPORT("international_passport", "International Passport", true, false),
-    UK_PASSPORT("uk_passport", "UK Passport", true, false),
+    // Passport (all countries)
+    INTERNATIONAL_PASSPORT("international_passport", "Passport", true, false),
 
     // EU ID Cards
-    EU_ID_GERMANY("eu_id_de", "German ID Card", true, true),
-    EU_ID_FRANCE("eu_id_fr", "French ID Card", true, true),
-    EU_ID_SPAIN("eu_id_es", "Spanish ID Card", true, true),
-    EU_ID_ITALY("eu_id_it", "Italian ID Card", true, true),
+    EU_ID_GERMANY("eu_id_de", "National ID Card (Germany)", true, true),
+    EU_ID_FRANCE("eu_id_fr", "National ID Card (France)", true, true),
+    EU_ID_SPAIN("eu_id_es", "National ID Card (Spain)", true, true),
+    EU_ID_ITALY("eu_id_it", "National ID Card (Italy)", true, true),
 
-    // Africa (Priority 2)
-    GHANA_CARD("ghana_card", "Ghana Card", false, false),
-    NIGERIA_NIN("ng_nin", "Nigeria NIN", false, false),
-    KENYA_ID("ke_id", "Kenya ID", false, true),
-    SOUTH_AFRICA_ID("za_id", "South Africa ID", false, false);
+    // Africa
+    GHANA_CARD("ghana_card", "Ghana Card", false, true),
+    NIGERIA_NIN("ng_nin", "NIN Slip", false, false),
+    KENYA_ID("ke_id", "National ID", false, true),
+    SOUTH_AFRICA_ID("za_id", "Smart ID Card", false, true);
 
     companion object {
         fun fromCode(code: String): DocumentType? {
