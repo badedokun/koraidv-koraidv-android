@@ -98,22 +98,55 @@ object KoraIDV {
         }
 
         override fun parseResult(resultCode: Int, intent: Intent?): VerificationResult {
-            return when (resultCode) {
-                Activity.RESULT_OK -> {
-                    intent?.getParcelableExtra<Verification>(VerificationActivity.EXTRA_VERIFICATION)
-                        ?.let { VerificationResult.Success(it) }
-                        ?: VerificationResult.Failure(KoraException.Unknown("Missing verification data"))
-                }
-                Activity.RESULT_CANCELED -> {
-                    val error = intent?.getParcelableExtra<KoraException>(VerificationActivity.EXTRA_ERROR)
-                    if (error != null) {
-                        VerificationResult.Failure(error)
-                    } else {
-                        VerificationResult.Cancelled
-                    }
-                }
-                else -> VerificationResult.Cancelled
+            return parseVerificationResult(resultCode, intent)
+        }
+    }
+
+    /**
+     * Activity Result Contract for resuming an existing verification flow.
+     *
+     * Usage:
+     * ```kotlin
+     * val launcher = registerForActivityResult(KoraIDV.ResumeVerificationContract()) { result ->
+     *     // Handle result
+     * }
+     * launcher.launch("ver-uuid")
+     * ```
+     */
+    class ResumeVerificationContract : ActivityResultContract<String, VerificationResult>() {
+
+        override fun createIntent(context: Context, input: String): Intent {
+            if (!isConfigured) {
+                throw KoraException.NotConfigured()
             }
+
+            return VerificationActivity.createResumeIntent(
+                context = context,
+                verificationId = input
+            )
+        }
+
+        override fun parseResult(resultCode: Int, intent: Intent?): VerificationResult {
+            return parseVerificationResult(resultCode, intent)
+        }
+    }
+
+    private fun parseVerificationResult(resultCode: Int, intent: Intent?): VerificationResult {
+        return when (resultCode) {
+            Activity.RESULT_OK -> {
+                intent?.getParcelableExtra<Verification>(VerificationActivity.EXTRA_VERIFICATION)
+                    ?.let { VerificationResult.Success(it) }
+                    ?: VerificationResult.Failure(KoraException.Unknown("Missing verification data"))
+            }
+            Activity.RESULT_CANCELED -> {
+                val error = intent?.getParcelableExtra<KoraException>(VerificationActivity.EXTRA_ERROR)
+                if (error != null) {
+                    VerificationResult.Failure(error)
+                } else {
+                    VerificationResult.Cancelled
+                }
+            }
+            else -> VerificationResult.Cancelled
         }
     }
 }

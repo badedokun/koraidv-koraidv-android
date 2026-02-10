@@ -52,6 +52,51 @@ class VerificationViewModel : ViewModel() {
         _state.value = VerificationState.Consent
     }
 
+    fun initializeForResume(verificationId: String) {
+        val apiClient = KoraIDV.apiClient ?: run {
+            _state.value = VerificationState.Error(KoraException.NotConfigured())
+            return
+        }
+
+        sessionManager = SessionManager(KoraIDV.getConfiguration(), apiClient)
+        _state.value = VerificationState.Loading
+
+        viewModelScope.launch {
+            val manager = sessionManager ?: return@launch
+
+            val result = manager.getVerification(verificationId)
+
+            result.fold(
+                onSuccess = { verification ->
+                    currentVerification = verification
+                    _state.value = mapStatusToState(verification)
+                },
+                onFailure = { error ->
+                    _state.value = VerificationState.Error(
+                        error as? KoraException ?: KoraException.Unknown(error.message ?: "Unknown error")
+                    )
+                }
+            )
+        }
+    }
+
+    private fun mapStatusToState(verification: Verification): VerificationState {
+        return when (verification.status) {
+            VerificationStatus.PENDING -> VerificationState.Consent
+            VerificationStatus.DOCUMENT_REQUIRED -> {
+                val allowedTypes = KoraIDV.getConfiguration().documentTypes
+                VerificationState.DocumentSelection(allowedTypes)
+            }
+            VerificationStatus.SELFIE_REQUIRED -> VerificationState.SelfieCapture
+            VerificationStatus.LIVENESS_REQUIRED -> VerificationState.LivenessCheck
+            VerificationStatus.PROCESSING,
+            VerificationStatus.APPROVED,
+            VerificationStatus.REJECTED,
+            VerificationStatus.REVIEW_REQUIRED,
+            VerificationStatus.EXPIRED -> VerificationState.Complete(verification)
+        }
+    }
+
     fun acceptConsent() {
         viewModelScope.launch {
             _state.value = VerificationState.Loading

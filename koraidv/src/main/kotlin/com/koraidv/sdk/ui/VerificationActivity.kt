@@ -31,13 +31,17 @@ class VerificationActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        val verificationId = intent.getStringExtra(EXTRA_VERIFICATION_ID)
         val request = intent.getSerializableExtra(EXTRA_REQUEST) as? VerificationRequest
-        if (request == null) {
+
+        if (verificationId != null) {
+            viewModel.initializeForResume(verificationId)
+        } else if (request != null) {
+            viewModel.initialize(request)
+        } else {
             finishWithError(KoraException.Unknown("Missing verification request"))
             return
         }
-
-        viewModel.initialize(request)
 
         setContent {
             KoraIDVTheme(theme = KoraIDV.getConfiguration().theme) {
@@ -88,12 +92,19 @@ class VerificationActivity : ComponentActivity() {
 
     companion object {
         const val EXTRA_REQUEST = "verification_request"
+        const val EXTRA_VERIFICATION_ID = "verification_id"
         const val EXTRA_VERIFICATION = "verification"
         const val EXTRA_ERROR = "error"
 
         fun createIntent(context: Context, request: VerificationRequest): Intent {
             return Intent(context, VerificationActivity::class.java).apply {
                 putExtra(EXTRA_REQUEST, request)
+            }
+        }
+
+        fun createResumeIntent(context: Context, verificationId: String): Intent {
+            return Intent(context, VerificationActivity::class.java).apply {
+                putExtra(EXTRA_VERIFICATION_ID, verificationId)
             }
         }
     }
