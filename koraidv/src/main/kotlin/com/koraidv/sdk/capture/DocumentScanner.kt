@@ -5,11 +5,8 @@ import android.graphics.PointF
 import android.graphics.RectF
 import androidx.camera.core.ImageProxy
 import com.google.mlkit.vision.common.InputImage
-import com.google.mlkit.vision.documentscanner.GmsDocumentScanner
-import com.google.mlkit.vision.documentscanner.GmsDocumentScannerOptions
-import com.google.mlkit.vision.documentscanner.GmsDocumentScanning
-import kotlinx.coroutines.suspendCancellableCoroutine
-import kotlin.coroutines.resume
+import com.google.mlkit.vision.text.TextRecognition
+import com.google.mlkit.vision.text.latin.TextRecognizerOptions
 
 /**
  * Document detection result
@@ -18,11 +15,13 @@ data class DocumentDetectionResult(
     val corners: List<PointF>,
     val boundingBox: RectF,
     val confidence: Float,
-    val isStable: Boolean
+    val isStable: Boolean,
+    val qualityGuidance: String?
 )
 
 /**
- * Document scanner using ML Kit
+ * Document scanner using ML Kit Text Recognition for document presence detection.
+ * Takes ownership of ImageProxy and closes it after ML Kit processing completes.
  */
 class DocumentScanner {
 
@@ -31,57 +30,137 @@ class DocumentScanner {
     private val stabilityThreshold = 5
     private val stabilityTolerance = 0.02f
 
-    // ML Kit Document Scanner options
-    private val scannerOptions = GmsDocumentScannerOptions.Builder()
-        .setGalleryImportAllowed(false)
-        .setPageLimit(1)
-        .setResultFormats(GmsDocumentScannerOptions.RESULT_FORMAT_JPEG)
-        .setScannerMode(GmsDocumentScannerOptions.SCANNER_MODE_BASE)
-        .build()
+    private val textRecognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
 
-    private val scanner: GmsDocumentScanner = GmsDocumentScanning.getClient(scannerOptions)
+    @Volatile
+    private var lastDetectionResult: DocumentDetectionResult? = null
+    @Volatile
+    private var isAnalyzing = false
 
     /**
-     * Detect document in image proxy (for frame analysis)
+     * Detect document in image proxy (for frame analysis).
+     * IMPORTANT: This method takes ownership of imageProxy and will close it.
+     * The caller must NOT close imageProxy after calling this method.
+     * Returns the last known detection result (may be null initially).
      */
+    @androidx.camera.core.ExperimentalGetImage
     fun detectDocument(imageProxy: ImageProxy): DocumentDetectionResult? {
-        // For real-time detection, we use a simplified approach
-        // The full ML Kit Document Scanner is designed for activity-based scanning
+        // If already analyzing, skip this frame and close immediately
+        if (isAnalyzing) {
+            imageProxy.close()
+            return lastDetectionResult
+        }
 
-        // Simulated detection for frame analysis
-        // In production, you'd use custom edge detection or ML Kit's base APIs
         val width = imageProxy.width.toFloat()
         val height = imageProxy.height.toFloat()
 
-        // Placeholder detection - in production, implement actual edge detection
-        val margin = 0.1f
-        val corners = listOf(
-            PointF(width * margin, height * margin),
-            PointF(width * (1 - margin), height * margin),
-            PointF(width * (1 - margin), height * (1 - margin)),
-            PointF(width * margin, height * (1 - margin))
+        val mediaImage = imageProxy.image
+        if (mediaImage == null) {
+            imageProxy.close()
+            return lastDetectionResult
+        }
+
+        isAnalyzing = true
+
+        val inputImage = InputImage.fromMediaImage(
+            mediaImage,
+            imageProxy.imageInfo.rotationDegrees
         )
 
-        val boundingBox = RectF(
-            width * margin,
-            height * margin,
-            width * (1 - margin),
-            height * (1 - margin)
-        )
+        textRecognizer.process(inputImage)
+            .addOnSuccessListener { text ->
+                val blockCount = text.textBlocks.size
 
-        val isStable = checkStability(corners)
+                if (blockCount >= 1) {
+                    // Build bounding box from detected text blocks
+                    var minX = width
+                    var minY = height
+                    var maxX = 0f
+                    var maxY = 0f
 
-        return DocumentDetectionResult(
-            corners = corners,
-            boundingBox = boundingBox,
-            confidence = 0.85f, // Placeholder
-            isStable = isStable
-        )
+                    for (block in text.textBlocks) {
+                        block.boundingBox?.let { rect ->
+                            minX = minOf(minX, rect.left.toFloat())
+                            minY = minOf(minY, rect.top.toFloat())
+                            maxX = maxOf(maxX, rect.right.toFloat())
+                            maxY = maxOf(maxY, rect.bottom.toFloat())
+                        }
+                    }
+
+                    // For single text block, use center-frame heuristic
+                    // assuming ID card aspect ratio 1.586:1 occupying 70% of frame width
+                    if (blockCount == 1) {
+                        val cardWidth = width * 0.70f
+                        val cardHeight = cardWidth / 1.586f
+                        val centerX = width / 2f
+                        val centerY = height / 2f
+                        minX = centerX - cardWidth / 2f
+                        maxX = centerX + cardWidth / 2f
+                        minY = centerY - cardHeight / 2f
+                        maxY = centerY + cardHeight / 2f
+                    } else {
+                        val padX = (maxX - minX) * 0.1f
+                        val padY = (maxY - minY) * 0.1f
+                        minX = (minX - padX).coerceAtLeast(0f)
+                        minY = (minY - padY).coerceAtLeast(0f)
+                        maxX = (maxX + padX).coerceAtMost(width)
+                        maxY = (maxY + padY).coerceAtMost(height)
+                    }
+
+                    val corners = listOf(
+                        PointF(minX, minY),
+                        PointF(maxX, minY),
+                        PointF(maxX, maxY),
+                        PointF(minX, maxY)
+                    )
+
+                    val boundingBox = RectF(minX, minY, maxX, maxY)
+                    val isStable = checkStability(corners)
+
+                    val textArea = (maxX - minX) * (maxY - minY)
+                    val imageArea = width * height
+                    val coverage = textArea / imageArea
+
+                    // Lower confidence for single-block fallback
+                    val confidence = if (blockCount == 1) {
+                        0.55f
+                    } else {
+                        (0.5f + coverage.coerceAtMost(0.5f)).coerceAtMost(0.99f)
+                    }
+
+                    // Compute quality guidance from coverage and block count
+                    val qualityGuidance = when {
+                        coverage < 0.05f -> "Move closer to the document"
+                        coverage > 0.85f -> "Move further from the document"
+                        blockCount < 3 -> "Ensure document is fully visible"
+                        else -> null // All conditions good
+                    }
+
+                    lastDetectionResult = DocumentDetectionResult(
+                        corners = corners,
+                        boundingBox = boundingBox,
+                        confidence = confidence,
+                        isStable = isStable,
+                        qualityGuidance = qualityGuidance
+                    )
+                } else {
+                    lastCorners = null
+                    stabilityCounter = 0
+                    lastDetectionResult = null
+                }
+            }
+            .addOnFailureListener {
+                // ML Kit processing failed - reset state
+            }
+            .addOnCompleteListener {
+                // Always close imageProxy and mark analysis as done
+                imageProxy.close()
+                isAnalyzing = false
+            }
+
+        return lastDetectionResult
     }
 
-    /**
-     * Check if detected corners are stable
-     */
     private fun checkStability(corners: List<PointF>): Boolean {
         val last = lastCorners
 
@@ -93,8 +172,8 @@ class DocumentScanner {
 
         var isStable = true
         for (i in corners.indices) {
-            val dx = Math.abs(corners[i].x - last[i].x) / corners[i].x
-            val dy = Math.abs(corners[i].y - last[i].y) / corners[i].y
+            val dx = Math.abs(corners[i].x - last[i].x) / corners[i].x.coerceAtLeast(1f)
+            val dy = Math.abs(corners[i].y - last[i].y) / corners[i].y.coerceAtLeast(1f)
 
             if (dx > stabilityTolerance || dy > stabilityTolerance) {
                 isStable = false
@@ -113,20 +192,30 @@ class DocumentScanner {
         return stabilityCounter >= stabilityThreshold
     }
 
-    /**
-     * Reset stability tracking
-     */
     fun resetStability() {
         lastCorners = null
         stabilityCounter = 0
+        lastDetectionResult = null
     }
 
-    /**
-     * Apply perspective correction to extract document
-     */
     fun extractDocument(bitmap: Bitmap, corners: List<PointF>): Bitmap {
-        // In production, implement perspective transform using OpenCV or custom matrix
-        // For now, return the original bitmap
-        return bitmap
+        if (corners.size != 4) return bitmap
+
+        val topLeft = corners[0]
+        val topRight = corners[1]
+        val bottomRight = corners[2]
+        val bottomLeft = corners[3]
+
+        val left = maxOf(0, minOf(topLeft.x.toInt(), bottomLeft.x.toInt()))
+        val top = maxOf(0, minOf(topLeft.y.toInt(), topRight.y.toInt()))
+        val right = minOf(bitmap.width, maxOf(topRight.x.toInt(), bottomRight.x.toInt()))
+        val bottom = minOf(bitmap.height, maxOf(bottomLeft.y.toInt(), bottomRight.y.toInt()))
+
+        val cropWidth = right - left
+        val cropHeight = bottom - top
+
+        if (cropWidth <= 0 || cropHeight <= 0) return bitmap
+
+        return Bitmap.createBitmap(bitmap, left, top, cropWidth, cropHeight)
     }
 }

@@ -1,8 +1,12 @@
 package com.koraidv.sdk.capture
 
 import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.graphics.Matrix
 import android.util.Size
 import androidx.camera.core.*
+import java.io.ByteArrayOutputStream
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.core.content.ContextCompat
@@ -81,8 +85,13 @@ class CameraManager(private val context: Context) {
             .build()
             .also {
                 it.setAnalyzer(cameraExecutor) { imageProxy ->
-                    onFrameListener?.invoke(imageProxy)
-                    imageProxy.close()
+                    val listener = onFrameListener
+                    if (listener != null) {
+                        // Listener takes ownership and must close the imageProxy
+                        listener.invoke(imageProxy)
+                    } else {
+                        imageProxy.close()
+                    }
                 }
             }
 
@@ -129,7 +138,24 @@ class CameraManager(private val context: Context) {
                     val buffer = image.planes[0].buffer
                     val bytes = ByteArray(buffer.remaining())
                     buffer.get(bytes)
+                    val rotation = image.imageInfo.rotationDegrees
                     image.close()
+
+                    // Apply rotation to produce correctly oriented JPEG
+                    if (rotation != 0) {
+                        val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+                        if (bitmap != null) {
+                            val matrix = Matrix()
+                            matrix.postRotate(rotation.toFloat())
+                            val rotated = Bitmap.createBitmap(
+                                bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true
+                            )
+                            val stream = ByteArrayOutputStream()
+                            rotated.compress(Bitmap.CompressFormat.JPEG, 90, stream)
+                            onCaptured(stream.toByteArray())
+                            return
+                        }
+                    }
                     onCaptured(bytes)
                 }
 

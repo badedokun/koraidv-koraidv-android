@@ -6,7 +6,9 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import com.koraidv.sdk.*
-import com.koraidv.sdk.api.DocumentSide
+import com.koraidv.sdk.api.CountryInfo
+import com.koraidv.sdk.api.DocumentTypeInfo
+import com.koraidv.sdk.api.SessionManager
 import com.koraidv.sdk.liveness.LivenessResult
 import com.koraidv.sdk.ui.VerificationState
 
@@ -14,18 +16,21 @@ import com.koraidv.sdk.ui.VerificationState
  * Main verification flow composable
  */
 @Composable
-fun VerificationFlow(
+internal fun VerificationFlow(
     state: VerificationState,
     onConsentAccepted: () -> Unit,
     onConsentDeclined: () -> Unit,
-    onDocumentTypeSelected: (DocumentType) -> Unit,
+    onCountrySelected: (CountryInfo) -> Unit,
+    onDocumentTypeSelected: (DocumentTypeInfo) -> Unit,
     onDocumentCaptured: (ByteArray) -> Unit,
     onSelfieCaptured: (ByteArray) -> Unit,
     onLivenessComplete: (LivenessResult) -> Unit,
     onComplete: (Verification) -> Unit,
     onError: (KoraException) -> Unit,
     onCancel: () -> Unit,
-    onRetry: () -> Unit
+    onRetry: () -> Unit,
+    sessionManager: SessionManager? = null,
+    verificationId: String? = null
 ) {
     AnimatedContent(
         targetState = state,
@@ -44,16 +49,26 @@ fun VerificationFlow(
                     onDecline = onConsentDeclined
                 )
             }
+            is VerificationState.CountrySelection -> {
+                CountrySelectionScreen(
+                    countries = currentState.countries,
+                    onSelect = onCountrySelected,
+                    onCancel = onCancel
+                )
+            }
             is VerificationState.DocumentSelection -> {
                 DocumentSelectionScreen(
-                    allowedTypes = currentState.allowedTypes,
+                    documentTypes = currentState.documentTypes,
+                    selectedCountry = currentState.selectedCountry,
                     onSelect = onDocumentTypeSelected,
                     onCancel = onCancel
                 )
             }
             is VerificationState.DocumentCapture -> {
                 DocumentCaptureScreen(
-                    documentType = currentState.documentType,
+                    documentTypeCode = currentState.documentTypeCode,
+                    documentDisplayName = currentState.documentDisplayName,
+                    requiresBack = currentState.requiresBack,
                     side = currentState.side,
                     onCaptured = onDocumentCaptured,
                     onCancel = onCancel
@@ -67,12 +82,14 @@ fun VerificationFlow(
             }
             is VerificationState.LivenessCheck -> {
                 LivenessScreen(
+                    sessionManager = sessionManager,
+                    verificationId = verificationId,
                     onComplete = onLivenessComplete,
                     onCancel = onCancel
                 )
             }
             is VerificationState.Processing -> {
-                ProcessingScreen()
+                ProcessingScreen(step = currentState.step)
             }
             is VerificationState.Complete -> {
                 ResultScreen(

@@ -1,19 +1,24 @@
 package com.koraidv.sdk.ui
 
+import android.Manifest
 import android.app.Activity
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.os.Bundle
 import android.os.Parcelable
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
+import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.core.content.ContextCompat
 import com.koraidv.sdk.KoraException
 import com.koraidv.sdk.KoraIDV
 import com.koraidv.sdk.Verification
@@ -28,9 +33,32 @@ class VerificationActivity : ComponentActivity() {
 
     private val viewModel: VerificationViewModel by viewModels()
 
+    private val cameraPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            initializeVerification()
+        } else {
+            finishWithError(KoraException.Unknown("Camera permission is required for identity verification"))
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        // Pre-warm CameraProvider while user reads consent
+        ProcessCameraProvider.getInstance(this)
+
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA)
+            == PackageManager.PERMISSION_GRANTED
+        ) {
+            initializeVerification()
+        } else {
+            cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+        }
+    }
+
+    private fun initializeVerification() {
         val verificationId = intent.getStringExtra(EXTRA_VERIFICATION_ID)
         val request = intent.getSerializableExtra(EXTRA_REQUEST) as? VerificationRequest
 
@@ -38,6 +66,8 @@ class VerificationActivity : ComponentActivity() {
             viewModel.initializeForResume(verificationId)
         } else if (request != null) {
             viewModel.initialize(request)
+            // Pre-warm camera during consent
+            viewModel.preWarmCamera(this)
         } else {
             finishWithError(KoraException.Unknown("Missing verification request"))
             return
@@ -55,6 +85,7 @@ class VerificationActivity : ComponentActivity() {
                         state = state,
                         onConsentAccepted = { viewModel.acceptConsent() },
                         onConsentDeclined = { finishCancelled() },
+                        onCountrySelected = { viewModel.selectCountry(it) },
                         onDocumentTypeSelected = { viewModel.selectDocumentType(it) },
                         onDocumentCaptured = { viewModel.submitDocument(it) },
                         onSelfieCaptured = { viewModel.submitSelfie(it) },
@@ -62,7 +93,9 @@ class VerificationActivity : ComponentActivity() {
                         onComplete = { finishWithSuccess(it) },
                         onError = { viewModel.handleError(it) },
                         onCancel = { finishCancelled() },
-                        onRetry = { viewModel.retry() }
+                        onRetry = { viewModel.retry() },
+                        sessionManager = viewModel.getSessionManager(),
+                        verificationId = viewModel.getCurrentVerification()?.id
                     )
                 }
             }

@@ -1,10 +1,12 @@
 package com.koraidv.sdk.ui
 
+import android.content.Context
+import android.util.Log
+import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.koraidv.sdk.*
-import com.koraidv.sdk.api.DocumentSide
-import com.koraidv.sdk.api.SessionManager
+import com.koraidv.sdk.api.*
 import com.koraidv.sdk.liveness.LivenessResult
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -17,13 +19,28 @@ import kotlinx.coroutines.launch
 sealed class VerificationState {
     data object Loading : VerificationState()
     data object Consent : VerificationState()
-    data class DocumentSelection(val allowedTypes: List<DocumentType>) : VerificationState()
-    data class DocumentCapture(val documentType: DocumentType, val side: DocumentSide) : VerificationState()
+    data class CountrySelection(val countries: List<CountryInfo>) : VerificationState()
+    data class DocumentSelection(
+        val documentTypes: List<DocumentTypeInfo>,
+        val selectedCountry: CountryInfo?
+    ) : VerificationState()
+    data class DocumentCapture(
+        val documentTypeCode: String,
+        val documentDisplayName: String,
+        val requiresBack: Boolean,
+        val side: DocumentSide
+    ) : VerificationState()
     data object SelfieCapture : VerificationState()
     data object LivenessCheck : VerificationState()
-    data object Processing : VerificationState()
+    data class Processing(val step: ProcessingStep = ProcessingStep.ANALYZING) : VerificationState()
     data class Complete(val verification: Verification) : VerificationState()
     data class Error(val error: KoraException, val canRetry: Boolean = true) : VerificationState()
+}
+
+enum class ProcessingStep(val label: String) {
+    ANALYZING("Analyzing document..."),
+    CHECKING_QUALITY("Checking quality..."),
+    FINALIZING("Almost done...")
 }
 
 /**
@@ -37,7 +54,12 @@ class VerificationViewModel : ViewModel() {
     private var sessionManager: SessionManager? = null
     private var request: VerificationRequest? = null
     private var currentVerification: Verification? = null
-    private var selectedDocumentType: DocumentType? = null
+
+    // Document selection state
+    private var selectedDocumentTypeCode: String? = null
+    private var selectedDocumentDisplayName: String? = null
+    private var selectedDocumentRequiresBack: Boolean = false
+    private var selectedCountry: CountryInfo? = null
     private var documentFrontCaptured = false
 
     fun initialize(request: VerificationRequest) {
@@ -50,6 +72,10 @@ class VerificationViewModel : ViewModel() {
 
         sessionManager = SessionManager(KoraIDV.getConfiguration(), apiClient)
         _state.value = VerificationState.Consent
+    }
+
+    fun preWarmCamera(context: Context) {
+        ProcessCameraProvider.getInstance(context)
     }
 
     fun initializeForResume(verificationId: String) {
@@ -84,8 +110,8 @@ class VerificationViewModel : ViewModel() {
         return when (verification.status) {
             VerificationStatus.PENDING -> VerificationState.Consent
             VerificationStatus.DOCUMENT_REQUIRED -> {
-                val allowedTypes = KoraIDV.getConfiguration().documentTypes
-                VerificationState.DocumentSelection(allowedTypes)
+                // Go to country selection first
+                VerificationState.Loading // Will load countries
             }
             VerificationStatus.SELFIE_REQUIRED -> VerificationState.SelfieCapture
             VerificationStatus.LIVENESS_REQUIRED -> VerificationState.LivenessCheck
@@ -109,8 +135,7 @@ class VerificationViewModel : ViewModel() {
             result.fold(
                 onSuccess = { verification ->
                     currentVerification = verification
-                    val allowedTypes = req.documentTypes ?: KoraIDV.getConfiguration().documentTypes
-                    _state.value = VerificationState.DocumentSelection(allowedTypes)
+                    loadCountries()
                 },
                 onFailure = { error ->
                     _state.value = VerificationState.Error(
@@ -121,27 +146,146 @@ class VerificationViewModel : ViewModel() {
         }
     }
 
-    fun selectDocumentType(type: DocumentType) {
-        selectedDocumentType = type
+    private suspend fun loadCountries() {
+        val manager = sessionManager ?: return
+
+        Log.d("KoraIDV", "loadCountries: calling getDocumentTypes(country=null)")
+        val result = manager.getDocumentTypes(country = null)
+        result.fold(
+            onSuccess = { docTypesResult ->
+                Log.d("KoraIDV", "loadCountries: success - ${docTypesResult.countries.size} countries, ${docTypesResult.documentTypes.size} doc types")
+                if (docTypesResult.countries.isNotEmpty()) {
+                    _state.value = VerificationState.CountrySelection(docTypesResult.countries)
+                } else {
+                    _state.value = VerificationState.DocumentSelection(
+                        documentTypes = docTypesResult.documentTypes,
+                        selectedCountry = null
+                    )
+                }
+            },
+            onFailure = { error ->
+                Log.e("KoraIDV", "loadCountries: FAILED - ${error.message}", error)
+                // Fallback: group config document types by country
+                val countryMap = buildFallbackCountryMap()
+                if (countryMap.size > 1) {
+                    val countries = countryMap.keys.map { code ->
+                        CountryInfo(
+                            code = code,
+                            name = countryCodeToName(code),
+                            flagEmoji = null
+                        )
+                    }
+                    _state.value = VerificationState.CountrySelection(countries)
+                } else {
+                    // Single country — skip to document selection
+                    val allTypes = KoraIDV.getConfiguration().documentTypes.map { it.toDocumentTypeInfo() }
+                    _state.value = VerificationState.DocumentSelection(
+                        documentTypes = allTypes,
+                        selectedCountry = countryMap.keys.firstOrNull()?.let {
+                            CountryInfo(it, countryCodeToName(it), null)
+                        }
+                    )
+                }
+            }
+        )
+    }
+
+    fun selectCountry(country: CountryInfo) {
+        selectedCountry = country
+        viewModelScope.launch {
+            _state.value = VerificationState.Loading
+            val manager = sessionManager ?: return@launch
+
+            val result = manager.getDocumentTypes(country = country.code)
+            result.fold(
+                onSuccess = { docTypesResult ->
+                    _state.value = VerificationState.DocumentSelection(
+                        documentTypes = docTypesResult.documentTypes,
+                        selectedCountry = country
+                    )
+                },
+                onFailure = { error ->
+                    Log.e("KoraIDV", "selectCountry: FAILED - ${error.message}", error)
+                    // Fallback: filter config document types by selected country
+                    val filtered = KoraIDV.getConfiguration().documentTypes
+                        .filter { it.country == country.code || it.country == "INTL" }
+                        .map { it.toDocumentTypeInfo() }
+                    _state.value = VerificationState.DocumentSelection(
+                        documentTypes = filtered,
+                        selectedCountry = country
+                    )
+                }
+            )
+        }
+    }
+
+    private fun buildFallbackCountryMap(): Map<String, List<DocumentType>> {
+        return KoraIDV.getConfiguration().documentTypes
+            .filter { it.country != "INTL" }
+            .groupBy { it.country }
+    }
+
+    private fun DocumentType.toDocumentTypeInfo(): DocumentTypeInfo {
+        return DocumentTypeInfo(
+            code = code,
+            displayName = displayName,
+            description = null,
+            country = country,
+            countryName = countryCodeToName(country),
+            requiresBack = requiresBack,
+            category = null
+        )
+    }
+
+    companion object {
+        private val countryNames = mapOf(
+            "US" to "United States",
+            "DE" to "Germany",
+            "FR" to "France",
+            "ES" to "Spain",
+            "IT" to "Italy",
+            "GH" to "Ghana",
+            "NG" to "Nigeria",
+            "KE" to "Kenya",
+            "ZA" to "South Africa",
+            "INTL" to "International"
+        )
+
+        fun countryCodeToName(code: String): String {
+            return countryNames[code] ?: code
+        }
+    }
+
+    fun selectDocumentType(docType: DocumentTypeInfo) {
+        selectedDocumentTypeCode = docType.code
+        selectedDocumentDisplayName = docType.displayName
+        selectedDocumentRequiresBack = docType.requiresBack
         documentFrontCaptured = false
-        _state.value = VerificationState.DocumentCapture(type, DocumentSide.FRONT)
+        _state.value = VerificationState.DocumentCapture(
+            documentTypeCode = docType.code,
+            documentDisplayName = docType.displayName,
+            requiresBack = docType.requiresBack,
+            side = DocumentSide.FRONT
+        )
     }
 
     fun submitDocument(imageData: ByteArray) {
         viewModelScope.launch {
-            _state.value = VerificationState.Loading
+            _state.value = VerificationState.Processing(ProcessingStep.ANALYZING)
 
             val verification = currentVerification ?: return@launch
             val manager = sessionManager ?: return@launch
-            val docType = selectedDocumentType ?: return@launch
+            val docTypeCode = selectedDocumentTypeCode ?: return@launch
 
             val side = if (documentFrontCaptured) DocumentSide.BACK else DocumentSide.FRONT
 
-            val result = manager.uploadDocument(
+            _state.value = VerificationState.Processing(ProcessingStep.CHECKING_QUALITY)
+
+            val result = manager.uploadDocumentByCode(
                 verificationId = verification.id,
                 imageData = imageData,
                 side = side,
-                documentType = docType
+                documentTypeCode = docTypeCode
             )
 
             result.fold(
@@ -149,8 +293,13 @@ class VerificationViewModel : ViewModel() {
                     if (response.success) {
                         if (side == DocumentSide.FRONT) {
                             documentFrontCaptured = true
-                            if (docType.requiresBack) {
-                                _state.value = VerificationState.DocumentCapture(docType, DocumentSide.BACK)
+                            if (selectedDocumentRequiresBack) {
+                                _state.value = VerificationState.DocumentCapture(
+                                    documentTypeCode = docTypeCode,
+                                    documentDisplayName = selectedDocumentDisplayName ?: "",
+                                    requiresBack = true,
+                                    side = DocumentSide.BACK
+                                )
                             } else {
                                 _state.value = VerificationState.SelfieCapture
                             }
@@ -158,7 +307,7 @@ class VerificationViewModel : ViewModel() {
                             _state.value = VerificationState.SelfieCapture
                         }
                     } else {
-                        val issues = response.qualityIssues?.map { it.message } ?: listOf("Quality check failed")
+                        val issues = response.warnings ?: listOf("Quality check failed")
                         _state.value = VerificationState.Error(
                             KoraException.QualityValidationFailed(issues)
                         )
@@ -175,7 +324,7 @@ class VerificationViewModel : ViewModel() {
 
     fun submitSelfie(imageData: ByteArray) {
         viewModelScope.launch {
-            _state.value = VerificationState.Loading
+            _state.value = VerificationState.Processing(ProcessingStep.ANALYZING)
 
             val verification = currentVerification ?: return@launch
             val manager = sessionManager ?: return@launch
@@ -187,14 +336,14 @@ class VerificationViewModel : ViewModel() {
 
             result.fold(
                 onSuccess = { response ->
-                    if (response.success) {
+                    if (response.faceDetected) {
                         if (KoraIDV.getConfiguration().livenessMode == LivenessMode.ACTIVE) {
                             _state.value = VerificationState.LivenessCheck
                         } else {
                             completeVerification()
                         }
                     } else {
-                        val issues = response.qualityIssues?.map { it.message } ?: listOf("Quality check failed")
+                        val issues = response.qualityIssues ?: listOf("Face not detected")
                         _state.value = VerificationState.Error(
                             KoraException.QualityValidationFailed(issues)
                         )
@@ -223,7 +372,7 @@ class VerificationViewModel : ViewModel() {
     }
 
     private suspend fun completeVerification() {
-        _state.value = VerificationState.Processing
+        _state.value = VerificationState.Processing(ProcessingStep.FINALIZING)
 
         val verification = currentVerification ?: return
         val manager = sessionManager ?: return
@@ -249,15 +398,24 @@ class VerificationViewModel : ViewModel() {
     }
 
     fun retry() {
-        val docType = selectedDocumentType
-        when (val currentState = _state.value) {
+        val docTypeCode = selectedDocumentTypeCode
+        when (_state.value) {
             is VerificationState.Error -> {
-                // Retry from appropriate step
-                if (docType != null) {
+                if (docTypeCode != null) {
                     if (!documentFrontCaptured) {
-                        _state.value = VerificationState.DocumentCapture(docType, DocumentSide.FRONT)
-                    } else if (docType.requiresBack) {
-                        _state.value = VerificationState.DocumentCapture(docType, DocumentSide.BACK)
+                        _state.value = VerificationState.DocumentCapture(
+                            documentTypeCode = docTypeCode,
+                            documentDisplayName = selectedDocumentDisplayName ?: "",
+                            requiresBack = selectedDocumentRequiresBack,
+                            side = DocumentSide.FRONT
+                        )
+                    } else if (selectedDocumentRequiresBack) {
+                        _state.value = VerificationState.DocumentCapture(
+                            documentTypeCode = docTypeCode,
+                            documentDisplayName = selectedDocumentDisplayName ?: "",
+                            requiresBack = true,
+                            side = DocumentSide.BACK
+                        )
                     } else {
                         _state.value = VerificationState.SelfieCapture
                     }
@@ -268,4 +426,7 @@ class VerificationViewModel : ViewModel() {
             else -> {}
         }
     }
+
+    internal fun getSessionManager(): SessionManager? = sessionManager
+    internal fun getCurrentVerification(): Verification? = currentVerification
 }

@@ -73,27 +73,28 @@ enum class DocumentType(
     val code: String,
     val displayName: String,
     val hasMRZ: Boolean,
-    val requiresBack: Boolean
+    val requiresBack: Boolean,
+    val country: String
 ) {
     // US Documents
-    US_DRIVERS_LICENSE("us_drivers_license", "Driver's License", false, true),
-    US_STATE_ID("us_state_id", "State ID Card", false, true),
-    US_GREEN_CARD("us_green_card", "Permanent Resident Card", true, true),
+    US_DRIVERS_LICENSE("us_drivers_license", "Driver's License", false, true, "US"),
+    US_STATE_ID("us_state_id", "State ID Card", false, true, "US"),
+    US_GREEN_CARD("us_green_card", "Permanent Resident Card", true, true, "US"),
 
     // Passport (all countries)
-    INTERNATIONAL_PASSPORT("international_passport", "Passport", true, false),
+    INTERNATIONAL_PASSPORT("international_passport", "Passport", true, false, "INTL"),
 
     // EU ID Cards
-    EU_ID_GERMANY("eu_id_de", "National ID Card (Germany)", true, true),
-    EU_ID_FRANCE("eu_id_fr", "National ID Card (France)", true, true),
-    EU_ID_SPAIN("eu_id_es", "National ID Card (Spain)", true, true),
-    EU_ID_ITALY("eu_id_it", "National ID Card (Italy)", true, true),
+    EU_ID_GERMANY("eu_id_de", "National ID Card (Germany)", true, true, "DE"),
+    EU_ID_FRANCE("eu_id_fr", "National ID Card (France)", true, true, "FR"),
+    EU_ID_SPAIN("eu_id_es", "National ID Card (Spain)", true, true, "ES"),
+    EU_ID_ITALY("eu_id_it", "National ID Card (Italy)", true, true, "IT"),
 
     // Africa
-    GHANA_CARD("ghana_card", "Ghana Card", false, true),
-    NIGERIA_NIN("ng_nin", "NIN Slip", false, false),
-    KENYA_ID("ke_id", "National ID", false, true),
-    SOUTH_AFRICA_ID("za_id", "Smart ID Card", false, true);
+    GHANA_CARD("ghana_card", "Ghana Card", false, true, "GH"),
+    NIGERIA_NIN("ng_nin", "NIN Slip", false, false, "NG"),
+    KENYA_ID("ke_id", "National ID", false, true, "KE"),
+    SOUTH_AFRICA_ID("za_id", "Smart ID Card", false, true, "ZA");
 
     companion object {
         fun fromCode(code: String): DocumentType? {
@@ -106,7 +107,7 @@ enum class DocumentType(
  * Theme configuration for UI customization.
  */
 data class KoraTheme(
-    val primaryColor: Long = 0xFF2563EB,      // Blue
+    val primaryColor: Long = 0xFF0D9488,      // Teal 600
     val backgroundColor: Long = 0xFFFFFFFF,    // White
     val surfaceColor: Long = 0xFFF8FAFC,       // Light gray
     val textColor: Long = 0xFF1E293B,          // Dark slate

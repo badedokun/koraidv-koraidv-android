@@ -1,11 +1,10 @@
 package com.koraidv.sdk.api
 
+import android.util.Base64
+import android.util.Log
 import com.koraidv.sdk.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import okhttp3.MediaType.Companion.toMediaTypeOrNull
-import okhttp3.MultipartBody
-import okhttp3.RequestBody.Companion.toRequestBody
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -73,28 +72,73 @@ internal class SessionManager(
         documentType: DocumentType
     ): Result<DocumentUploadResult> = withContext(Dispatchers.IO) {
         try {
-            val imagePart = MultipartBody.Part.createFormData(
-                "image",
-                "document.jpg",
-                imageData.toRequestBody("image/jpeg".toMediaTypeOrNull())
-            )
-            val documentTypePart = documentType.code.toRequestBody("text/plain".toMediaTypeOrNull())
-            val sidePart = side.value.toRequestBody("text/plain".toMediaTypeOrNull())
+            val base64Image = Base64.encodeToString(imageData, Base64.NO_WRAP)
 
             val response = if (side == DocumentSide.FRONT) {
-                apiClient.apiService.uploadDocument(verificationId, imagePart, documentTypePart, sidePart)
+                apiClient.apiService.uploadDocument(
+                    verificationId,
+                    UploadDocumentRequest(
+                        documentType = documentType.code,
+                        imageBase64 = base64Image
+                    )
+                )
             } else {
-                apiClient.apiService.uploadDocumentBack(verificationId, imagePart, documentTypePart)
+                apiClient.apiService.uploadDocumentBack(
+                    verificationId,
+                    UploadDocumentBackRequest(imageBase64 = base64Image)
+                )
             }
 
             if (response.isSuccessful && response.body() != null) {
                 val body = response.body()!!
                 Result.success(
                     DocumentUploadResult(
-                        success = body.success,
-                        documentId = body.document_id,
-                        qualityScore = body.quality_score,
-                        qualityIssues = body.quality_issues?.map { QualityIssue(it.type, it.message, it.severity) }
+                        success = body.documentId != null,
+                        documentId = body.documentId,
+                        qualityScore = body.qualityScore,
+                        warnings = body.warnings
+                    )
+                )
+            } else {
+                Result.failure(mapHttpError(response.code()))
+            }
+        } catch (e: Exception) {
+            Result.failure(mapException(e))
+        }
+    }
+
+    suspend fun uploadDocumentByCode(
+        verificationId: String,
+        imageData: ByteArray,
+        side: DocumentSide,
+        documentTypeCode: String
+    ): Result<DocumentUploadResult> = withContext(Dispatchers.IO) {
+        try {
+            val base64Image = Base64.encodeToString(imageData, Base64.NO_WRAP)
+
+            val response = if (side == DocumentSide.FRONT) {
+                apiClient.apiService.uploadDocument(
+                    verificationId,
+                    UploadDocumentRequest(
+                        documentType = documentTypeCode,
+                        imageBase64 = base64Image
+                    )
+                )
+            } else {
+                apiClient.apiService.uploadDocumentBack(
+                    verificationId,
+                    UploadDocumentBackRequest(imageBase64 = base64Image)
+                )
+            }
+
+            if (response.isSuccessful && response.body() != null) {
+                val body = response.body()!!
+                Result.success(
+                    DocumentUploadResult(
+                        success = body.documentId != null,
+                        documentId = body.documentId,
+                        qualityScore = body.qualityScore,
+                        warnings = body.warnings
                     )
                 )
             } else {
@@ -110,23 +154,21 @@ internal class SessionManager(
         imageData: ByteArray
     ): Result<SelfieUploadResult> = withContext(Dispatchers.IO) {
         try {
-            val imagePart = MultipartBody.Part.createFormData(
-                "image",
-                "selfie.jpg",
-                imageData.toRequestBody("image/jpeg".toMediaTypeOrNull())
-            )
+            val base64Image = Base64.encodeToString(imageData, Base64.NO_WRAP)
 
-            val response = apiClient.apiService.uploadSelfie(verificationId, imagePart)
+            val response = apiClient.apiService.uploadSelfie(
+                verificationId,
+                UploadSelfieRequest(imageBase64 = base64Image)
+            )
 
             if (response.isSuccessful && response.body() != null) {
                 val body = response.body()!!
                 Result.success(
                     SelfieUploadResult(
-                        success = body.success,
-                        selfieId = body.selfie_id,
-                        faceDetected = body.face_detected,
-                        qualityScore = body.quality_score,
-                        qualityIssues = body.quality_issues?.map { QualityIssue(it.type, it.message, it.severity) }
+                        success = body.faceDetected,
+                        faceDetected = body.faceDetected,
+                        qualityScore = body.qualityScore,
+                        qualityIssues = body.qualityIssues
                     )
                 )
             } else {
@@ -147,16 +189,16 @@ internal class SessionManager(
                 val body = response.body()!!
                 Result.success(
                     LivenessSession(
-                        sessionId = body.session_id,
-                        challenges = body.challenges.map { challenge ->
+                        sessionId = body.id,
+                        challenges = body.challenges.mapIndexed { index, challenge ->
                             LivenessChallenge(
-                                id = challenge.id,
+                                id = "${body.id}_${index}",
                                 type = ChallengeType.fromValue(challenge.type),
-                                instruction = challenge.instruction,
-                                order = challenge.order
+                                instruction = getInstructionForType(challenge.type),
+                                order = index
                             )
                         },
-                        expiresAt = parseDate(body.expires_at)
+                        expiresAt = Date(System.currentTimeMillis() + 300_000) // 5 min default
                     )
                 )
             } else {
@@ -173,26 +215,24 @@ internal class SessionManager(
         imageData: ByteArray
     ): Result<LivenessChallengeResult> = withContext(Dispatchers.IO) {
         try {
-            val imagePart = MultipartBody.Part.createFormData(
-                "image",
-                "challenge.jpg",
-                imageData.toRequestBody("image/jpeg".toMediaTypeOrNull())
-            )
-            val challengeTypePart = challenge.type.value.toRequestBody("text/plain".toMediaTypeOrNull())
-            val challengeIdPart = challenge.id.toRequestBody("text/plain".toMediaTypeOrNull())
+            val base64Image = Base64.encodeToString(imageData, Base64.NO_WRAP)
 
             val response = apiClient.apiService.submitLivenessChallenge(
-                verificationId, imagePart, challengeTypePart, challengeIdPart
+                verificationId,
+                SubmitLivenessChallengeRequest(
+                    challengeType = challenge.type.value,
+                    imageBase64 = base64Image
+                )
             )
 
             if (response.isSuccessful && response.body() != null) {
                 val body = response.body()!!
                 Result.success(
                     LivenessChallengeResult(
-                        success = body.success,
-                        challengePassed = body.challenge_passed,
-                        confidence = body.confidence,
-                        remainingChallenges = body.remaining_challenges
+                        success = body.completed ?: false,
+                        challengePassed = body.completed ?: false,
+                        confidence = body.score ?: 0.0,
+                        remainingChallenges = body.remainingChallenges ?: 0
                     )
                 )
             } else {
@@ -221,6 +261,49 @@ internal class SessionManager(
         }
     }
 
+    suspend fun getDocumentTypes(
+        country: String? = null
+    ): Result<DocumentTypesResult> = withContext(Dispatchers.IO) {
+        try {
+            Log.d("KoraIDV", "getDocumentTypes: calling API with country=$country")
+            val response = apiClient.apiService.getDocumentTypes(country)
+            Log.d("KoraIDV", "getDocumentTypes: response code=${response.code()}, isSuccessful=${response.isSuccessful}")
+
+            if (response.isSuccessful && response.body() != null) {
+                val body = response.body()!!
+                Log.d("KoraIDV", "getDocumentTypes: body has ${body.documentTypes?.size ?: 0} docTypes, ${body.countries?.size ?: 0} countries")
+                Result.success(
+                    DocumentTypesResult(
+                        documentTypes = body.documentTypes?.map { dto ->
+                            DocumentTypeInfo(
+                                code = dto.code,
+                                displayName = dto.displayName,
+                                description = dto.description,
+                                country = dto.country,
+                                countryName = dto.countryName,
+                                requiresBack = dto.requiresBack,
+                                category = dto.category
+                            )
+                        } ?: emptyList(),
+                        countries = body.countries?.map { dto ->
+                            CountryInfo(
+                                code = dto.code,
+                                name = dto.name,
+                                flagEmoji = dto.flagEmoji
+                            )
+                        } ?: emptyList()
+                    )
+                )
+            } else {
+                Log.e("KoraIDV", "getDocumentTypes: HTTP error ${response.code()} - ${response.errorBody()?.string()}")
+                Result.failure(mapHttpError(response.code()))
+            }
+        } catch (e: Exception) {
+            Log.e("KoraIDV", "getDocumentTypes: exception", e)
+            Result.failure(mapException(e))
+        }
+    }
+
     // Session management
 
     val isSessionTimedOut: Boolean
@@ -240,14 +323,26 @@ internal class SessionManager(
 
     // Mapping helpers
 
+    private fun getInstructionForType(type: String): String {
+        return when (type) {
+            "blink" -> "Blink your eyes"
+            "smile" -> "Smile naturally"
+            "turn_left" -> "Turn your head to the left"
+            "turn_right" -> "Turn your head to the right"
+            "nod_up" -> "Look up"
+            "nod_down" -> "Look down"
+            else -> "Follow the instruction"
+        }
+    }
+
     private fun mapVerification(response: VerificationResponse): Verification {
         return Verification(
             id = response.id,
-            externalId = response.external_id,
-            tenantId = response.tenant_id,
+            externalId = response.externalId ?: "",
+            tenantId = response.tenantId ?: "",
             tier = response.tier,
             status = VerificationStatus.fromValue(response.status),
-            documentVerification = response.document_verification?.let {
+            documentVerification = response.documentVerification?.let {
                 DocumentVerification(
                     documentType = it.document_type,
                     documentNumber = it.document_number,
@@ -261,10 +356,10 @@ internal class SessionManager(
                     extractedFields = it.extracted_fields
                 )
             },
-            faceVerification = response.face_verification?.let {
+            faceVerification = response.faceVerification?.let {
                 FaceVerification(it.match_score, it.match_result, it.confidence)
             },
-            livenessVerification = response.liveness_verification?.let {
+            livenessVerification = response.livenessVerification?.let {
                 LivenessVerification(
                     livenessScore = it.liveness_score,
                     isLive = it.is_live,
@@ -273,11 +368,11 @@ internal class SessionManager(
                     }
                 )
             },
-            riskSignals = response.risk_signals?.map { RiskSignal(it.code, it.severity, it.message) },
-            riskScore = response.risk_score,
-            createdAt = parseDate(response.created_at),
-            updatedAt = parseDate(response.updated_at),
-            completedAt = response.completed_at?.let { parseDate(it) }
+            riskSignals = response.riskSignals?.map { RiskSignal(it.code, it.severity, it.message) },
+            riskScore = response.riskScore,
+            createdAt = parseDate(response.createdAt),
+            updatedAt = parseDate(response.updatedAt),
+            completedAt = response.completedAt?.let { parseDate(it) }
         )
     }
 
@@ -316,21 +411,14 @@ data class DocumentUploadResult(
     val success: Boolean,
     val documentId: String?,
     val qualityScore: Double?,
-    val qualityIssues: List<QualityIssue>?
+    val warnings: List<String>?
 )
 
 data class SelfieUploadResult(
     val success: Boolean,
-    val selfieId: String?,
     val faceDetected: Boolean,
     val qualityScore: Double?,
-    val qualityIssues: List<QualityIssue>?
-)
-
-data class QualityIssue(
-    val type: String,
-    val message: String,
-    val severity: String
+    val qualityIssues: List<String>?
 )
 
 data class LivenessSession(
@@ -372,3 +460,25 @@ enum class DocumentSide(val value: String) {
     FRONT("front"),
     BACK("back")
 }
+
+// Document types result models
+data class DocumentTypesResult(
+    val documentTypes: List<DocumentTypeInfo>,
+    val countries: List<CountryInfo>
+)
+
+data class DocumentTypeInfo(
+    val code: String,
+    val displayName: String,
+    val description: String?,
+    val country: String?,
+    val countryName: String?,
+    val requiresBack: Boolean,
+    val category: String?
+)
+
+data class CountryInfo(
+    val code: String,
+    val name: String,
+    val flagEmoji: String?
+)

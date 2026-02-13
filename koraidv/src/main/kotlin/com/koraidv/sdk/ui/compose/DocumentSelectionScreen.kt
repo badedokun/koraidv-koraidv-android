@@ -11,21 +11,34 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import com.koraidv.sdk.DocumentType
+import com.koraidv.sdk.api.CountryInfo
+import com.koraidv.sdk.api.DocumentTypeInfo
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DocumentSelectionScreen(
-    allowedTypes: List<DocumentType>,
-    onSelect: (DocumentType) -> Unit,
+    documentTypes: List<DocumentTypeInfo>,
+    selectedCountry: CountryInfo?,
+    onSelect: (DocumentTypeInfo) -> Unit,
     onCancel: () -> Unit
 ) {
-    var selectedType by remember { mutableStateOf<DocumentType?>(null) }
+    var selectedType by remember { mutableStateOf<DocumentTypeInfo?>(null) }
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Select Document Type") },
+                title = {
+                    Column {
+                        Text("Select Document Type")
+                        if (selectedCountry != null) {
+                            Text(
+                                text = selectedCountry.name,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                },
                 navigationIcon = {
                     IconButton(onClick = onCancel) {
                         Icon(Icons.Default.Close, contentDescription = "Cancel")
@@ -64,10 +77,10 @@ fun DocumentSelectionScreen(
                 )
             }
 
-            // Group documents by category
-            val groupedTypes = allowedTypes.groupBy { getCategory(it) }
+            // Group documents by category if available
+            val grouped = documentTypes.groupBy { it.category ?: "Documents" }
 
-            groupedTypes.forEach { (category, types) ->
+            grouped.forEach { (category, types) ->
                 item {
                     Text(
                         text = category,
@@ -78,7 +91,7 @@ fun DocumentSelectionScreen(
                 }
 
                 items(types) { type ->
-                    DocumentTypeItem(
+                    DocumentTypeInfoItem(
                         type = type,
                         isSelected = selectedType == type,
                         onClick = { selectedType = type }
@@ -91,8 +104,8 @@ fun DocumentSelectionScreen(
 }
 
 @Composable
-private fun DocumentTypeItem(
-    type: DocumentType,
+private fun DocumentTypeInfoItem(
+    type: DocumentTypeInfo,
     isSelected: Boolean,
     onClick: () -> Unit
 ) {
@@ -120,7 +133,7 @@ private fun DocumentTypeItem(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Icon(
-                imageVector = getDocumentIcon(type),
+                imageVector = getDocumentIcon(type.code),
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.size(32.dp)
@@ -131,11 +144,18 @@ private fun DocumentTypeItem(
                     text = type.displayName,
                     style = MaterialTheme.typography.bodyLarge
                 )
+                if (type.description != null) {
+                    Text(
+                        text = type.description,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
                 if (type.requiresBack) {
                     Text(
                         text = "Front and back required",
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = MaterialTheme.colorScheme.primary
                     )
                 }
             }
@@ -147,20 +167,11 @@ private fun DocumentTypeItem(
     }
 }
 
-private fun getCategory(type: DocumentType): String {
-    return when (type) {
-        DocumentType.US_DRIVERS_LICENSE, DocumentType.US_STATE_ID, DocumentType.US_GREEN_CARD -> "United States"
-        DocumentType.INTERNATIONAL_PASSPORT -> "Passport"
-        DocumentType.EU_ID_GERMANY, DocumentType.EU_ID_FRANCE, DocumentType.EU_ID_SPAIN, DocumentType.EU_ID_ITALY -> "European Union"
-        DocumentType.GHANA_CARD, DocumentType.NIGERIA_NIN, DocumentType.KENYA_ID, DocumentType.SOUTH_AFRICA_ID -> "Africa"
-    }
-}
-
-private fun getDocumentIcon(type: DocumentType): androidx.compose.ui.graphics.vector.ImageVector {
-    return when (type) {
-        DocumentType.INTERNATIONAL_PASSPORT -> Icons.Default.Book
-        DocumentType.US_DRIVERS_LICENSE -> Icons.Default.DirectionsCar
-        DocumentType.US_GREEN_CARD -> Icons.Default.CardMembership
+private fun getDocumentIcon(code: String): androidx.compose.ui.graphics.vector.ImageVector {
+    return when {
+        code.contains("passport", ignoreCase = true) -> Icons.Default.Book
+        code.contains("driver", ignoreCase = true) -> Icons.Default.DirectionsCar
+        code.contains("green_card", ignoreCase = true) -> Icons.Default.CardMembership
         else -> Icons.Default.Badge
     }
 }
