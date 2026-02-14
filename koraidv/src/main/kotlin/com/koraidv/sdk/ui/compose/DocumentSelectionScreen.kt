@@ -1,20 +1,27 @@
 package com.koraidv.sdk.ui.compose
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.koraidv.sdk.api.CountryInfo
 import com.koraidv.sdk.api.DocumentTypeInfo
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DocumentSelectionScreen(
     documentTypes: List<DocumentTypeInfo>,
@@ -22,156 +29,134 @@ fun DocumentSelectionScreen(
     onSelect: (DocumentTypeInfo) -> Unit,
     onCancel: () -> Unit
 ) {
-    var selectedType by remember { mutableStateOf<DocumentTypeInfo?>(null) }
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.White)
+    ) {
+        // Progress bar (step 2/5)
+        StepProgressBar(total = 5, current = 2)
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = {
-                    Column {
-                        Text("Select Document Type")
-                        if (selectedCountry != null) {
-                            Text(
-                                text = selectedCountry.name,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-                },
-                navigationIcon = {
-                    IconButton(onClick = onCancel) {
-                        Icon(Icons.Default.Close, contentDescription = "Cancel")
-                    }
-                }
+        // Header with back button
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            LightBackButton(onClick = onCancel)
+            Text(
+                text = "Choose your document",
+                fontSize = 18.sp,
+                fontWeight = FontWeight.W600,
+                letterSpacing = (-0.3).sp,
+                color = KoraColors.TextPrimary
             )
-        },
-        bottomBar = {
-            Surface {
-                Column(
-                    modifier = Modifier.padding(16.dp)
-                ) {
-                    Button(
-                        onClick = { selectedType?.let { onSelect(it) } },
-                        modifier = Modifier.fillMaxWidth(),
-                        enabled = selectedType != null
-                    ) {
-                        Text("Continue")
-                    }
-                }
-            }
         }
-    ) { paddingValues ->
+
+        // Country indicator
+        if (selectedCountry != null) {
+            Text(
+                text = "${selectedCountry.flagEmoji ?: ""} ${selectedCountry.name}",
+                fontSize = 14.sp,
+                color = KoraColors.TextSecondary,
+                modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp)
+            )
+        }
+
+        // Document list
         LazyColumn(
             modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-                .padding(horizontal = 16.dp)
+                .weight(1f)
+                .padding(horizontal = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+            contentPadding = PaddingValues(vertical = 8.dp)
         ) {
-            item {
-                Text(
-                    text = "Choose the type of ID you'll use for verification",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(vertical = 16.dp)
+            items(documentTypes) { docType ->
+                DocumentCard(
+                    docType = docType,
+                    onClick = { onSelect(docType) }
                 )
-            }
-
-            // Group documents by category if available
-            val grouped = documentTypes.groupBy { it.category ?: "Documents" }
-
-            grouped.forEach { (category, types) ->
-                item {
-                    Text(
-                        text = category,
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(vertical = 8.dp)
-                    )
-                }
-
-                items(types) { type ->
-                    DocumentTypeInfoItem(
-                        type = type,
-                        isSelected = selectedType == type,
-                        onClick = { selectedType = type }
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                }
             }
         }
     }
 }
 
 @Composable
-private fun DocumentTypeInfoItem(
-    type: DocumentTypeInfo,
-    isSelected: Boolean,
+private fun DocumentCard(
+    docType: DocumentTypeInfo,
     onClick: () -> Unit
 ) {
-    Card(
+    val (iconBg, iconTint) = getDocumentStyle(docType.code)
+
+    Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick),
-        colors = CardDefaults.cardColors(
-            containerColor = if (isSelected) {
-                MaterialTheme.colorScheme.primaryContainer
-            } else {
-                MaterialTheme.colorScheme.surface
-            }
-        ),
-        border = if (isSelected) {
-            CardDefaults.outlinedCardBorder().copy(
-                brush = androidx.compose.ui.graphics.SolidColor(MaterialTheme.colorScheme.primary)
-            )
-        } else null
+            .clip(RoundedCornerShape(16.dp))
+            .background(KoraColors.Surface)
+            .border(2.dp, Color.Transparent, RoundedCornerShape(16.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 18.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        Row(
+        // Icon
+        Box(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
+                .size(48.dp)
+                .clip(RoundedCornerShape(14.dp))
+                .background(iconBg),
+            contentAlignment = Alignment.Center
         ) {
             Icon(
-                imageVector = getDocumentIcon(type.code),
+                imageVector = getDocumentIcon(docType.code),
                 contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(32.dp)
-            )
-            Spacer(modifier = Modifier.width(16.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = type.displayName,
-                    style = MaterialTheme.typography.bodyLarge
-                )
-                if (type.description != null) {
-                    Text(
-                        text = type.description,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-                if (type.requiresBack) {
-                    Text(
-                        text = "Front and back required",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                }
-            }
-            RadioButton(
-                selected = isSelected,
-                onClick = onClick
+                modifier = Modifier.size(24.dp),
+                tint = iconTint
             )
         }
+
+        // Text
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = docType.displayName,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.W600,
+                color = KoraColors.TextPrimary
+            )
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(
+                text = if (docType.requiresBack) "Front & back required" else "Photo page only",
+                fontSize = 13.sp,
+                color = KoraColors.TextSecondary
+            )
+        }
+
+        // Arrow chevron
+        Icon(
+            imageVector = Icons.Default.ChevronRight,
+            contentDescription = null,
+            modifier = Modifier.size(20.dp),
+            tint = Color(0xFFCCCCCC)
+        )
     }
 }
 
-private fun getDocumentIcon(code: String): androidx.compose.ui.graphics.vector.ImageVector {
+private fun getDocumentIcon(code: String): ImageVector {
     return when {
-        code.contains("passport", ignoreCase = true) -> Icons.Default.Book
-        code.contains("driver", ignoreCase = true) -> Icons.Default.DirectionsCar
-        code.contains("green_card", ignoreCase = true) -> Icons.Default.CardMembership
-        else -> Icons.Default.Badge
+        code.contains("passport", ignoreCase = true) -> Icons.Default.MenuBook
+        code.contains("driver", ignoreCase = true) -> Icons.Default.CreditCard
+        code.contains("green_card", ignoreCase = true) || code.contains("resident", ignoreCase = true) -> Icons.Default.Badge
+        code.contains("state_id", ignoreCase = true) || code.contains("national", ignoreCase = true) -> Icons.Default.CreditCard
+        else -> Icons.Default.CreditCard
+    }
+}
+
+private fun getDocumentStyle(code: String): Pair<Color, Color> {
+    return when {
+        code.contains("passport", ignoreCase = true) -> Pair(KoraColors.WarningAmberLight, KoraColors.WarningAmber)
+        code.contains("green_card", ignoreCase = true) || code.contains("resident", ignoreCase = true) -> Pair(KoraColors.IndigoLight, KoraColors.Indigo)
+        else -> Pair(KoraColors.InfoBlueLight, KoraColors.InfoBlue)
     }
 }

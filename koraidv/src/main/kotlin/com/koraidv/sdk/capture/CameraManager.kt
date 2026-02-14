@@ -4,6 +4,8 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Matrix
+import android.os.Handler
+import android.os.Looper
 import android.util.Size
 import androidx.camera.core.*
 import java.io.ByteArrayOutputStream
@@ -13,6 +15,7 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleOwner
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 
 /**
  * Camera position enum
@@ -34,6 +37,7 @@ class CameraManager(private val context: Context) {
     private var camera: Camera? = null
 
     private val cameraExecutor: ExecutorService = Executors.newSingleThreadExecutor()
+    private val mainHandler = Handler(Looper.getMainLooper())
 
     private var currentPosition = CameraPosition.BACK
     private var onFrameListener: ((ImageProxy) -> Unit)? = null
@@ -110,6 +114,19 @@ class CameraManager(private val context: Context) {
                 imageCapture,
                 imageAnalyzer
             )
+
+            // Enable continuous auto-focus on center of frame
+            camera?.cameraControl?.let { control ->
+                val factory = SurfaceOrientedMeteringPointFactory(1f, 1f)
+                val centerPoint = factory.createPoint(0.5f, 0.5f)
+                val action = FocusMeteringAction.Builder(
+                    centerPoint,
+                    FocusMeteringAction.FLAG_AF or FocusMeteringAction.FLAG_AE
+                )
+                    .setAutoCancelDuration(0, TimeUnit.SECONDS) // Continuous — never cancel
+                    .build()
+                control.startFocusAndMetering(action)
+            }
         } catch (e: Exception) {
             e.printStackTrace()
         }
@@ -123,7 +140,7 @@ class CameraManager(private val context: Context) {
     }
 
     /**
-     * Capture a photo
+     * Capture a photo. Callback is invoked on the camera executor thread.
      */
     fun capturePhoto(onCaptured: (ByteArray?) -> Unit) {
         val imageCapture = imageCapture ?: run {
@@ -164,6 +181,16 @@ class CameraManager(private val context: Context) {
                 }
             }
         )
+    }
+
+    /**
+     * Capture a photo with callback on the main thread.
+     * Safe for updating Compose state from the callback.
+     */
+    fun capturePhotoOnMain(onCaptured: (ByteArray?) -> Unit) {
+        capturePhoto { bytes ->
+            mainHandler.post { onCaptured(bytes) }
+        }
     }
 
     /**

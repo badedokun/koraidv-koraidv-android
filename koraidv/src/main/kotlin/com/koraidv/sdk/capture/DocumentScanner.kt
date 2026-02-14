@@ -27,8 +27,8 @@ class DocumentScanner {
 
     private var lastCorners: List<PointF>? = null
     private var stabilityCounter = 0
-    private val stabilityThreshold = 5
-    private val stabilityTolerance = 0.02f
+    private val stabilityThreshold = 3    // ~450ms at one analysis every ~150ms
+    private val stabilityTolerance = 0.05f // 5% tolerance for handheld movement
 
     private val textRecognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
 

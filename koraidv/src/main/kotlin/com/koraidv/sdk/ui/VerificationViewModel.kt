@@ -34,14 +34,27 @@ sealed class VerificationState {
     data object LivenessCheck : VerificationState()
     data class Processing(val step: ProcessingStep = ProcessingStep.ANALYZING) : VerificationState()
     data class Complete(val verification: Verification) : VerificationState()
+    data class ExpiredDocument(val verification: Verification) : VerificationState()
+    data class ManualReview(val verification: Verification) : VerificationState()
     data class Error(val error: KoraException, val canRetry: Boolean = true) : VerificationState()
 }
 
 enum class ProcessingStep(val label: String) {
-    ANALYZING("Analyzing document..."),
-    CHECKING_QUALITY("Checking quality..."),
-    FINALIZING("Almost done...")
+    ANALYZING("Document analyzed"),
+    CHECKING_QUALITY("Checking face match"),
+    FINALIZING("Finalizing results")
 }
+
+/**
+ * Score breakdown metric for result screens
+ */
+data class ScoreBreakdown(
+    val liveness: Int,
+    val nameMatch: Int,
+    val documentQuality: Int,
+    val selfieMatch: Int,
+    val overallScore: Int
+)
 
 /**
  * ViewModel for verification flow
@@ -110,16 +123,15 @@ class VerificationViewModel : ViewModel() {
         return when (verification.status) {
             VerificationStatus.PENDING -> VerificationState.Consent
             VerificationStatus.DOCUMENT_REQUIRED -> {
-                // Go to country selection first
-                VerificationState.Loading // Will load countries
+                VerificationState.Loading
             }
             VerificationStatus.SELFIE_REQUIRED -> VerificationState.SelfieCapture
             VerificationStatus.LIVENESS_REQUIRED -> VerificationState.LivenessCheck
-            VerificationStatus.PROCESSING,
-            VerificationStatus.APPROVED,
-            VerificationStatus.REJECTED,
-            VerificationStatus.REVIEW_REQUIRED,
-            VerificationStatus.EXPIRED -> VerificationState.Complete(verification)
+            VerificationStatus.PROCESSING -> VerificationState.Complete(verification)
+            VerificationStatus.APPROVED -> VerificationState.Complete(verification)
+            VerificationStatus.REJECTED -> VerificationState.Complete(verification)
+            VerificationStatus.REVIEW_REQUIRED -> VerificationState.ManualReview(verification)
+            VerificationStatus.EXPIRED -> VerificationState.ExpiredDocument(verification)
         }
     }
 
@@ -165,7 +177,6 @@ class VerificationViewModel : ViewModel() {
             },
             onFailure = { error ->
                 Log.e("KoraIDV", "loadCountries: FAILED - ${error.message}", error)
-                // Fallback: group config document types by country
                 val countryMap = buildFallbackCountryMap()
                 if (countryMap.size > 1) {
                     val countries = countryMap.keys.map { code ->
@@ -177,7 +188,6 @@ class VerificationViewModel : ViewModel() {
                     }
                     _state.value = VerificationState.CountrySelection(countries)
                 } else {
-                    // Single country — skip to document selection
                     val allTypes = KoraIDV.getConfiguration().documentTypes.map { it.toDocumentTypeInfo() }
                     _state.value = VerificationState.DocumentSelection(
                         documentTypes = allTypes,
@@ -206,7 +216,6 @@ class VerificationViewModel : ViewModel() {
                 },
                 onFailure = { error ->
                     Log.e("KoraIDV", "selectCountry: FAILED - ${error.message}", error)
-                    // Fallback: filter config document types by selected country
                     val filtered = KoraIDV.getConfiguration().documentTypes
                         .filter { it.country == country.code || it.country == "INTL" }
                         .map { it.toDocumentTypeInfo() }
@@ -240,6 +249,7 @@ class VerificationViewModel : ViewModel() {
     companion object {
         private val countryNames = mapOf(
             "US" to "United States",
+            "GB" to "United Kingdom",
             "DE" to "Germany",
             "FR" to "France",
             "ES" to "Spain",
@@ -253,6 +263,45 @@ class VerificationViewModel : ViewModel() {
 
         fun countryCodeToName(code: String): String {
             return countryNames[code] ?: code
+        }
+
+        /**
+         * Compute score breakdown from verification results.
+         * Returns 4 metrics: Liveness, Name Match, Document Quality, Selfie Match
+         */
+        fun computeScoreBreakdown(verification: Verification): ScoreBreakdown {
+            val liveness = verification.livenessVerification?.let {
+                (it.livenessScore * 100).toInt().coerceIn(0, 100)
+            } ?: 0
+
+            val selfieMatch = verification.faceVerification?.let {
+                (it.matchScore * 100).toInt().coerceIn(0, 100)
+            } ?: 0
+
+            val documentQuality = verification.documentVerification?.let {
+                ((it.authenticityScore ?: 0.0) * 100).toInt().coerceIn(0, 100)
+            } ?: 0
+
+            // Name match: check if names are present and consistent
+            val nameMatch = if (verification.documentVerification?.firstName != null) 100 else 0
+
+            val overall = verification.riskScore?.let { 100 - it } ?: run {
+                val scores = listOfNotNull(
+                    if (liveness > 0) liveness else null,
+                    if (selfieMatch > 0) selfieMatch else null,
+                    if (documentQuality > 0) documentQuality else null,
+                    if (nameMatch > 0) nameMatch else null
+                )
+                if (scores.isNotEmpty()) scores.average().toInt() else 0
+            }
+
+            return ScoreBreakdown(
+                liveness = liveness,
+                nameMatch = nameMatch,
+                documentQuality = documentQuality,
+                selfieMatch = selfieMatch,
+                overallScore = overall.coerceIn(0, 100)
+            )
         }
     }
 
@@ -382,7 +431,12 @@ class VerificationViewModel : ViewModel() {
         result.fold(
             onSuccess = { completedVerification ->
                 currentVerification = completedVerification
-                _state.value = VerificationState.Complete(completedVerification)
+                // Route to the correct result screen based on status
+                _state.value = when (completedVerification.status) {
+                    VerificationStatus.EXPIRED -> VerificationState.ExpiredDocument(completedVerification)
+                    VerificationStatus.REVIEW_REQUIRED -> VerificationState.ManualReview(completedVerification)
+                    else -> VerificationState.Complete(completedVerification)
+                }
             },
             onFailure = { error ->
                 _state.value = VerificationState.Error(
@@ -423,10 +477,16 @@ class VerificationViewModel : ViewModel() {
                     _state.value = VerificationState.Consent
                 }
             }
+            is VerificationState.ExpiredDocument,
+            is VerificationState.Complete -> {
+                // Retry from document selection
+                _state.value = VerificationState.Consent
+            }
             else -> {}
         }
     }
 
     internal fun getSessionManager(): SessionManager? = sessionManager
     internal fun getCurrentVerification(): Verification? = currentVerification
+    internal fun getSelectedCountry(): CountryInfo? = selectedCountry
 }

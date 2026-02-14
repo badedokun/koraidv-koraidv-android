@@ -38,8 +38,8 @@ class FaceScanner {
 
     private var lastCenter: PointF? = null
     private var stabilityCounter = 0
-    private val stabilityThreshold = 10 // ~0.33s at 30fps
-    private val stabilityTolerance = 0.03f
+    private val stabilityThreshold = 4  // ~600ms with async ML Kit processing
+    private val stabilityTolerance = 0.05f // 5% tolerance for handheld movement
 
     // Face sizing: 8-55% of frame area
     private val minFaceFraction = 0.08f

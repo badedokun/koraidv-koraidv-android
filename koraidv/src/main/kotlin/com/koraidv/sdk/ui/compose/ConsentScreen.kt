@@ -1,7 +1,9 @@
 package com.koraidv.sdk.ui.compose
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -9,8 +11,14 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 
 @Composable
 fun ConsentScreen(
@@ -18,160 +26,183 @@ fun ConsentScreen(
     onDecline: () -> Unit
 ) {
     Column(
-        modifier = Modifier.fillMaxSize()
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.White)
     ) {
-        // Header
-        Surface(
-            color = MaterialTheme.colorScheme.surfaceVariant
+        // Progress bar (step 1/5)
+        StepProgressBar(total = 5, current = 1)
+
+        // Close button header
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp, vertical = 16.dp)
         ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(32.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Icon(
-                    imageVector = Icons.Default.VerifiedUser,
-                    contentDescription = null,
-                    modifier = Modifier.size(64.dp),
-                    tint = MaterialTheme.colorScheme.primary
-                )
-                Spacer(modifier = Modifier.height(16.dp))
-                Text(
-                    text = "Identity Verification",
-                    style = MaterialTheme.typography.headlineMedium
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = "We need to verify your identity to continue",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    textAlign = TextAlign.Center
-                )
-            }
+            LightCloseButton(onClick = onDecline)
         }
 
-        // Content
+        // Scrollable body
         Column(
             modifier = Modifier
                 .weight(1f)
                 .verticalScroll(rememberScrollState())
-                .padding(16.dp)
+                .padding(horizontal = 24.dp)
         ) {
-            // What you'll need section
-            Text(
-                text = "What you'll need",
-                style = MaterialTheme.typography.titleMedium,
-                modifier = Modifier.padding(vertical = 8.dp)
-            )
-            ChecklistItem(
-                icon = Icons.Default.Badge,
-                text = "A valid government-issued ID"
-            )
-            ChecklistItem(
-                icon = Icons.Default.CameraAlt,
-                text = "A device with a camera"
-            )
-            ChecklistItem(
-                icon = Icons.Default.LightMode,
-                text = "Good lighting conditions"
-            )
+            // Teal gradient icon
+            Box(
+                modifier = Modifier
+                    .size(72.dp)
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(
+                        Brush.linearGradient(
+                            listOf(KoraColors.Teal, KoraColors.Cyan),
+                            start = androidx.compose.ui.geometry.Offset(0f, 0f),
+                            end = androidx.compose.ui.geometry.Offset(
+                                Float.POSITIVE_INFINITY,
+                                Float.POSITIVE_INFINITY
+                            )
+                        )
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Default.VerifiedUser,
+                    contentDescription = null,
+                    modifier = Modifier.size(36.dp),
+                    tint = Color.White
+                )
+            }
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // Information collected section
+            // Title
             Text(
-                text = "Information we collect",
-                style = MaterialTheme.typography.titleMedium,
-                modifier = Modifier.padding(vertical = 8.dp)
+                text = "Verify your identity",
+                fontSize = 26.sp,
+                fontWeight = FontWeight.W700,
+                letterSpacing = (-0.5).sp,
+                color = KoraColors.TextPrimary
             )
-            BulletItem("Photos of your identity document")
-            BulletItem("A selfie for face matching")
-            BulletItem("Liveness check to confirm you're a real person")
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(8.dp))
 
-            // Privacy section
+            // Description
             Text(
-                text = "Your privacy",
-                style = MaterialTheme.typography.titleMedium,
-                modifier = Modifier.padding(vertical = 8.dp)
+                text = "We need to verify your identity to comply with regulations and keep your account secure.",
+                fontSize = 15.sp,
+                color = KoraColors.TextTertiary,
+                lineHeight = 22.sp
             )
-            Text(
-                text = "Your data is encrypted and stored securely. We only use your information for identity verification purposes and in accordance with our privacy policy.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+
+            Spacer(modifier = Modifier.height(28.dp))
+
+            // Consent items
+            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                ConsentItem(
+                    icon = Icons.Default.CreditCard,
+                    iconBg = KoraColors.InfoBlueLight,
+                    iconTint = KoraColors.InfoBlue,
+                    title = "Government-issued ID",
+                    subtitle = "Photo of your passport or front & back of your ID"
+                )
+                ConsentItem(
+                    icon = Icons.Default.Person,
+                    iconBg = KoraColors.SuccessGreenLight,
+                    iconTint = KoraColors.SuccessGreen,
+                    title = "Selfie photo",
+                    subtitle = "A quick selfie to match your ID"
+                )
+                ConsentItem(
+                    icon = Icons.Default.Visibility,
+                    iconBg = KoraColors.PurpleLight,
+                    iconTint = KoraColors.Purple,
+                    title = "Liveness check",
+                    subtitle = "Quick video to confirm it's really you"
+                )
+            }
         }
 
-        // Footer
-        Surface(
-            modifier = Modifier.fillMaxWidth()
+        // Bottom action area
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp)
+                .padding(top = 16.dp, bottom = 40.dp)
         ) {
-            Column(
-                modifier = Modifier.padding(16.dp)
-            ) {
-                Button(
-                    onClick = onAccept,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text("Accept & Continue")
+            KoraButton(
+                text = "Get started",
+                onClick = onAccept,
+                trailingIcon = {
+                    Icon(
+                        imageVector = Icons.Default.ArrowForward,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp),
+                        tint = Color.White
+                    )
                 }
-                Spacer(modifier = Modifier.height(8.dp))
-                TextButton(
-                    onClick = onDecline,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text("Decline")
-                }
-            }
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Text(
+                text = "By continuing, you agree to our Privacy Policy and consent to biometric processing.",
+                fontSize = 12.sp,
+                color = KoraColors.TextMuted,
+                textAlign = TextAlign.Center,
+                lineHeight = 18.sp,
+                modifier = Modifier.fillMaxWidth()
+            )
         }
     }
 }
 
 @Composable
-private fun ChecklistItem(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    text: String
+private fun ConsentItem(
+    icon: ImageVector,
+    iconBg: Color,
+    iconTint: Color,
+    title: String,
+    subtitle: String
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically
+            .clip(RoundedCornerShape(14.dp))
+            .background(KoraColors.Surface)
+            .padding(16.dp),
+        verticalAlignment = Alignment.Top,
+        horizontalArrangement = Arrangement.spacedBy(14.dp)
     ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.size(24.dp)
-        )
-        Spacer(modifier = Modifier.width(16.dp))
-        Text(
-            text = text,
-            style = MaterialTheme.typography.bodyMedium
-        )
-    }
-}
+        Box(
+            modifier = Modifier
+                .size(40.dp)
+                .clip(RoundedCornerShape(12.dp))
+                .background(iconBg),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                modifier = Modifier.size(20.dp),
+                tint = iconTint
+            )
+        }
 
-@Composable
-private fun BulletItem(text: String) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 4.dp),
-        verticalAlignment = Alignment.Top
-    ) {
-        Text(
-            text = "•",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.padding(end = 8.dp)
-        )
-        Text(
-            text = text,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
+        Column {
+            Text(
+                text = title,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.W600,
+                color = KoraColors.TextPrimary
+            )
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(
+                text = subtitle,
+                fontSize = 13.sp,
+                color = KoraColors.TextSecondary,
+                lineHeight = 18.sp
+            )
+        }
     }
 }

@@ -3,25 +3,38 @@ package com.koraidv.sdk.ui.compose
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Matrix
+import android.os.Handler
+import android.os.Looper
 import androidx.camera.core.ImageProxy
 import androidx.camera.view.PreviewView
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.koraidv.sdk.api.DocumentSide
@@ -36,9 +49,8 @@ import com.koraidv.sdk.liveness.*
 import java.io.ByteArrayOutputStream
 
 /**
- * Document capture screen with CameraManager, auto-capture, and review
+ * Document capture screen — dark theme with viewfinder, scan line, corner brackets
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DocumentCaptureScreen(
     documentTypeCode: String,
@@ -59,16 +71,14 @@ fun DocumentCaptureScreen(
     var documentDetected by remember { mutableStateOf(false) }
     var documentReady by remember { mutableStateOf(false) }
     var qualityGuidance by remember { mutableStateOf<String?>(null) }
-    var qualityFeedback by remember { mutableStateOf<String?>(null) }
     var capturedImageBytes by remember { mutableStateOf<ByteArray?>(null) }
     var capturedBitmap by remember { mutableStateOf<Bitmap?>(null) }
     var autoCapturePending by remember { mutableStateOf(false) }
 
-    // Auto-capture: when document is stable and quality is valid
     LaunchedEffect(autoCapturePending) {
         if (autoCapturePending && !isCapturing && cameraReady) {
             isCapturing = true
-            cameraManager.capturePhoto { bytes ->
+            cameraManager.capturePhotoOnMain { bytes ->
                 if (bytes != null) {
                     val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
                     if (bitmap != null) {
@@ -76,11 +86,10 @@ fun DocumentCaptureScreen(
                         if (validation.isValid) {
                             val stream = ByteArrayOutputStream()
                             bitmap.compress(Bitmap.CompressFormat.JPEG, 90, stream)
-                            val jpegBytes = stream.toByteArray()
-                            capturedImageBytes = jpegBytes
+                            capturedImageBytes = stream.toByteArray()
                             capturedBitmap = bitmap
                         } else {
-                            qualityFeedback = validation.issues.firstOrNull()?.message
+                            documentScanner.resetStability()
                         }
                     }
                 }
@@ -97,218 +106,190 @@ fun DocumentCaptureScreen(
         }
     }
 
-    // Review mode - show captured image
+    // ── Review mode ──────────────────────────────────────────────────────────
     val reviewBytes = capturedImageBytes
     val reviewBitmap = capturedBitmap
     if (reviewBytes != null && reviewBitmap != null) {
-        Scaffold(
-            topBar = {
-                TopAppBar(
-                    title = { Text("Review Photo") },
-                    navigationIcon = {
-                        IconButton(onClick = onCancel) {
-                            Icon(Icons.Default.Close, contentDescription = "Cancel")
-                        }
-                    }
-                )
-            }
-        ) { paddingValues ->
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(paddingValues)
-                    .padding(16.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .aspectRatio(1.586f)
-                ) {
-                    Image(
-                        bitmap = reviewBitmap.asImageBitmap(),
-                        contentDescription = "Captured document",
-                        modifier = Modifier.fillMaxSize()
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(24.dp))
-
-                Text(
-                    text = "Is the document clearly visible?",
-                    style = MaterialTheme.typography.bodyLarge
-                )
-
-                Spacer(modifier = Modifier.height(24.dp))
-
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(16.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    OutlinedButton(
-                        onClick = {
-                            capturedImageBytes = null
-                            capturedBitmap = null
-                            documentScanner.resetStability()
-                        },
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Text("Retake")
-                    }
-                    Button(
-                        onClick = { onCaptured(reviewBytes) },
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Text("Use This")
-                    }
-                }
-            }
-        }
+        DocumentReviewScreen(
+            bitmap = reviewBitmap,
+            title = "Review photo",
+            subtitle = "${if (side == DocumentSide.FRONT) "Front" else "Back"} of $documentDisplayName",
+            onRetake = {
+                capturedImageBytes = null
+                capturedBitmap = null
+                documentScanner.resetStability()
+            },
+            onAccept = { onCaptured(reviewBytes) },
+            onCancel = onCancel
+        )
         return
     }
 
-    // Camera capture mode
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = {
-                    Column {
-                        Text(if (side == DocumentSide.FRONT) "Front of Document" else "Back of Document")
-                        Text(
-                            text = documentDisplayName,
-                            style = MaterialTheme.typography.bodySmall
-                        )
-                    }
-                },
-                navigationIcon = {
-                    IconButton(onClick = onCancel) {
-                        Icon(Icons.Default.Close, contentDescription = "Cancel")
-                    }
-                }
-            )
-        }
-    ) { paddingValues ->
+    // ── Camera capture mode ──────────────────────────────────────────────────
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(KoraColors.DarkBg)
+    ) {
+        // Progress bar (step 3/5, dark)
+        StepProgressBar(total = 5, current = 3, isDark = true)
+
+        // Dark header
+        DarkScreenHeader(
+            title = if (side == DocumentSide.FRONT) "Front of ID" else "Back of ID",
+            subtitle = documentDisplayName,
+            onClose = onCancel
+        )
+
+        // Viewfinder area
         Box(
             modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues),
+                .weight(1f)
+                .fillMaxWidth()
+                .padding(24.dp),
             contentAlignment = Alignment.Center
         ) {
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier.padding(16.dp)
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .widthIn(max = 342.dp)
+                    .aspectRatio(1.586f)
+                    .clip(RoundedCornerShape(20.dp))
             ) {
-                // CameraX Preview via CameraManager
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .aspectRatio(1.586f)
-                ) {
-                    Box(modifier = Modifier.fillMaxSize()) {
-                        AndroidView(
-                            factory = { ctx ->
-                                PreviewView(ctx).also { previewView ->
-                                    cameraManager.initialize(
-                                        lifecycleOwner = lifecycleOwner,
-                                        previewView = previewView,
-                                        position = CameraPosition.BACK,
-                                        onInitialized = { success ->
-                                            cameraReady = success
-                                            if (success) {
-                                                cameraManager.setFrameAnalysisListener { imageProxy ->
-                                                    // DocumentScanner takes ownership of imageProxy and closes it
-                                                    @Suppress("OPT_IN_USAGE")
-                                                    val detection = documentScanner.detectDocument(imageProxy)
-                                                    documentDetected = detection != null
-                                                    qualityGuidance = detection?.qualityGuidance
-                                                    val ready = detection != null &&
-                                                            detection.isStable &&
-                                                            detection.qualityGuidance == null
-                                                    documentReady = ready
-                                                    if (ready && !isCapturing && capturedImageBytes == null) {
-                                                        autoCapturePending = true
-                                                    }
+                // Camera preview
+                AndroidView(
+                    factory = { ctx ->
+                        val mainHandler = Handler(Looper.getMainLooper())
+                        PreviewView(ctx).also { previewView ->
+                            cameraManager.initialize(
+                                lifecycleOwner = lifecycleOwner,
+                                previewView = previewView,
+                                position = CameraPosition.BACK,
+                                onInitialized = { success ->
+                                    cameraReady = success
+                                    if (success) {
+                                        cameraManager.setFrameAnalysisListener { imageProxy ->
+                                            @Suppress("OPT_IN_USAGE")
+                                            val detection = documentScanner.detectDocument(imageProxy)
+                                            mainHandler.post {
+                                                documentDetected = detection != null
+                                                qualityGuidance = detection?.qualityGuidance
+                                                val ready = detection != null &&
+                                                        detection.isStable &&
+                                                        detection.qualityGuidance == null
+                                                documentReady = ready
+                                                if (ready && !isCapturing && capturedImageBytes == null) {
+                                                    autoCapturePending = true
                                                 }
                                             }
                                         }
-                                    )
+                                    }
                                 }
-                            },
-                            modifier = Modifier.fillMaxSize()
-                        )
-
-                        // Document detection overlay
-                        Canvas(modifier = Modifier.fillMaxSize()) {
-                            val color = when {
-                                documentReady -> Color(0xFF0D9488)
-                                documentDetected -> Color(0xFF0D9488).copy(alpha = 0.5f)
-                                else -> Color.White.copy(alpha = 0.5f)
-                            }
-                            val strokeWidth = if (documentDetected) 3.dp.toPx() else 2.dp.toPx()
-                            val margin = 16.dp.toPx()
-
-                            drawRoundRect(
-                                color = color,
-                                topLeft = Offset(margin, margin),
-                                size = Size(size.width - margin * 2, size.height - margin * 2),
-                                cornerRadius = CornerRadius(12.dp.toPx()),
-                                style = Stroke(width = strokeWidth)
                             )
                         }
-                    }
+                    },
+                    modifier = Modifier.fillMaxSize()
+                )
+
+                // Scan line animation
+                val infiniteTransition = rememberInfiniteTransition(label = "scan")
+                val scanPosition by infiniteTransition.animateFloat(
+                    initialValue = 0.15f,
+                    targetValue = 0.80f,
+                    animationSpec = infiniteRepeatable(
+                        animation = tween(2500, easing = FastOutSlowInEasing),
+                        repeatMode = RepeatMode.Reverse
+                    ),
+                    label = "scan_line"
+                )
+
+                Canvas(modifier = Modifier.fillMaxSize()) {
+                    val w = size.width
+                    val h = size.height
+
+                    // Scan line
+                    val lineY = h * scanPosition
+                    drawLine(
+                        brush = androidx.compose.ui.graphics.Brush.horizontalGradient(
+                            listOf(Color.Transparent, KoraColors.Teal, Color.Transparent),
+                            startX = w * 0.1f,
+                            endX = w * 0.9f
+                        ),
+                        start = Offset(w * 0.1f, lineY),
+                        end = Offset(w * 0.9f, lineY),
+                        strokeWidth = 2.dp.toPx()
+                    )
+
+                    // Corner brackets (28dp, 3dp solid teal)
+                    val cornerSize = 28.dp.toPx()
+                    val strokeW = 3.dp.toPx()
+                    val teal = KoraColors.Teal
+                    val cornerR = 8.dp.toPx()
+
+                    // Top-left
+                    drawLine(teal, Offset(cornerR, 0f), Offset(cornerSize, 0f), strokeW)
+                    drawLine(teal, Offset(0f, cornerR), Offset(0f, cornerSize), strokeW)
+                    drawArc(teal, 180f, 90f, false, Offset.Zero, Size(cornerR * 2, cornerR * 2), style = Stroke(strokeW))
+
+                    // Top-right
+                    drawLine(teal, Offset(w - cornerSize, 0f), Offset(w - cornerR, 0f), strokeW)
+                    drawLine(teal, Offset(w, cornerR), Offset(w, cornerSize), strokeW)
+                    drawArc(teal, 270f, 90f, false, Offset(w - cornerR * 2, 0f), Size(cornerR * 2, cornerR * 2), style = Stroke(strokeW))
+
+                    // Bottom-left
+                    drawLine(teal, Offset(cornerR, h), Offset(cornerSize, h), strokeW)
+                    drawLine(teal, Offset(0f, h - cornerSize), Offset(0f, h - cornerR), strokeW)
+                    drawArc(teal, 90f, 90f, false, Offset(0f, h - cornerR * 2), Size(cornerR * 2, cornerR * 2), style = Stroke(strokeW))
+
+                    // Bottom-right
+                    drawLine(teal, Offset(w - cornerSize, h), Offset(w - cornerR, h), strokeW)
+                    drawLine(teal, Offset(w, h - cornerSize), Offset(w, h - cornerR), strokeW)
+                    drawArc(teal, 0f, 90f, false, Offset(w - cornerR * 2, h - cornerR * 2), Size(cornerR * 2, cornerR * 2), style = Stroke(strokeW))
                 }
+            }
+        }
 
-                Spacer(modifier = Modifier.height(16.dp))
+        // Guidance area
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp)
+                .padding(bottom = 40.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            val pillVariant = if (documentReady) GuidancePillVariant.Ready else GuidancePillVariant.Scanning
+            val pillText = when {
+                documentReady -> "Ready to capture"
+                qualityGuidance != null -> qualityGuidance!!
+                else -> "Scanning document..."
+            }
+            GuidancePill(text = pillText, variant = pillVariant)
 
-                // Quality feedback (post-capture issues)
-                val feedback = qualityFeedback
-                if (feedback != null) {
-                    Card(
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.errorContainer
-                        )
-                    ) {
-                        Text(
-                            text = feedback,
-                            modifier = Modifier.padding(12.dp),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onErrorContainer
-                        )
-                    }
-                    Spacer(modifier = Modifier.height(8.dp))
-                }
+            Spacer(modifier = Modifier.height(12.dp))
 
-                if (isCapturing) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(32.dp),
-                        color = MaterialTheme.colorScheme.primary,
-                        strokeWidth = 3.dp
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = "Capturing...",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                } else {
-                    val guidance = qualityGuidance
-                    val statusText = when {
-                        guidance != null -> guidance
-                        documentReady -> "Hold steady - auto-capturing..."
-                        documentDetected -> "Hold steady..."
-                        else -> "Position document within the frame"
+            Text(
+                text = if (side == DocumentSide.FRONT)
+                    "Hold your ID flat in good lighting.\nAuto-capture when ready."
+                else
+                    "Ensure the barcode is clearly visible.\nAuto-capture when ready.",
+                fontSize = 13.sp,
+                color = KoraColors.WhiteAlpha40,
+                textAlign = TextAlign.Center,
+                lineHeight = 18.sp
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Step pills (Front/Back)
+            if (requiresBack) {
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    if (side == DocumentSide.FRONT) {
+                        StepPill("Front", StepPillState.Active)
+                        StepPill("Back", StepPillState.Inactive)
+                    } else {
+                        StepPill("Front", StepPillState.Done)
+                        StepPill("Back", StepPillState.Active)
                     }
-                    val statusColor = when {
-                        guidance != null -> MaterialTheme.colorScheme.error
-                        documentReady -> MaterialTheme.colorScheme.primary
-                        documentDetected -> Color(0xFF0D9488)
-                        else -> MaterialTheme.colorScheme.onSurface
-                    }
-                    Text(
-                        text = statusText,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = statusColor
-                    )
                 }
             }
         }
@@ -316,9 +297,110 @@ fun DocumentCaptureScreen(
 }
 
 /**
- * Selfie capture screen with CameraManager, real ML Kit face detection, and auto-capture
+ * Document review screen — dark bg, review card with badge and quality checks
  */
-@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun DocumentReviewScreen(
+    bitmap: Bitmap,
+    title: String,
+    subtitle: String,
+    onRetake: () -> Unit,
+    onAccept: () -> Unit,
+    onCancel: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(KoraColors.DarkBg)
+    ) {
+        StepProgressBar(total = 5, current = 3, isDark = true)
+
+        DarkScreenHeader(
+            title = title,
+            subtitle = subtitle,
+            onClose = onCancel
+        )
+
+        // Review image area
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth()
+                .padding(24.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .widthIn(max = 342.dp)
+                        .aspectRatio(1.586f)
+                        .clip(RoundedCornerShape(20.dp))
+                ) {
+                    Image(
+                        bitmap = bitmap.asImageBitmap(),
+                        contentDescription = "Captured document",
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop
+                    )
+
+                    // Good quality badge
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(16.dp)
+                    ) {
+                        ReviewBadge(text = "Good quality")
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(20.dp))
+
+                // Quality checks
+                Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                    ReviewQualityCheck("Sharp")
+                    ReviewQualityCheck("Well-lit")
+                    ReviewQualityCheck("No glare")
+                }
+            }
+        }
+
+        // Bottom buttons
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp)
+                .padding(bottom = 40.dp)
+        ) {
+            Text(
+                text = "Is the document clearly readable?",
+                fontSize = 14.sp,
+                color = KoraColors.WhiteAlpha50,
+                textAlign = TextAlign.Center,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 16.dp)
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                KoraButton(
+                    text = "Retake",
+                    onClick = onRetake,
+                    variant = KoraButtonVariant.DarkOutline,
+                    modifier = Modifier.weight(1f)
+                )
+                KoraButton(
+                    text = "Looks good",
+                    onClick = onAccept,
+                    modifier = Modifier.weight(1f)
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Selfie capture screen — dark bg, oval viewfinder with animated ring
+ */
 @Composable
 fun SelfieCaptureScreen(
     onCaptured: (ByteArray) -> Unit,
@@ -335,29 +417,22 @@ fun SelfieCaptureScreen(
     var faceDetected by remember { mutableStateOf(false) }
     var faceReady by remember { mutableStateOf(false) }
     var guidanceMessage by remember { mutableStateOf<String?>("Position your face in the oval") }
-    var qualityFeedback by remember { mutableStateOf<String?>(null) }
     var capturedImageBytes by remember { mutableStateOf<ByteArray?>(null) }
     var capturedBitmap by remember { mutableStateOf<Bitmap?>(null) }
 
-    // Auto-capture when face is ready (detected, centered, sized, stable)
     LaunchedEffect(faceReady) {
         if (faceReady && !isCapturing && cameraReady && capturedImageBytes == null) {
             isCapturing = true
-            cameraManager.capturePhoto { bytes ->
+            cameraManager.capturePhotoOnMain { bytes ->
                 if (bytes != null) {
                     val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
                     if (bitmap != null) {
-                        // Mirror for front camera
                         val matrix = Matrix()
                         matrix.postScale(-1f, 1f)
                         val mirrored = Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
 
-                        // Post-capture quality validation with face info
                         val faceInfo = FaceDetectionInfo(
-                            boundingBox = android.graphics.RectF(
-                                0f, 0f,
-                                mirrored.width.toFloat(), mirrored.height.toFloat()
-                            ),
+                            boundingBox = android.graphics.RectF(0f, 0f, mirrored.width.toFloat(), mirrored.height.toFloat()),
                             confidence = 0.95f
                         )
                         val validation = qualityValidator.validateSelfieImage(mirrored, faceInfo)
@@ -367,7 +442,6 @@ fun SelfieCaptureScreen(
                             capturedImageBytes = stream.toByteArray()
                             capturedBitmap = mirrored
                         } else {
-                            qualityFeedback = validation.issues.firstOrNull()?.message
                             faceScanner.resetStability()
                             faceReady = false
                         }
@@ -385,114 +459,90 @@ fun SelfieCaptureScreen(
         }
     }
 
-    // Review mode
+    // ── Review mode ──────────────────────────────────────────────────────────
     val reviewBytes = capturedImageBytes
     val reviewBitmap = capturedBitmap
     if (reviewBytes != null && reviewBitmap != null) {
-        Scaffold(
-            topBar = {
-                TopAppBar(
-                    title = { Text("Review Selfie") },
-                    navigationIcon = {
-                        IconButton(onClick = onCancel) {
-                            Icon(Icons.Default.Close, contentDescription = "Cancel")
-                        }
-                    }
-                )
-            }
-        ) { paddingValues ->
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(paddingValues)
-                    .padding(16.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Card(modifier = Modifier.size(300.dp)) {
-                    Image(
-                        bitmap = reviewBitmap.asImageBitmap(),
-                        contentDescription = "Captured selfie",
-                        modifier = Modifier.fillMaxSize()
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(24.dp))
-
-                Text(
-                    text = "Is your face clearly visible?",
-                    style = MaterialTheme.typography.bodyLarge
-                )
-
-                Spacer(modifier = Modifier.height(24.dp))
-
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(16.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    OutlinedButton(
-                        onClick = {
-                            capturedImageBytes = null
-                            capturedBitmap = null
-                            qualityFeedback = null
-                            faceReady = false
-                            faceScanner.resetStability()
-                        },
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Text("Retake")
-                    }
-                    Button(
-                        onClick = { onCaptured(reviewBytes) },
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Text("Use This")
-                    }
-                }
-            }
-        }
+        SelfieReviewScreen(
+            bitmap = reviewBitmap,
+            onRetake = {
+                capturedImageBytes = null
+                capturedBitmap = null
+                faceReady = false
+                faceScanner.resetStability()
+            },
+            onAccept = { onCaptured(reviewBytes) },
+            onCancel = onCancel
+        )
         return
     }
 
-    // Camera capture mode
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Take a Selfie") },
-                navigationIcon = {
-                    IconButton(onClick = onCancel) {
-                        Icon(Icons.Default.Close, contentDescription = "Cancel")
-                    }
-                }
+    // ── Camera capture mode ──────────────────────────────────────────────────
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(KoraColors.DarkBg)
+    ) {
+        StepProgressBar(total = 5, current = 4, isDark = true)
+
+        DarkScreenHeader(
+            title = "Take a selfie",
+            onClose = onCancel
+        )
+
+        // Bold title area
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp, vertical = 16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = "Face the camera",
+                fontSize = 24.sp,
+                fontWeight = FontWeight.W700,
+                color = Color.White,
+                letterSpacing = (-0.5).sp
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = "Keep a neutral expression",
+                fontSize = 14.sp,
+                color = KoraColors.WhiteAlpha50
             )
         }
-    ) { paddingValues ->
+
+        // Oval viewfinder with animated ring
         Box(
             modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues),
+                .weight(1f)
+                .fillMaxWidth()
+                .padding(bottom = 140.dp),
             contentAlignment = Alignment.Center
         ) {
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier.padding(16.dp)
-            ) {
-                // CameraX Preview with front camera
-                Card(modifier = Modifier.size(300.dp)) {
-                    Box(modifier = Modifier.fillMaxSize()) {
-                        AndroidView(
-                            factory = { ctx ->
-                                PreviewView(ctx).also { previewView ->
-                                    cameraManager.initialize(
-                                        lifecycleOwner = lifecycleOwner,
-                                        previewView = previewView,
-                                        position = CameraPosition.FRONT,
-                                        onInitialized = { success ->
-                                            cameraReady = success
-                                            if (success) {
-                                                cameraManager.setFrameAnalysisListener { imageProxy ->
-                                                    // FaceScanner takes ownership of imageProxy and closes it
-                                                    @Suppress("OPT_IN_USAGE")
-                                                    val result = faceScanner.detectFace(imageProxy)
+            Box(contentAlignment = Alignment.Center) {
+                // Camera preview in oval
+                Box(
+                    modifier = Modifier
+                        .width(240.dp)
+                        .height(300.dp)
+                        .clip(OvalViewfinderShape)
+                ) {
+                    AndroidView(
+                        factory = { ctx ->
+                            val mainHandler = Handler(Looper.getMainLooper())
+                            PreviewView(ctx).also { previewView ->
+                                cameraManager.initialize(
+                                    lifecycleOwner = lifecycleOwner,
+                                    previewView = previewView,
+                                    position = CameraPosition.FRONT,
+                                    onInitialized = { success ->
+                                        cameraReady = success
+                                        if (success) {
+                                            cameraManager.setFrameAnalysisListener { imageProxy ->
+                                                @Suppress("OPT_IN_USAGE")
+                                                val result = faceScanner.detectFace(imageProxy)
+                                                mainHandler.post {
                                                     if (result != null) {
                                                         faceDetected = result.faceDetected
                                                         guidanceMessage = result.guidanceMessage
@@ -501,91 +551,180 @@ fun SelfieCaptureScreen(
                                                                 result.isSizedCorrectly &&
                                                                 result.isStable
                                                         faceReady = ready
-                                                        if (!ready) {
-                                                            qualityFeedback = null
-                                                        }
                                                     }
                                                 }
                                             }
                                         }
-                                    )
-                                }
-                            },
-                            modifier = Modifier.fillMaxSize()
-                        )
-
-                        // Face guide oval overlay
-                        Canvas(modifier = Modifier.fillMaxSize()) {
-                            val color = when {
-                                faceReady -> Color(0xFF0D9488)
-                                faceDetected -> Color(0xFF0D9488).copy(alpha = 0.5f)
-                                else -> Color.White.copy(alpha = 0.5f)
+                                    }
+                                )
                             }
-                            val strokeWidth = if (faceDetected) 3.dp.toPx() else 2.dp.toPx()
-                            val ovalWidth = size.width * 0.65f
-                            val ovalHeight = size.height * 0.8f
-                            val left = (size.width - ovalWidth) / 2
-                            val top = (size.height - ovalHeight) / 2
-
-                            drawOval(
-                                color = color,
-                                topLeft = Offset(left, top),
-                                size = Size(ovalWidth, ovalHeight),
-                                style = Stroke(width = strokeWidth)
-                            )
-                        }
-                    }
+                        },
+                        modifier = Modifier.fillMaxSize()
+                    )
                 }
 
-                Spacer(modifier = Modifier.height(16.dp))
+                // Animated rotating ring
+                val infiniteTransition = rememberInfiniteTransition(label = "selfie_ring")
+                val rotation by infiniteTransition.animateFloat(
+                    initialValue = 0f,
+                    targetValue = 360f,
+                    animationSpec = infiniteRepeatable(
+                        animation = tween(3000, easing = LinearEasing)
+                    ),
+                    label = "ring_rotation"
+                )
 
-                val feedback = qualityFeedback
-                if (feedback != null) {
-                    Card(
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.errorContainer
-                        )
-                    ) {
-                        Text(
-                            text = feedback,
-                            modifier = Modifier.padding(12.dp),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onErrorContainer
+                Canvas(
+                    modifier = Modifier
+                        .width(246.dp)
+                        .height(306.dp)
+                ) {
+                    rotate(rotation) {
+                        val strokeWidth = 3.dp.toPx()
+                        drawOval(
+                            color = KoraColors.Teal,
+                            style = Stroke(width = strokeWidth, cap = StrokeCap.Round),
+                            topLeft = Offset(strokeWidth / 2, strokeWidth / 2),
+                            size = Size(size.width - strokeWidth, size.height - strokeWidth)
                         )
                     }
-                    Spacer(modifier = Modifier.height(8.dp))
                 }
+            }
+        }
 
-                if (isCapturing) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(32.dp),
-                        color = MaterialTheme.colorScheme.primary,
-                        strokeWidth = 3.dp
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = "Capturing...",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                } else {
-                    Text(
-                        text = guidanceMessage ?: "Hold steady - auto-capturing...",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = if (faceReady) MaterialTheme.colorScheme.primary
-                               else if (faceDetected) MaterialTheme.colorScheme.onSurface
-                               else MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+        // Guidance
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp)
+                .padding(bottom = 40.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            GuidancePill(
+                text = if (faceReady) "Ready to capture" else "Detecting face...",
+                variant = if (faceReady) GuidancePillVariant.Ready else GuidancePillVariant.Scanning
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+            Text(
+                text = "Position your face within the oval.\nKeep a neutral expression. Auto-capture when ready.",
+                fontSize = 13.sp,
+                color = KoraColors.WhiteAlpha40,
+                textAlign = TextAlign.Center,
+                lineHeight = 18.sp
+            )
+        }
+    }
+}
+
+/**
+ * Selfie review screen — dark bg, oval with captured image
+ */
+@Composable
+private fun SelfieReviewScreen(
+    bitmap: Bitmap,
+    onRetake: () -> Unit,
+    onAccept: () -> Unit,
+    onCancel: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(KoraColors.DarkBg)
+    ) {
+        StepProgressBar(total = 5, current = 4, isDark = true)
+
+        DarkScreenHeader(title = "Review selfie", onClose = onCancel)
+
+        // Bold title
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp, vertical = 16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = "Does this look like you?",
+                fontSize = 24.sp,
+                fontWeight = FontWeight.W700,
+                color = Color.White,
+                letterSpacing = (-0.5).sp
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = "Check clarity and lighting",
+                fontSize = 14.sp,
+                color = KoraColors.WhiteAlpha50
+            )
+        }
+
+        // Oval with captured image
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth()
+                .padding(bottom = 140.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Box(
+                modifier = Modifier
+                    .width(240.dp)
+                    .height(300.dp)
+                    .clip(OvalViewfinderShape)
+            ) {
+                Image(
+                    bitmap = bitmap.asImageBitmap(),
+                    contentDescription = "Captured selfie",
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop
+                )
+
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(12.dp)
+                ) {
+                    ReviewBadge(text = "Face detected")
                 }
+            }
+        }
+
+        // Bottom area
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp)
+                .padding(bottom = 40.dp)
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterHorizontally)
+            ) {
+                ReviewQualityCheck("Clear")
+                ReviewQualityCheck("Centered")
+                ReviewQualityCheck("Well-lit")
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                KoraButton(
+                    text = "Retake",
+                    onClick = onRetake,
+                    variant = KoraButtonVariant.DarkOutline,
+                    modifier = Modifier.weight(1f)
+                )
+                KoraButton(
+                    text = "Use this",
+                    onClick = onAccept,
+                    modifier = Modifier.weight(1f)
+                )
             }
         }
     }
 }
 
 /**
- * Liveness check screen with real ML Kit face detection
+ * Liveness check screen — dark bg, oval with countdown and progress ring
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun LivenessScreen(
     sessionManager: SessionManager?,
@@ -604,7 +743,6 @@ internal fun LivenessScreen(
 
     val livenessState by livenessManager.state.collectAsState()
 
-    // Load liveness session from server
     LaunchedEffect(sessionManager, verificationId) {
         if (sessionManager != null && verificationId != null) {
             val result = sessionManager.createLivenessSession(verificationId)
@@ -618,7 +756,6 @@ internal fun LivenessScreen(
                 }
             )
         } else {
-            // Fallback: create a local session for testing
             val fallbackSession = com.koraidv.sdk.api.LivenessSession(
                 sessionId = "local-session",
                 challenges = listOf(
@@ -633,11 +770,9 @@ internal fun LivenessScreen(
         }
     }
 
-    // Handle liveness completion
     LaunchedEffect(livenessState) {
         when (val state = livenessState) {
             is LivenessState.Complete -> {
-                // Submit challenge results to server if we have a session manager
                 if (sessionManager != null && verificationId != null) {
                     for (challengeResult in state.result.challenges) {
                         challengeResult.imageData?.let { imageData ->
@@ -662,25 +797,20 @@ internal fun LivenessScreen(
         }
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Liveness Check") },
-                navigationIcon = {
-                    IconButton(onClick = onCancel) {
-                        Icon(Icons.Default.Close, contentDescription = "Cancel")
-                    }
-                }
-            )
-        }
-    ) { paddingValues ->
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues),
-            contentAlignment = Alignment.Center
-        ) {
-            if (errorMessage != null) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(KoraColors.DarkBg)
+    ) {
+        StepProgressBar(total = 5, current = 5, isDark = true)
+
+        DarkScreenHeader(title = "Liveness check", onClose = onCancel)
+
+        if (errorMessage != null) {
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     modifier = Modifier.padding(16.dp)
@@ -689,161 +819,177 @@ internal fun LivenessScreen(
                         imageVector = Icons.Default.Error,
                         contentDescription = null,
                         modifier = Modifier.size(64.dp),
-                        tint = MaterialTheme.colorScheme.error
+                        tint = KoraColors.ErrorRed
                     )
                     Spacer(modifier = Modifier.height(16.dp))
                     Text(
                         text = errorMessage!!,
-                        style = MaterialTheme.typography.bodyLarge
+                        color = Color.White,
+                        fontSize = 16.sp
                     )
                 }
-                return@Scaffold
             }
+            return@Column
+        }
 
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier.padding(16.dp)
-            ) {
-                // Camera preview with face tracking
-                Card(modifier = Modifier.size(300.dp)) {
-                    Box(modifier = Modifier.fillMaxSize()) {
-                        AndroidView(
-                            factory = { ctx ->
-                                PreviewView(ctx).also { previewView ->
-                                    cameraManager.initialize(
-                                        lifecycleOwner = lifecycleOwner,
-                                        previewView = previewView,
-                                        position = CameraPosition.FRONT,
-                                        onInitialized = { success ->
-                                            cameraReady = success
-                                            if (success) {
-                                                cameraManager.setFrameAnalysisListener { imageProxy ->
-                                                    @Suppress("OPT_IN_USAGE")
-                                                    livenessManager.processFrame(imageProxy)
-                                                }
+        // Challenge title
+        val challengeTitle = when (val state = livenessState) {
+            is LivenessState.InProgress -> state.challenge.instruction
+            is LivenessState.ChallengeComplete -> if (state.passed) "Great!" else "Try again"
+            else -> "Get ready..."
+        }
+        val challengeSubtitle = when (val state = livenessState) {
+            is LivenessState.InProgress -> when (state.challenge.type) {
+                com.koraidv.sdk.api.ChallengeType.BLINK -> "Blink naturally when ready"
+                com.koraidv.sdk.api.ChallengeType.SMILE -> "Show a natural smile"
+                com.koraidv.sdk.api.ChallengeType.TURN_LEFT -> "Slowly turn left"
+                com.koraidv.sdk.api.ChallengeType.TURN_RIGHT -> "Slowly turn right"
+                else -> "Follow the instruction"
+            }
+            else -> ""
+        }
+
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp, vertical = 16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = challengeTitle,
+                fontSize = 24.sp,
+                fontWeight = FontWeight.W700,
+                color = Color.White,
+                letterSpacing = (-0.5).sp
+            )
+            if (challengeSubtitle.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = challengeSubtitle,
+                    fontSize = 14.sp,
+                    color = KoraColors.WhiteAlpha50
+                )
+            }
+        }
+
+        // Oval viewfinder with progress ring and countdown
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth()
+                .padding(bottom = 140.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                // Camera preview
+                Box(
+                    modifier = Modifier
+                        .width(240.dp)
+                        .height(300.dp)
+                        .clip(OvalViewfinderShape)
+                ) {
+                    AndroidView(
+                        factory = { ctx ->
+                            PreviewView(ctx).also { previewView ->
+                                cameraManager.initialize(
+                                    lifecycleOwner = lifecycleOwner,
+                                    previewView = previewView,
+                                    position = CameraPosition.FRONT,
+                                    onInitialized = { success ->
+                                        cameraReady = success
+                                        if (success) {
+                                            cameraManager.setFrameAnalysisListener { imageProxy ->
+                                                @Suppress("OPT_IN_USAGE")
+                                                livenessManager.processFrame(imageProxy)
                                             }
                                         }
-                                    )
-                                }
-                            },
-                            modifier = Modifier.fillMaxSize()
-                        )
-
-                        // Face guide oval
-                        Canvas(modifier = Modifier.fillMaxSize()) {
-                            val progress = when (val state = livenessState) {
-                                is LivenessState.InProgress -> state.progress
-                                is LivenessState.ChallengeComplete -> 1f
-                                else -> 0f
+                                    }
+                                )
                             }
-                            val color = Color(0xFF0D9488).copy(alpha = 0.5f + progress * 0.5f)
-                            val ovalWidth = size.width * 0.65f
-                            val ovalHeight = size.height * 0.8f
-                            val left = (size.width - ovalWidth) / 2
-                            val top = (size.height - ovalHeight) / 2
+                        },
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
 
-                            drawOval(
-                                color = color,
-                                topLeft = Offset(left, top),
-                                size = Size(ovalWidth, ovalHeight),
-                                style = Stroke(width = 3.dp.toPx())
-                            )
-                        }
+                // Progress ring via Canvas
+                val progress = when (val state = livenessState) {
+                    is LivenessState.InProgress -> state.progress
+                    is LivenessState.ChallengeComplete -> 1f
+                    else -> 0f
+                }
+
+                Canvas(
+                    modifier = Modifier
+                        .width(252.dp)
+                        .height(312.dp)
+                ) {
+                    val strokeWidth = 4.dp.toPx()
+                    // Background track
+                    drawOval(
+                        color = KoraColors.WhiteAlpha15,
+                        style = Stroke(width = strokeWidth),
+                        topLeft = Offset(strokeWidth / 2, strokeWidth / 2),
+                        size = Size(size.width - strokeWidth, size.height - strokeWidth)
+                    )
+                    // Progress fill
+                    if (progress > 0f) {
+                        drawArc(
+                            color = KoraColors.Teal,
+                            startAngle = -90f,
+                            sweepAngle = 360f * progress,
+                            useCenter = false,
+                            style = Stroke(width = strokeWidth, cap = StrokeCap.Round),
+                            topLeft = Offset(strokeWidth / 2, strokeWidth / 2),
+                            size = Size(size.width - strokeWidth, size.height - strokeWidth)
+                        )
                     }
                 }
 
-                Spacer(modifier = Modifier.height(24.dp))
-
-                // Current challenge instruction
-                when (val state = livenessState) {
+                // Countdown badge
+                val countdown = when (val state = livenessState) {
                     is LivenessState.InProgress -> {
-                        Text(
-                            text = state.challenge.instruction,
-                            style = MaterialTheme.typography.headlineSmall
-                        )
-                        Spacer(modifier = Modifier.height(16.dp))
-                        LinearProgressIndicator(
-                            progress = { state.progress },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 32.dp),
-                            trackColor = MaterialTheme.colorScheme.surfaceVariant,
-                        )
+                        val remaining = ((1f - state.progress) * 3).toInt() + 1
+                        remaining.coerceIn(1, 3)
                     }
-                    is LivenessState.ChallengeComplete -> {
-                        Icon(
-                            imageVector = if (state.passed) Icons.Default.CheckCircle else Icons.Default.Cancel,
-                            contentDescription = null,
-                            modifier = Modifier.size(48.dp),
-                            tint = if (state.passed) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            text = if (state.passed) "Great!" else "Try again",
-                            style = MaterialTheme.typography.titleMedium
-                        )
-                    }
-                    is LivenessState.Idle -> {
-                        if (!sessionLoaded) {
-                            CircularProgressIndicator()
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Text(
-                                text = "Preparing liveness check...",
-                                style = MaterialTheme.typography.bodyMedium
-                            )
-                        }
-                    }
-                    is LivenessState.Complete -> {
-                        Icon(
-                            imageVector = Icons.Default.CheckCircle,
-                            contentDescription = null,
-                            modifier = Modifier.size(64.dp),
-                            tint = MaterialTheme.colorScheme.primary
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            text = "Liveness check complete!",
-                            style = MaterialTheme.typography.titleMedium
-                        )
-                    }
-                    is LivenessState.Error -> {
-                        Text(
-                            text = state.message,
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.error
-                        )
-                    }
+                    else -> null
                 }
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // Challenge progress dots
-                val session = livenessManager.currentChallenge
-                if (sessionLoaded) {
-                    val currentIndex = when (val state = livenessState) {
-                        is LivenessState.InProgress -> state.challenge.order
-                        is LivenessState.ChallengeComplete -> state.challenge.order + 1
-                        is LivenessState.Complete -> Int.MAX_VALUE
-                        else -> 0
-                    }
-
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                if (countdown != null) {
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.TopCenter)
+                            .offset(y = (-12).dp)
                     ) {
-                        repeat(3) { index ->
-                            val color = when {
-                                index < currentIndex -> MaterialTheme.colorScheme.primary
-                                index == currentIndex -> MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
-                                else -> MaterialTheme.colorScheme.surfaceVariant
-                            }
-                            Surface(
-                                modifier = Modifier.size(12.dp),
-                                shape = MaterialTheme.shapes.small,
-                                color = color
-                            ) {}
-                        }
+                        CountdownBadge(count = countdown)
                     }
                 }
+            }
+        }
+
+        // Challenge progress dots and info
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp)
+                .padding(bottom = 40.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            val currentIndex = when (val state = livenessState) {
+                is LivenessState.InProgress -> state.challenge.order
+                is LivenessState.ChallengeComplete -> state.challenge.order + 1
+                is LivenessState.Complete -> 3
+                else -> 0
+            }
+
+            ChallengeDots(total = 3, currentIndex = currentIndex)
+
+            if (sessionLoaded) {
+                val challengeNum = (currentIndex + 1).coerceAtMost(3)
+                Text(
+                    text = "Challenge $challengeNum of 3",
+                    fontSize = 13.sp,
+                    color = KoraColors.WhiteAlpha50
+                )
             }
         }
     }

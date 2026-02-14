@@ -1,23 +1,29 @@
 package com.koraidv.sdk.ui.compose
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.koraidv.sdk.api.CountryInfo
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CountrySelectionScreen(
     countries: List<CountryInfo>,
@@ -25,6 +31,7 @@ fun CountrySelectionScreen(
     onCancel: () -> Unit
 ) {
     var searchQuery by remember { mutableStateOf("") }
+    var selectedCountry by remember { mutableStateOf<CountryInfo?>(null) }
 
     val filteredCountries = remember(searchQuery, countries) {
         if (searchQuery.isBlank()) {
@@ -37,96 +44,188 @@ fun CountrySelectionScreen(
         }
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Select Your Country") },
-                navigationIcon = {
-                    IconButton(onClick = onCancel) {
-                        Icon(Icons.Default.Close, contentDescription = "Cancel")
-                    }
-                }
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.White)
+    ) {
+        // Progress bar (step 2/5)
+        StepProgressBar(total = 5, current = 2)
+
+        // Header with back button
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            LightBackButton(onClick = onCancel)
+            Text(
+                text = "Select your country",
+                fontSize = 18.sp,
+                fontWeight = FontWeight.W600,
+                letterSpacing = (-0.3).sp,
+                color = KoraColors.TextPrimary
             )
         }
-    ) { paddingValues ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-                .padding(horizontal = 16.dp)
-        ) {
-            Text(
-                text = "Choose the country that issued your ID document",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(vertical = 12.dp)
-            )
 
-            // Search bar
-            OutlinedTextField(
-                value = searchQuery,
-                onValueChange = { searchQuery = it },
+        // Subtitle
+        Text(
+            text = "Where was your document issued?",
+            fontSize = 14.sp,
+            color = KoraColors.TextSecondary,
+            modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp)
+        )
+
+        // Selected country indicator
+        val selected = selectedCountry
+        if (selected != null) {
+            Box(
                 modifier = Modifier
+                    .padding(horizontal = 24.dp)
+                    .padding(bottom = 16.dp)
                     .fillMaxWidth()
-                    .padding(bottom = 16.dp),
-                placeholder = { Text("Search countries...") },
-                leadingIcon = {
-                    Icon(Icons.Default.Search, contentDescription = null)
-                },
-                singleLine = true,
-                shape = MaterialTheme.shapes.medium
-            )
-
-            // Country grid
-            LazyVerticalGrid(
-                columns = GridCells.Fixed(3),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-                modifier = Modifier.fillMaxSize()
+                    .border(2.dp, KoraColors.Teal, RoundedCornerShape(14.dp))
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(KoraColors.SelectedBg)
+                    .padding(horizontal = 16.dp, vertical = 14.dp)
             ) {
-                items(filteredCountries) { country ->
-                    CountryItem(
-                        country = country,
-                        onClick = { onSelect(country) }
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        text = selected.flagEmoji ?: countryCodeToFlag(selected.code),
+                        fontSize = 28.sp,
+                        lineHeight = 28.sp
+                    )
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Text(
+                        text = selected.name,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.W600,
+                        color = KoraColors.TextPrimary,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Icon(
+                        imageVector = Icons.Default.Check,
+                        contentDescription = null,
+                        modifier = Modifier.size(20.dp),
+                        tint = KoraColors.Teal
                     )
                 }
             }
         }
-    }
-}
 
-@Composable
-private fun CountryItem(
-    country: CountryInfo,
-    onClick: () -> Unit
-) {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
-        )
-    ) {
+        // Search bar
+        Box(
+            modifier = Modifier
+                .padding(horizontal = 24.dp)
+                .padding(bottom = 12.dp)
+        ) {
+            OutlinedTextField(
+                value = searchQuery,
+                onValueChange = { searchQuery = it },
+                modifier = Modifier.fillMaxWidth(),
+                placeholder = {
+                    Text(
+                        "Search countries...",
+                        color = Color(0xFFAAAAAA),
+                        fontSize = 15.sp
+                    )
+                },
+                leadingIcon = {
+                    Icon(
+                        imageVector = Icons.Default.Search,
+                        contentDescription = null,
+                        tint = Color(0xFFAAAAAA),
+                        modifier = Modifier.size(18.dp)
+                    )
+                },
+                singleLine = true,
+                shape = RoundedCornerShape(14.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    unfocusedContainerColor = KoraColors.SurfaceLight,
+                    focusedContainerColor = Color.White,
+                    unfocusedBorderColor = KoraColors.BorderLight,
+                    focusedBorderColor = KoraColors.Teal
+                )
+            )
+        }
+
+        // Country list
+        LazyColumn(
+            modifier = Modifier
+                .weight(1f)
+                .padding(horizontal = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(2.dp)
+        ) {
+            items(filteredCountries) { country ->
+                val isSelected = selectedCountry == country
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .then(
+                            if (isSelected) {
+                                Modifier
+                                    .background(KoraColors.SelectedBg)
+                                    .selectedLeftBorder()
+                            } else Modifier
+                        )
+                        .clickable { selectedCountry = country }
+                        .padding(horizontal = 16.dp, vertical = 13.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
+                    Text(
+                        text = country.flagEmoji ?: countryCodeToFlag(country.code),
+                        fontSize = 24.sp,
+                        lineHeight = 24.sp
+                    )
+                    Text(
+                        text = country.name,
+                        fontSize = 15.sp,
+                        fontWeight = if (isSelected) FontWeight.W600 else FontWeight.W500,
+                        color = if (isSelected) KoraColors.Teal else KoraColors.TextDark,
+                        modifier = Modifier.weight(1f)
+                    )
+                    if (isSelected) {
+                        Icon(
+                            imageVector = Icons.Default.Check,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp),
+                            tint = KoraColors.Teal
+                        )
+                    }
+                }
+            }
+        }
+
+        // Continue button
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(12.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
+                .padding(horizontal = 24.dp)
+                .padding(top = 16.dp, bottom = 40.dp)
         ) {
-            Text(
-                text = country.flagEmoji ?: countryCodeToFlag(country.code),
-                style = MaterialTheme.typography.headlineLarge
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = country.name,
-                style = MaterialTheme.typography.bodySmall,
-                textAlign = TextAlign.Center,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis
+            KoraButton(
+                text = "Continue",
+                onClick = { selectedCountry?.let { onSelect(it) } },
+                enabled = selectedCountry != null
             )
         }
+    }
+}
+
+private fun Modifier.selectedLeftBorder(): Modifier {
+    return this.drawBehind {
+        drawRect(
+            color = Color(0xFF0D9488),
+            topLeft = Offset.Zero,
+            size = Size(3.dp.toPx(), size.height)
+        )
     }
 }
 

@@ -92,7 +92,30 @@ internal fun VerificationFlow(
                 ProcessingScreen(step = currentState.step)
             }
             is VerificationState.Complete -> {
-                ResultScreen(
+                val verification = currentState.verification
+                when (verification.status) {
+                    VerificationStatus.APPROVED -> SuccessScreen(
+                        verification = verification,
+                        onDone = { onComplete(verification) }
+                    )
+                    VerificationStatus.REJECTED -> RejectedScreen(
+                        verification = verification,
+                        onRetry = onRetry
+                    )
+                    else -> SuccessScreen(
+                        verification = verification,
+                        onDone = { onComplete(verification) }
+                    )
+                }
+            }
+            is VerificationState.ExpiredDocument -> {
+                ExpiredDocumentScreen(
+                    verification = currentState.verification,
+                    onRetry = onRetry
+                )
+            }
+            is VerificationState.ManualReview -> {
+                ManualReviewScreen(
                     verification = currentState.verification,
                     onDone = { onComplete(currentState.verification) }
                 )

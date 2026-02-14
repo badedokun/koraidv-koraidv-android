@@ -62,12 +62,12 @@ data class QualityMetrics(
  * Quality thresholds
  */
 data class QualityThresholds(
-    val minBlurScore: Double = 100.0,
-    val minBrightness: Double = 0.3,
-    val maxBrightness: Double = 0.85,
-    val maxGlarePercentage: Double = 0.05,
-    val minFaceSizePercentage: Double = 0.2,
-    val minFaceConfidence: Double = 0.7
+    val minBlurScore: Double = 30.0,  // Relaxed for mobile — 100 was too strict
+    val minBrightness: Double = 0.15,
+    val maxBrightness: Double = 0.90,
+    val maxGlarePercentage: Double = 0.10,
+    val minFaceSizePercentage: Double = 0.10,
+    val minFaceConfidence: Double = 0.6
 )
 
 /**
