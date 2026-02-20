@@ -4,7 +4,6 @@ import android.graphics.Bitmap
 import android.graphics.RectF
 import kotlin.math.abs
 import kotlin.math.pow
-import kotlin.math.sqrt
 
 /**
  * Quality validation result
@@ -71,7 +70,24 @@ data class QualityThresholds(
 )
 
 /**
- * Quality validator for captured images
+ * Combined metrics from a single-pass pixel scan.
+ * Avoids 3 separate getPixels allocations for blur, brightness, and glare.
+ */
+private data class PixelMetrics(
+    val brightness: Double,
+    val glarePercentage: Double,
+    val blurScore: Double
+)
+
+/**
+ * Max dimension for quality analysis. Full-resolution analysis on a 1920x1080 image
+ * allocates ~24MB for Laplacian alone. Downsampling to 480px max keeps it under 2MB.
+ */
+private const val MAX_ANALYSIS_DIMENSION = 480
+
+/**
+ * Quality validator for captured images.
+ * Downsamples before processing to prevent OOM on low-end devices.
  */
 class QualityValidator(
     private val thresholds: QualityThresholds = QualityThresholds()
@@ -83,9 +99,14 @@ class QualityValidator(
     fun validateDocumentImage(bitmap: Bitmap): QualityValidationResult {
         val issues = mutableListOf<QualityIssue>()
 
-        // Calculate blur score
-        val blurScore = calculateBlurScore(bitmap)
-        if (blurScore < thresholds.minBlurScore) {
+        // Downsample for analysis to reduce memory from ~24MB to ~2MB
+        val analysisbitmap = downsample(bitmap)
+        val metrics = analyzePixels(analysisbitmap)
+        if (analysisbitmap !== bitmap) {
+            analysisbitmap.recycle()
+        }
+
+        if (metrics.blurScore < thresholds.minBlurScore) {
             issues.add(
                 QualityIssue(
                     type = QualityIssueType.BLUR,
@@ -95,9 +116,7 @@ class QualityValidator(
             )
         }
 
-        // Calculate brightness
-        val brightness = calculateBrightness(bitmap)
-        if (brightness < thresholds.minBrightness) {
+        if (metrics.brightness < thresholds.minBrightness) {
             issues.add(
                 QualityIssue(
                     type = QualityIssueType.TOO_DARK,
@@ -105,7 +124,7 @@ class QualityValidator(
                     severity = QualityIssueSeverity.ERROR
                 )
             )
-        } else if (brightness > thresholds.maxBrightness) {
+        } else if (metrics.brightness > thresholds.maxBrightness) {
             issues.add(
                 QualityIssue(
                     type = QualityIssueType.TOO_BRIGHT,
@@ -115,9 +134,7 @@ class QualityValidator(
             )
         }
 
-        // Calculate glare
-        val glarePercentage = calculateGlarePercentage(bitmap)
-        if (glarePercentage > thresholds.maxGlarePercentage) {
+        if (metrics.glarePercentage > thresholds.maxGlarePercentage) {
             issues.add(
                 QualityIssue(
                     type = QualityIssueType.GLARE,
@@ -127,10 +144,10 @@ class QualityValidator(
             )
         }
 
-        val metrics = QualityMetrics(
-            blurScore = blurScore,
-            brightness = brightness,
-            glarePercentage = glarePercentage
+        val qualityMetrics = QualityMetrics(
+            blurScore = metrics.blurScore,
+            brightness = metrics.brightness,
+            glarePercentage = metrics.glarePercentage
         )
 
         val hasErrors = issues.any { it.severity == QualityIssueSeverity.ERROR }
@@ -138,7 +155,7 @@ class QualityValidator(
         return QualityValidationResult(
             isValid = !hasErrors,
             issues = issues,
-            metrics = metrics
+            metrics = qualityMetrics
         )
     }
 
@@ -151,9 +168,13 @@ class QualityValidator(
     ): QualityValidationResult {
         val issues = mutableListOf<QualityIssue>()
 
-        // Basic quality checks
-        val blurScore = calculateBlurScore(bitmap)
-        if (blurScore < thresholds.minBlurScore) {
+        val analysisBitmap = downsample(bitmap)
+        val metrics = analyzePixels(analysisBitmap)
+        if (analysisBitmap !== bitmap) {
+            analysisBitmap.recycle()
+        }
+
+        if (metrics.blurScore < thresholds.minBlurScore) {
             issues.add(
                 QualityIssue(
                     type = QualityIssueType.BLUR,
@@ -163,8 +184,7 @@ class QualityValidator(
             )
         }
 
-        val brightness = calculateBrightness(bitmap)
-        if (brightness < thresholds.minBrightness) {
+        if (metrics.brightness < thresholds.minBrightness) {
             issues.add(
                 QualityIssue(
                     type = QualityIssueType.TOO_DARK,
@@ -199,7 +219,7 @@ class QualityValidator(
                 )
             }
 
-            // Check face size
+            // Check face size (use original bitmap dimensions, not downsampled)
             val imageArea = bitmap.width * bitmap.height.toFloat()
             val faceArea = faceDetection.boundingBox.width() * faceDetection.boundingBox.height()
             faceSize = (faceArea / imageArea).toDouble()
@@ -214,7 +234,7 @@ class QualityValidator(
                 )
             }
 
-            // Check face centering
+            // Check face centering (use original bitmap dimensions)
             val faceCenterX = faceDetection.boundingBox.centerX() / bitmap.width
             val faceCenterY = faceDetection.boundingBox.centerY() / bitmap.height
 
@@ -229,10 +249,10 @@ class QualityValidator(
             }
         }
 
-        val metrics = QualityMetrics(
-            blurScore = blurScore,
-            brightness = brightness,
-            glarePercentage = calculateGlarePercentage(bitmap),
+        val qualityMetrics = QualityMetrics(
+            blurScore = metrics.blurScore,
+            brightness = metrics.brightness,
+            glarePercentage = metrics.glarePercentage,
             faceSize = faceSize,
             faceConfidence = faceConfidence
         )
@@ -242,32 +262,68 @@ class QualityValidator(
         return QualityValidationResult(
             isValid = !hasErrors,
             issues = issues,
-            metrics = metrics
+            metrics = qualityMetrics
         )
     }
 
     /**
-     * Calculate blur score using Laplacian variance
+     * Downsample a bitmap so its largest dimension is at most [MAX_ANALYSIS_DIMENSION].
+     * Returns the original bitmap if already small enough.
      */
-    private fun calculateBlurScore(bitmap: Bitmap): Double {
+    private fun downsample(bitmap: Bitmap): Bitmap {
+        val maxDim = maxOf(bitmap.width, bitmap.height)
+        if (maxDim <= MAX_ANALYSIS_DIMENSION) return bitmap
+
+        val scale = MAX_ANALYSIS_DIMENSION.toFloat() / maxDim
+        val newWidth = (bitmap.width * scale).toInt().coerceAtLeast(1)
+        val newHeight = (bitmap.height * scale).toInt().coerceAtLeast(1)
+        return Bitmap.createScaledBitmap(bitmap, newWidth, newHeight, true)
+    }
+
+    /**
+     * Single-pass pixel analysis computing blur, brightness, and glare simultaneously.
+     * Reads pixels once into a single IntArray instead of 3 separate allocations.
+     */
+    private fun analyzePixels(bitmap: Bitmap): PixelMetrics {
         val width = bitmap.width
         val height = bitmap.height
-        val pixels = IntArray(width * height)
+        val totalPixels = width * height
+        val pixels = IntArray(totalPixels)
         bitmap.getPixels(pixels, 0, width, 0, 0, width, height)
 
-        // Convert to grayscale
-        val grayscale = FloatArray(width * height)
+        // === Single pass: convert to grayscale + compute brightness + count glare ===
+        val grayscale = FloatArray(totalPixels)
+        var totalBrightness = 0.0
+        var glarePixels = 0
+        val glareThreshold = 250
+
         for (i in pixels.indices) {
             val pixel = pixels[i]
             val r = (pixel shr 16) and 0xFF
             val g = (pixel shr 8) and 0xFF
             val b = pixel and 0xFF
-            grayscale[i] = 0.299f * r + 0.587f * g + 0.114f * b
+
+            // Grayscale (for blur detection)
+            val gray = 0.299f * r + 0.587f * g + 0.114f * b
+            grayscale[i] = gray
+
+            // Brightness (perceived luminance, 0-1)
+            totalBrightness += gray / 255.0
+
+            // Glare (overexposed pixels)
+            if (r > glareThreshold && g > glareThreshold && b > glareThreshold) {
+                glarePixels++
+            }
         }
 
-        // Apply Laplacian kernel
-        val laplacian = FloatArray(width * height)
+        val brightness = totalBrightness / totalPixels
+        val glarePercentage = glarePixels.toDouble() / totalPixels
+
+        // === Laplacian variance for blur detection ===
         val kernel = intArrayOf(0, 1, 0, 1, -4, 1, 0, 1, 0)
+        var laplacianSum = 0.0
+        var laplacianSumSq = 0.0
+        var laplacianCount = 0
 
         for (y in 1 until height - 1) {
             for (x in 1 until width - 1) {
@@ -279,72 +335,24 @@ class QualityValidator(
                         sum += grayscale[idx] * kernel[kidx]
                     }
                 }
-                laplacian[y * width + x] = sum
+                laplacianSum += sum
+                laplacianSumSq += sum.toDouble().pow(2.0)
+                laplacianCount++
             }
         }
 
-        // Calculate variance
-        var mean = 0.0
-        for (value in laplacian) {
-            mean += value
-        }
-        mean /= laplacian.size
-
-        var variance = 0.0
-        for (value in laplacian) {
-            variance += (value - mean).pow(2.0)
-        }
-        variance /= laplacian.size
-
-        return variance
-    }
-
-    /**
-     * Calculate average brightness (0-1)
-     */
-    private fun calculateBrightness(bitmap: Bitmap): Double {
-        val width = bitmap.width
-        val height = bitmap.height
-        val pixels = IntArray(width * height)
-        bitmap.getPixels(pixels, 0, width, 0, 0, width, height)
-
-        var totalBrightness = 0.0
-
-        for (pixel in pixels) {
-            val r = (pixel shr 16) and 0xFF
-            val g = (pixel shr 8) and 0xFF
-            val b = pixel and 0xFF
-            // Perceived brightness formula
-            val brightness = (0.299 * r + 0.587 * g + 0.114 * b) / 255.0
-            totalBrightness += brightness
+        val blurScore = if (laplacianCount > 0) {
+            val mean = laplacianSum / laplacianCount
+            laplacianSumSq / laplacianCount - mean * mean
+        } else {
+            0.0
         }
 
-        return totalBrightness / pixels.size
-    }
-
-    /**
-     * Calculate percentage of overexposed pixels (glare)
-     */
-    private fun calculateGlarePercentage(bitmap: Bitmap): Double {
-        val width = bitmap.width
-        val height = bitmap.height
-        val pixels = IntArray(width * height)
-        bitmap.getPixels(pixels, 0, width, 0, 0, width, height)
-
-        var glarePixels = 0
-        val glareThreshold = 250
-
-        for (pixel in pixels) {
-            val r = (pixel shr 16) and 0xFF
-            val g = (pixel shr 8) and 0xFF
-            val b = pixel and 0xFF
-
-            if (r > glareThreshold && g > glareThreshold && b > glareThreshold) {
-                glarePixels++
-            }
-        }
-
-        return glarePixels.toDouble() / pixels.size
+        return PixelMetrics(
+            brightness = brightness,
+            glarePercentage = glarePercentage,
+            blurScore = blurScore
+        )
     }
 }
 

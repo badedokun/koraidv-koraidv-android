@@ -6,12 +6,15 @@ import android.graphics.BitmapFactory
 import android.graphics.Matrix
 import android.os.Handler
 import android.os.Looper
-import android.util.Size
 import androidx.camera.core.*
+import androidx.camera.core.resolutionselector.AspectRatioStrategy
+import androidx.camera.core.resolutionselector.ResolutionSelector
+import androidx.camera.core.resolutionselector.ResolutionStrategy
 import java.io.ByteArrayOutputStream
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
@@ -26,9 +29,11 @@ enum class CameraPosition {
 }
 
 /**
- * Camera manager for handling camera operations using CameraX
+ * Camera manager for handling camera operations using CameraX.
+ * Implements [DefaultLifecycleObserver] to automatically release resources when
+ * the lifecycle owner is destroyed, preventing camera leaks.
  */
-class CameraManager(private val context: Context) {
+class CameraManager(private val context: Context) : DefaultLifecycleObserver {
 
     private var cameraProvider: ProcessCameraProvider? = null
     private var preview: Preview? = null
@@ -41,9 +46,11 @@ class CameraManager(private val context: Context) {
 
     private var currentPosition = CameraPosition.BACK
     private var onFrameListener: ((ImageProxy) -> Unit)? = null
+    private var boundLifecycleOwner: LifecycleOwner? = null
 
     /**
-     * Initialize camera with the given preview view
+     * Initialize camera with the given preview view.
+     * Automatically registers as a lifecycle observer to clean up on destroy.
      */
     fun initialize(
         lifecycleOwner: LifecycleOwner,
@@ -52,6 +59,8 @@ class CameraManager(private val context: Context) {
         onInitialized: (Boolean) -> Unit
     ) {
         currentPosition = position
+        boundLifecycleOwner = lifecycleOwner
+        lifecycleOwner.lifecycle.addObserver(this)
 
         val cameraProviderFuture = ProcessCameraProvider.getInstance(context)
         cameraProviderFuture.addListener({
@@ -68,9 +77,22 @@ class CameraManager(private val context: Context) {
     private fun bindCameraUseCases(lifecycleOwner: LifecycleOwner, previewView: PreviewView) {
         val cameraProvider = cameraProvider ?: return
 
+        // Use ResolutionSelector (CameraX 1.3+ replacement for deprecated setTargetResolution)
+        val previewResolution = ResolutionSelector.Builder()
+            .setAspectRatioStrategy(AspectRatioStrategy.RATIO_16_9_FALLBACK_AUTO_STRATEGY)
+            .build()
+
+        val captureResolution = ResolutionSelector.Builder()
+            .setAspectRatioStrategy(AspectRatioStrategy.RATIO_16_9_FALLBACK_AUTO_STRATEGY)
+            .build()
+
+        val analysisResolution = ResolutionSelector.Builder()
+            .setAspectRatioStrategy(AspectRatioStrategy.RATIO_4_3_FALLBACK_AUTO_STRATEGY)
+            .build()
+
         // Preview
         preview = Preview.Builder()
-            .setTargetResolution(Size(1280, 720))
+            .setResolutionSelector(previewResolution)
             .build()
             .also {
                 it.setSurfaceProvider(previewView.surfaceProvider)
@@ -79,12 +101,12 @@ class CameraManager(private val context: Context) {
         // Image capture
         imageCapture = ImageCapture.Builder()
             .setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)
-            .setTargetResolution(Size(1920, 1080))
+            .setResolutionSelector(captureResolution)
             .build()
 
         // Image analysis
         imageAnalyzer = ImageAnalysis.Builder()
-            .setTargetResolution(Size(640, 480))
+            .setResolutionSelector(analysisResolution)
             .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
             .build()
             .also {
@@ -141,6 +163,7 @@ class CameraManager(private val context: Context) {
 
     /**
      * Capture a photo. Callback is invoked on the camera executor thread.
+     * Properly recycles intermediate bitmaps to prevent OOM on low-end devices.
      */
     fun capturePhoto(onCaptured: (ByteArray?) -> Unit) {
         val imageCapture = imageCapture ?: run {
@@ -167,11 +190,18 @@ class CameraManager(private val context: Context) {
                             val rotated = Bitmap.createBitmap(
                                 bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true
                             )
+                            // Recycle the original bitmap immediately — it's no longer needed
+                            if (rotated !== bitmap) {
+                                bitmap.recycle()
+                            }
                             val stream = ByteArrayOutputStream()
                             rotated.compress(Bitmap.CompressFormat.JPEG, 90, stream)
+                            rotated.recycle()
                             onCaptured(stream.toByteArray())
                             return
                         }
+                        // BitmapFactory.decodeByteArray returned null — image data is corrupt.
+                        // Fall through to return raw bytes (server will reject with a clear error).
                     }
                     onCaptured(bytes)
                 }
@@ -236,11 +266,33 @@ class CameraManager(private val context: Context) {
         return newFlashMode == ImageCapture.FLASH_MODE_ON
     }
 
+    // DefaultLifecycleObserver — auto-release on destroy
+    override fun onDestroy(owner: LifecycleOwner) {
+        release()
+        owner.lifecycle.removeObserver(this)
+    }
+
     /**
-     * Release camera resources
+     * Release camera resources.
+     * Called automatically when the bound lifecycle owner is destroyed.
      */
     fun release() {
-        cameraProvider?.unbindAll()
+        // Only unbind this instance's use cases — NOT unbindAll() which would
+        // kill cameras bound by other CameraManager instances sharing the
+        // singleton ProcessCameraProvider.
+        val provider = cameraProvider ?: return
+        listOfNotNull(preview, imageCapture, imageAnalyzer).let { useCases ->
+            if (useCases.isNotEmpty()) {
+                provider.unbind(*useCases.toTypedArray())
+            }
+        }
+        preview = null
+        imageCapture = null
+        imageAnalyzer = null
+        camera = null
+        cameraProvider = null
+        onFrameListener = null
+        boundLifecycleOwner = null
         cameraExecutor.shutdown()
     }
 }

@@ -2,6 +2,7 @@ package com.koraidv.sdk.capture
 
 import android.graphics.PointF
 import android.graphics.RectF
+import android.util.Log
 import androidx.camera.core.ImageProxy
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.face.FaceDetection
@@ -38,8 +39,9 @@ class FaceScanner {
 
     private var lastCenter: PointF? = null
     private var stabilityCounter = 0
-    private val stabilityThreshold = 4  // ~600ms with async ML Kit processing
-    private val stabilityTolerance = 0.05f // 5% tolerance for handheld movement
+    private var noDetectionCounter = 0
+    private val stabilityThreshold = 1  // Single stable frame sufficient; user gets review screen
+    private val stabilityTolerance = 0.10f // 10% tolerance for natural hand movement
 
     // Face sizing: 8-55% of frame area
     private val minFaceFraction = 0.08f
@@ -77,17 +79,22 @@ class FaceScanner {
         faceDetector.process(inputImage)
             .addOnSuccessListener { faces ->
                 if (faces.isEmpty()) {
-                    resetStability()
-                    lastResult = FaceScanResult(
-                        faceDetected = false,
-                        boundingBox = null,
-                        isCentered = false,
-                        isSizedCorrectly = false,
-                        isStable = false,
-                        guidanceMessage = "Position your face in the oval"
-                    )
+                    noDetectionCounter++
+                    // Only reset after 3 consecutive missed frames (hysteresis)
+                    if (noDetectionCounter >= 3) {
+                        resetStability()
+                        lastResult = FaceScanResult(
+                            faceDetected = false,
+                            boundingBox = null,
+                            isCentered = false,
+                            isSizedCorrectly = false,
+                            isStable = false,
+                            guidanceMessage = "Position your face in the oval"
+                        )
+                    }
                     return@addOnSuccessListener
                 }
+                noDetectionCounter = 0
 
                 if (faces.size > 1) {
                     resetStability()
@@ -140,8 +147,8 @@ class FaceScanner {
                     guidanceMessage = guidanceMessage
                 )
             }
-            .addOnFailureListener {
-                // ML Kit processing failed
+            .addOnFailureListener { e ->
+                Log.w("KoraIDV", "FaceScanner: ML Kit face detection failed", e)
             }
             .addOnCompleteListener {
                 imageProxy.close()
@@ -165,7 +172,7 @@ class FaceScanner {
         if (dx <= stabilityTolerance && dy <= stabilityTolerance) {
             stabilityCounter++
         } else {
-            stabilityCounter = 1
+            stabilityCounter = (stabilityCounter - 1).coerceAtLeast(0)
         }
 
         lastCenter = center
@@ -175,6 +182,7 @@ class FaceScanner {
     fun resetStability() {
         lastCenter = null
         stabilityCounter = 0
+        noDetectionCounter = 0
         lastResult = null
     }
 

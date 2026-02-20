@@ -2,6 +2,8 @@ package com.koraidv.sdk.api
 
 import android.util.Base64
 import android.util.Log
+import com.google.gson.Gson
+import com.google.gson.annotations.SerializedName
 import com.koraidv.sdk.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -21,9 +23,22 @@ internal class SessionManager(
 
     private var sessionStartTime: Date? = null
 
-    private val dateFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US).apply {
-        timeZone = TimeZone.getTimeZone("UTC")
+    // ThreadLocal ensures each coroutine/thread gets its own SimpleDateFormat instance,
+    // avoiding the thread-safety issues with SimpleDateFormat's internal mutable state.
+    private val dateFormatLocal = ThreadLocal.withInitial {
+        SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US).apply {
+            timeZone = TimeZone.getTimeZone("UTC")
+        }
     }
+
+    // Fallback format for servers that return dates without milliseconds
+    private val dateFormatFallbackLocal = ThreadLocal.withInitial {
+        SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US).apply {
+            timeZone = TimeZone.getTimeZone("UTC")
+        }
+    }
+
+    private val gson = Gson()
 
     // Verification lifecycle
 
@@ -41,7 +56,7 @@ internal class SessionManager(
                 currentVerification = verification
                 Result.success(verification)
             } else {
-                Result.failure(mapHttpError(response.code()))
+                Result.failure(mapHttpError(response.code(), response.errorBody()?.string()))
             }
         } catch (e: Exception) {
             Result.failure(mapException(e))
@@ -58,7 +73,7 @@ internal class SessionManager(
                 sessionStartTime = Date()
                 Result.success(verification)
             } else {
-                Result.failure(mapHttpError(response.code()))
+                Result.failure(mapHttpError(response.code(), response.errorBody()?.string()))
             }
         } catch (e: Exception) {
             Result.failure(mapException(e))
@@ -100,7 +115,7 @@ internal class SessionManager(
                     )
                 )
             } else {
-                Result.failure(mapHttpError(response.code()))
+                Result.failure(mapHttpError(response.code(), response.errorBody()?.string()))
             }
         } catch (e: Exception) {
             Result.failure(mapException(e))
@@ -142,7 +157,7 @@ internal class SessionManager(
                     )
                 )
             } else {
-                Result.failure(mapHttpError(response.code()))
+                Result.failure(mapHttpError(response.code(), response.errorBody()?.string()))
             }
         } catch (e: Exception) {
             Result.failure(mapException(e))
@@ -172,7 +187,7 @@ internal class SessionManager(
                     )
                 )
             } else {
-                Result.failure(mapHttpError(response.code()))
+                Result.failure(mapHttpError(response.code(), response.errorBody()?.string()))
             }
         } catch (e: Exception) {
             Result.failure(mapException(e))
@@ -202,7 +217,7 @@ internal class SessionManager(
                     )
                 )
             } else {
-                Result.failure(mapHttpError(response.code()))
+                Result.failure(mapHttpError(response.code(), response.errorBody()?.string()))
             }
         } catch (e: Exception) {
             Result.failure(mapException(e))
@@ -236,7 +251,7 @@ internal class SessionManager(
                     )
                 )
             } else {
-                Result.failure(mapHttpError(response.code()))
+                Result.failure(mapHttpError(response.code(), response.errorBody()?.string()))
             }
         } catch (e: Exception) {
             Result.failure(mapException(e))
@@ -254,7 +269,7 @@ internal class SessionManager(
                 currentVerification = verification
                 Result.success(verification)
             } else {
-                Result.failure(mapHttpError(response.code()))
+                Result.failure(mapHttpError(response.code(), response.errorBody()?.string()))
             }
         } catch (e: Exception) {
             Result.failure(mapException(e))
@@ -296,7 +311,7 @@ internal class SessionManager(
                 )
             } else {
                 Log.e("KoraIDV", "getDocumentTypes: HTTP error ${response.code()} - ${response.errorBody()?.string()}")
-                Result.failure(mapHttpError(response.code()))
+                Result.failure(mapHttpError(response.code(), response.errorBody()?.string()))
             }
         } catch (e: Exception) {
             Log.e("KoraIDV", "getDocumentTypes: exception", e)
@@ -344,28 +359,39 @@ internal class SessionManager(
             status = VerificationStatus.fromValue(response.status),
             documentVerification = response.documentVerification?.let {
                 DocumentVerification(
-                    documentType = it.document_type,
-                    documentNumber = it.document_number,
-                    firstName = it.first_name,
-                    lastName = it.last_name,
-                    dateOfBirth = it.date_of_birth,
-                    expirationDate = it.expiration_date,
-                    issuingCountry = it.issuing_country,
-                    mrzValid = it.mrz_valid,
-                    authenticityScore = it.authenticity_score,
-                    extractedFields = it.extracted_fields
+                    documentType = it.documentType,
+                    documentNumber = it.documentNumber,
+                    firstName = it.firstName,
+                    lastName = it.lastName,
+                    dateOfBirth = it.dateOfBirth,
+                    expirationDate = it.expirationDate,
+                    issuingCountry = it.issuingCountry,
+                    mrzValid = it.mrzValid,
+                    authenticityScore = it.authenticityScore,
+                    extractedFields = it.extractedFields
                 )
             },
             faceVerification = response.faceVerification?.let {
-                FaceVerification(it.match_score, it.match_result, it.confidence)
+                FaceVerification(it.matchScore, it.matchResult, it.confidence)
             },
             livenessVerification = response.livenessVerification?.let {
                 LivenessVerification(
-                    livenessScore = it.liveness_score,
-                    isLive = it.is_live,
-                    challengeResults = it.challenge_results?.map { cr ->
+                    livenessScore = it.livenessScore,
+                    isLive = it.isLive,
+                    challengeResults = it.challengeResults?.map { cr ->
                         ChallengeResult(cr.type, cr.passed, cr.confidence)
                     }
+                )
+            },
+            scores = response.scores?.let {
+                VerificationScores(
+                    documentQuality = it.documentQuality ?: 0.0,
+                    documentAuth = it.documentAuth ?: 0.0,
+                    faceMatch = it.faceMatch ?: 0.0,
+                    liveness = it.liveness ?: 0.0,
+                    nameMatch = it.nameMatch ?: 0.0,
+                    dataConsistency = it.dataConsistency ?: 0.0,
+                    overall = it.overall ?: 0.0
                 )
             },
             riskSignals = response.riskSignals?.map { RiskSignal(it.code, it.severity, it.message) },
@@ -378,21 +404,55 @@ internal class SessionManager(
 
     private fun parseDate(dateString: String): Date {
         return try {
-            dateFormat.parse(dateString) ?: Date()
+            dateFormatLocal.get()!!.parse(dateString) ?: Date()
         } catch (e: Exception) {
-            Date()
+            // Try fallback format without milliseconds
+            try {
+                dateFormatFallbackLocal.get()!!.parse(dateString) ?: Date()
+            } catch (e2: Exception) {
+                Date()
+            }
         }
     }
 
-    private fun mapHttpError(statusCode: Int): KoraException {
+    private fun mapHttpError(statusCode: Int, errorBody: String? = null): KoraException {
         return when (statusCode) {
             401 -> KoraException.Unauthorized()
             403 -> KoraException.Forbidden()
             404 -> KoraException.NotFound()
-            422 -> KoraException.ValidationError(emptyList())
+            422 -> {
+                // Parse field-level validation errors from the response body
+                val fieldErrors = parseValidationErrors(errorBody)
+                KoraException.ValidationError(fieldErrors)
+            }
             429 -> KoraException.RateLimited()
             in 500..599 -> KoraException.ServerError(statusCode)
             else -> KoraException.HttpError(statusCode)
+        }
+    }
+
+    /**
+     * Parse validation errors from a 422 response body.
+     * Supports common formats: { "errors": [{ "field": "...", "message": "..." }] }
+     * and { "error": "...", "details": { "field": "message" } }
+     */
+    private fun parseValidationErrors(errorBody: String?): List<FieldError> {
+        if (errorBody.isNullOrBlank()) return emptyList()
+        return try {
+            val response = gson.fromJson(errorBody, ValidationErrorBody::class.java)
+            when {
+                response?.errors != null -> response.errors.map {
+                    FieldError(field = it.field ?: "unknown", message = it.message ?: "Validation failed")
+                }
+                response?.details != null -> response.details.map { (field, message) ->
+                    FieldError(field = field, message = message)
+                }
+                response?.error != null -> listOf(FieldError(field = "general", message = response.error))
+                else -> emptyList()
+            }
+        } catch (e: Exception) {
+            Log.w("KoraIDV", "Failed to parse validation error body", e)
+            emptyList()
         }
     }
 
@@ -481,4 +541,16 @@ data class CountryInfo(
     val code: String,
     val name: String,
     val flagEmoji: String?
+)
+
+// Internal model for parsing 422 validation error response bodies
+internal data class ValidationErrorBody(
+    val error: String? = null,
+    val errors: List<ValidationFieldError>? = null,
+    val details: Map<String, String>? = null
+)
+
+internal data class ValidationFieldError(
+    val field: String? = null,
+    val message: String? = null
 )

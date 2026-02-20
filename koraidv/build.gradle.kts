@@ -8,7 +8,7 @@ plugins {
 
 android {
     namespace = "com.koraidv.sdk"
-    compileSdk = 34
+    compileSdk = 35
 
     defaultConfig {
         minSdk = 24
@@ -88,7 +88,7 @@ publishing {
         register<MavenPublication>("release") {
             groupId = "com.koraidv"
             artifactId = "sdk"
-            version = "1.0.0"
+            version = "1.0.5"
 
             afterEvaluate {
                 from(components["release"])

@@ -3,6 +3,7 @@ package com.koraidv.sdk.capture
 import android.graphics.Bitmap
 import android.graphics.PointF
 import android.graphics.RectF
+import android.util.Log
 import androidx.camera.core.ImageProxy
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.text.TextRecognition
@@ -27,8 +28,10 @@ class DocumentScanner {
 
     private var lastCorners: List<PointF>? = null
     private var stabilityCounter = 0
-    private val stabilityThreshold = 3    // ~450ms at one analysis every ~150ms
-    private val stabilityTolerance = 0.05f // 5% tolerance for handheld movement
+    private var noDetectionCounter = 0
+    private val noDetectionThreshold = 3  // 3 consecutive missed frames before reset
+    private val stabilityThreshold = 1    // single stable frame suffices (user gets review screen)
+    private val stabilityTolerance = 0.10f // 10% tolerance for natural hand movement
 
     private val textRecognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
 
@@ -72,6 +75,7 @@ class DocumentScanner {
                 val blockCount = text.textBlocks.size
 
                 if (blockCount >= 1) {
+                    noDetectionCounter = 0
                     // Build bounding box from detected text blocks
                     var minX = width
                     var minY = height
@@ -128,11 +132,10 @@ class DocumentScanner {
                         (0.5f + coverage.coerceAtMost(0.5f)).coerceAtMost(0.99f)
                     }
 
-                    // Compute quality guidance from coverage and block count
+                    // Compute quality guidance from coverage
                     val qualityGuidance = when {
                         coverage < 0.05f -> "Move closer to the document"
                         coverage > 0.85f -> "Move further from the document"
-                        blockCount < 3 -> "Ensure document is fully visible"
                         else -> null // All conditions good
                     }
 
@@ -144,13 +147,16 @@ class DocumentScanner {
                         qualityGuidance = qualityGuidance
                     )
                 } else {
-                    lastCorners = null
-                    stabilityCounter = 0
-                    lastDetectionResult = null
+                    noDetectionCounter++
+                    if (noDetectionCounter >= noDetectionThreshold) {
+                        lastCorners = null
+                        stabilityCounter = 0
+                        lastDetectionResult = null
+                    }
                 }
             }
-            .addOnFailureListener {
-                // ML Kit processing failed - reset state
+            .addOnFailureListener { e ->
+                Log.w("KoraIDV", "DocumentScanner: ML Kit text recognition failed", e)
             }
             .addOnCompleteListener {
                 // Always close imageProxy and mark analysis as done
@@ -184,7 +190,7 @@ class DocumentScanner {
         if (isStable) {
             stabilityCounter++
         } else {
-            stabilityCounter = 1
+            stabilityCounter = (stabilityCounter - 1).coerceAtLeast(0)
         }
 
         lastCorners = corners
@@ -195,6 +201,7 @@ class DocumentScanner {
     fun resetStability() {
         lastCorners = null
         stabilityCounter = 0
+        noDetectionCounter = 0
         lastDetectionResult = null
     }
 

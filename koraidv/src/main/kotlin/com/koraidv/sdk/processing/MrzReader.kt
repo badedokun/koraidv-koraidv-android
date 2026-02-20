@@ -81,8 +81,10 @@ class MrzReader {
      * Parse MRZ text
      */
     private fun parseMrz(text: String): MrzData? {
+        // Only strip whitespace and non-MRZ characters — do NOT replace O→0 globally
+        // as that corrupts country codes (GBR→GB0) and names (OLIVER→0LIVER).
+        // OCR O/0 confusion is handled per-field in digit-only positions during parsing.
         val cleaned = text
-            .replace("O", "0")
             .replace(" ", "")
             .replace("\n", "")
             .filter { it.isLetterOrDigit() || it == '<' }
@@ -96,12 +98,36 @@ class MrzReader {
         }
     }
 
+    /**
+     * Fix OCR O/0 confusion in digit-only fields (document numbers, dates, check digits).
+     * Only replaces O→0 in positions where digits are expected.
+     */
+    private fun fixDigitField(field: String): String {
+        return field.replace('O', '0').replace('o', '0')
+    }
+
     private fun detectFormat(text: String): MrzFormat? {
         val length = text.length
+        // TD3 (passports): 2 lines × 44 = 88 chars. Check first — TD1 range must not overlap.
+        // TD1 (ID cards):  3 lines × 30 = 90 chars.
+        // TD2 (some IDs):  2 lines × 36 = 72 chars.
+        // Use structural hints (line 1 prefix) to disambiguate overlapping lengths.
         return when {
-            length in 88..92 -> MrzFormat.TD1
             length in 70..74 -> MrzFormat.TD2
-            length in 86..90 -> MrzFormat.TD3
+            length in 86..92 -> {
+                // Disambiguate TD1 vs TD3 using document type prefix:
+                // TD3 passports start with "P<" or "P" followed by issuing country
+                // TD1 ID cards start with "I", "A", or "C"
+                val prefix = text.substring(0, 1)
+                if (prefix == "P" || (length == 88 && text.getOrNull(1) == '<')) {
+                    MrzFormat.TD3
+                } else if (length >= 90) {
+                    MrzFormat.TD1
+                } else {
+                    // For ambiguous lengths (88-89), default to TD3 for passport-like prefixes
+                    MrzFormat.TD3
+                }
+            }
             else -> null
         }
     }
@@ -114,16 +140,16 @@ class MrzReader {
         // Line 1 (chars 0-29)
         val documentType = text.substring(0, 2).replace("<", "")
         val issuingCountry = text.substring(2, 5)
-        val documentNumber = text.substring(5, 14).replace("<", "")
-        val docNumCheck = text[14].toString()
+        val documentNumber = fixDigitField(text.substring(5, 14).replace("<", ""))
+        val docNumCheck = fixDigitField(text[14].toString())
         val optionalData1 = text.substring(15, 30).replace("<", "").takeIf { it.isNotEmpty() }
 
         // Line 2 (chars 30-59)
-        val dateOfBirth = text.substring(30, 36)
-        val dobCheck = text[36].toString()
+        val dateOfBirth = fixDigitField(text.substring(30, 36))
+        val dobCheck = fixDigitField(text[36].toString())
         val sex = text[37].toString()
-        val expirationDate = text.substring(38, 44)
-        val expCheck = text[44].toString()
+        val expirationDate = fixDigitField(text.substring(38, 44))
+        val expCheck = fixDigitField(text[44].toString())
         val nationality = text.substring(45, 48)
         val optionalData2 = text.substring(48, 59).replace("<", "").takeIf { it.isNotEmpty() }
 
@@ -170,14 +196,14 @@ class MrzReader {
         val nameParts = parseName(text.substring(5, 36))
 
         // Line 2 (chars 36-71)
-        val documentNumber = text.substring(36, 45).replace("<", "")
-        val docNumCheck = text[45].toString()
+        val documentNumber = fixDigitField(text.substring(36, 45).replace("<", ""))
+        val docNumCheck = fixDigitField(text[45].toString())
         val nationality = text.substring(46, 49)
-        val dateOfBirth = text.substring(49, 55)
-        val dobCheck = text[55].toString()
+        val dateOfBirth = fixDigitField(text.substring(49, 55))
+        val dobCheck = fixDigitField(text[55].toString())
         val sex = text[56].toString()
-        val expirationDate = text.substring(57, 63)
-        val expCheck = text[63].toString()
+        val expirationDate = fixDigitField(text.substring(57, 63))
+        val expCheck = fixDigitField(text[63].toString())
         val optionalData1 = text.substring(64, 71).replace("<", "").takeIf { it.isNotEmpty() }
 
         // Validate check digits
@@ -219,14 +245,14 @@ class MrzReader {
         val nameParts = parseName(text.substring(5, 44))
 
         // Line 2 (chars 44-87)
-        val documentNumber = text.substring(44, 53).replace("<", "")
-        val docNumCheck = text[53].toString()
+        val documentNumber = fixDigitField(text.substring(44, 53).replace("<", ""))
+        val docNumCheck = fixDigitField(text[53].toString())
         val nationality = text.substring(54, 57)
-        val dateOfBirth = text.substring(57, 63)
-        val dobCheck = text[63].toString()
+        val dateOfBirth = fixDigitField(text.substring(57, 63))
+        val dobCheck = fixDigitField(text[63].toString())
         val sex = text[64].toString()
-        val expirationDate = text.substring(65, 71)
-        val expCheck = text[71].toString()
+        val expirationDate = fixDigitField(text.substring(65, 71))
+        val expCheck = fixDigitField(text[71].toString())
         val optionalData1 = text.substring(72, 86).replace("<", "").takeIf { it.isNotEmpty() }
 
         // Validate check digits

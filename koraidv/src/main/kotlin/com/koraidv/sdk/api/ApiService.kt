@@ -101,6 +101,7 @@ data class VerificationResponse(
     @SerializedName("documentVerification") val documentVerification: DocumentVerificationResponse?,
     @SerializedName("faceVerification") val faceVerification: FaceVerificationResponse?,
     @SerializedName("livenessVerification") val livenessVerification: LivenessVerificationResponse?,
+    @SerializedName("scores") val scores: VerificationScoresResponse?,
     @SerializedName("riskSignals") val riskSignals: List<RiskSignalResponse>?,
     @SerializedName("riskScore") val riskScore: Int?,
     @SerializedName("createdAt") val createdAt: String,
@@ -108,29 +109,39 @@ data class VerificationResponse(
     @SerializedName("completedAt") val completedAt: String?
 )
 
+data class VerificationScoresResponse(
+    @SerializedName("documentQuality") val documentQuality: Double?,
+    @SerializedName("documentAuth") val documentAuth: Double?,
+    @SerializedName("faceMatch") val faceMatch: Double?,
+    @SerializedName("liveness") val liveness: Double?,
+    @SerializedName("nameMatch") val nameMatch: Double?,
+    @SerializedName("dataConsistency") val dataConsistency: Double?,
+    @SerializedName("overall") val overall: Double?
+)
+
 data class DocumentVerificationResponse(
-    @SerializedName("documentType") val document_type: String,
-    @SerializedName("documentNumber") val document_number: String?,
-    @SerializedName("firstName") val first_name: String?,
-    @SerializedName("lastName") val last_name: String?,
-    @SerializedName("dateOfBirth") val date_of_birth: String?,
-    @SerializedName("expirationDate") val expiration_date: String?,
-    @SerializedName("issuingCountry") val issuing_country: String?,
-    @SerializedName("mrzValid") val mrz_valid: Boolean?,
-    @SerializedName("authenticityScore") val authenticity_score: Double?,
-    @SerializedName("extractedFields") val extracted_fields: Map<String, String>?
+    @SerializedName("documentType") val documentType: String,
+    @SerializedName("documentNumber") val documentNumber: String?,
+    @SerializedName("firstName") val firstName: String?,
+    @SerializedName("lastName") val lastName: String?,
+    @SerializedName("dateOfBirth") val dateOfBirth: String?,
+    @SerializedName("expirationDate") val expirationDate: String?,
+    @SerializedName("issuingCountry") val issuingCountry: String?,
+    @SerializedName("mrzValid") val mrzValid: Boolean?,
+    @SerializedName("authenticityScore") val authenticityScore: Double?,
+    @SerializedName("extractedFields") val extractedFields: Map<String, String>?
 )
 
 data class FaceVerificationResponse(
-    @SerializedName("matchScore") val match_score: Double,
-    @SerializedName("matchResult") val match_result: String,
+    @SerializedName("matchScore") val matchScore: Double,
+    @SerializedName("matchResult") val matchResult: String,
     val confidence: Double
 )
 
 data class LivenessVerificationResponse(
-    @SerializedName("livenessScore") val liveness_score: Double,
-    @SerializedName("isLive") val is_live: Boolean,
-    @SerializedName("challengeResults") val challenge_results: List<ChallengeResultResponse>?
+    @SerializedName("livenessScore") val livenessScore: Double,
+    @SerializedName("isLive") val isLive: Boolean,
+    @SerializedName("challengeResults") val challengeResults: List<ChallengeResultResponse>?
 )
 
 data class ChallengeResultResponse(

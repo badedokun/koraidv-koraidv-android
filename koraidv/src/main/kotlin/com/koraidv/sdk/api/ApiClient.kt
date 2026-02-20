@@ -1,7 +1,10 @@
 package com.koraidv.sdk.api
 
+import android.util.Log
 import com.koraidv.sdk.Configuration
+import com.koraidv.sdk.Environment
 import com.koraidv.sdk.KoraIDV
+import okhttp3.CertificatePinner
 import okhttp3.Interceptor
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
@@ -32,9 +35,21 @@ internal class ApiClient(private val configuration: Configuration) {
             .addInterceptor(authInterceptor())
             .addInterceptor(retryInterceptor())
 
+        // Certificate pinning for production API endpoints
+        if (configuration.environment == Environment.PRODUCTION && configuration.baseUrl == null) {
+            builder.certificatePinner(
+                CertificatePinner.Builder()
+                    .add("api.koraidv.com", "sha256/BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB=") // TODO: Replace with actual production certificate pin
+                    .build()
+            )
+        }
+
         if (configuration.debugLogging) {
-            val loggingInterceptor = HttpLoggingInterceptor().apply {
-                level = HttpLoggingInterceptor.Level.BODY
+            // Use HEADERS level to avoid logging base64 image payloads (PII/biometric data)
+            val loggingInterceptor = HttpLoggingInterceptor { message ->
+                Log.d("KoraIDV", message)
+            }.apply {
+                level = HttpLoggingInterceptor.Level.HEADERS
             }
             builder.addInterceptor(loggingInterceptor)
         }
@@ -44,7 +59,7 @@ internal class ApiClient(private val configuration: Configuration) {
 
     private fun authInterceptor(): Interceptor = Interceptor { chain ->
         val request = chain.request().newBuilder()
-            .addHeader("Authorization", configuration.apiKey)
+            .addHeader("Authorization", "Bearer ${configuration.apiKey}")
             .addHeader("X-Tenant-ID", configuration.tenantId)
             .addHeader("Accept", "application/json")
             .addHeader("User-Agent", "KoraIDV-Android/${KoraIDV.VERSION}")
@@ -53,7 +68,7 @@ internal class ApiClient(private val configuration: Configuration) {
     }
 
     private fun retryInterceptor(): Interceptor = Interceptor { chain ->
-        var request = chain.request()
+        val request = chain.request()
         var response = chain.proceed(request)
         var attempt = 0
         val maxRetries = 3
@@ -65,7 +80,7 @@ internal class ApiClient(private val configuration: Configuration) {
             Thread.sleep(delay)
 
             if (configuration.debugLogging) {
-                println("[KoraIDV] Retrying request (attempt $attempt/$maxRetries)")
+                Log.d("KoraIDV", "Retrying request (attempt $attempt/$maxRetries)")
             }
 
             response = chain.proceed(request)

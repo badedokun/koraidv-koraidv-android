@@ -3,9 +3,11 @@ package com.koraidv.sdk
 import android.app.Activity
 import android.content.Context
 import android.content.Intent
+import android.os.Parcelable
 import androidx.activity.result.contract.ActivityResultContract
 import com.koraidv.sdk.api.ApiClient
 import com.koraidv.sdk.ui.VerificationActivity
+import kotlinx.parcelize.Parcelize
 
 /**
  * Main entry point for the Kora IDV SDK.
@@ -33,28 +35,37 @@ import com.koraidv.sdk.ui.VerificationActivity
  */
 object KoraIDV {
 
+    @Volatile
     private var configuration: Configuration? = null
+    @Volatile
     internal var apiClient: ApiClient? = null
         private set
+
+    private val lock = Any()
 
     /**
      * SDK version
      */
-    const val VERSION = "1.0.0"
+    const val VERSION = "1.0.5"
 
     /**
      * Configure the SDK with the provided configuration.
+     * Thread-safe — can be called from any thread.
      *
      * @param configuration SDK configuration with API key and tenant ID
      */
+    @JvmStatic
     fun configure(configuration: Configuration) {
-        this.configuration = configuration
-        this.apiClient = ApiClient(configuration)
+        synchronized(lock) {
+            this.configuration = configuration
+            this.apiClient = ApiClient(configuration)
+        }
     }
 
     /**
      * Check if the SDK is configured.
      */
+    @JvmStatic
     val isConfigured: Boolean
         get() = configuration != null
 
@@ -67,10 +78,14 @@ object KoraIDV {
 
     /**
      * Reset the SDK configuration.
+     * Thread-safe — can be called from any thread.
      */
+    @JvmStatic
     fun reset() {
-        configuration = null
-        apiClient = null
+        synchronized(lock) {
+            configuration = null
+            apiClient = null
+        }
     }
 
     /**
@@ -134,12 +149,22 @@ object KoraIDV {
     private fun parseVerificationResult(resultCode: Int, intent: Intent?): VerificationResult {
         return when (resultCode) {
             Activity.RESULT_OK -> {
-                intent?.getParcelableExtra<Verification>(VerificationActivity.EXTRA_VERIFICATION)
-                    ?.let { VerificationResult.Success(it) }
+                val verification = if (android.os.Build.VERSION.SDK_INT >= 33) {
+                    intent?.getParcelableExtra(VerificationActivity.EXTRA_VERIFICATION, Verification::class.java)
+                } else {
+                    @Suppress("DEPRECATION")
+                    intent?.getParcelableExtra(VerificationActivity.EXTRA_VERIFICATION)
+                }
+                verification?.let { VerificationResult.Success(it) }
                     ?: VerificationResult.Failure(KoraException.Unknown("Missing verification data"))
             }
             Activity.RESULT_CANCELED -> {
-                val error = intent?.getParcelableExtra<KoraException>(VerificationActivity.EXTRA_ERROR)
+                val error = if (android.os.Build.VERSION.SDK_INT >= 33) {
+                    intent?.getParcelableExtra(VerificationActivity.EXTRA_ERROR, KoraException::class.java)
+                } else {
+                    @Suppress("DEPRECATION")
+                    intent?.getParcelableExtra(VerificationActivity.EXTRA_ERROR)
+                }
                 if (error != null) {
                     VerificationResult.Failure(error)
                 } else {
@@ -158,11 +183,12 @@ object KoraIDV {
  * @property tier Verification tier level (default: standard)
  * @property documentTypes Allowed document types (default: all configured types)
  */
+@Parcelize
 data class VerificationRequest(
     val externalId: String,
     val tier: VerificationTier = VerificationTier.STANDARD,
     val documentTypes: List<DocumentType>? = null
-) : java.io.Serializable
+) : Parcelable
 
 /**
  * Result of a verification flow.

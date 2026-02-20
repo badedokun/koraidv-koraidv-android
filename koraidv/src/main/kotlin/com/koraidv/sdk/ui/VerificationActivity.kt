@@ -60,7 +60,12 @@ class VerificationActivity : ComponentActivity() {
 
     private fun initializeVerification() {
         val verificationId = intent.getStringExtra(EXTRA_VERIFICATION_ID)
-        val request = intent.getSerializableExtra(EXTRA_REQUEST) as? VerificationRequest
+        val request = if (android.os.Build.VERSION.SDK_INT >= 33) {
+            intent.getParcelableExtra(EXTRA_REQUEST, VerificationRequest::class.java)
+        } else {
+            @Suppress("DEPRECATION")
+            intent.getParcelableExtra(EXTRA_REQUEST)
+        }
 
         if (verificationId != null) {
             viewModel.initializeForResume(verificationId)
