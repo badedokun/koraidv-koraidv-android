@@ -18,9 +18,11 @@ internal class SessionManager(
     private val apiClient: ApiClient
 ) {
     /** Current active verification */
+    @Volatile
     var currentVerification: Verification? = null
         private set
 
+    @Volatile
     private var sessionStartTime: Date? = null
 
     // ThreadLocal ensures each coroutine/thread gets its own SimpleDateFormat instance,
@@ -280,13 +282,13 @@ internal class SessionManager(
         country: String? = null
     ): Result<DocumentTypesResult> = withContext(Dispatchers.IO) {
         try {
-            Log.d("KoraIDV", "getDocumentTypes: calling API with country=$country")
+            if (configuration.debugLogging) Log.d("KoraIDV", "getDocumentTypes: calling API with country=$country")
             val response = apiClient.apiService.getDocumentTypes(country)
-            Log.d("KoraIDV", "getDocumentTypes: response code=${response.code()}, isSuccessful=${response.isSuccessful}")
+            if (configuration.debugLogging) Log.d("KoraIDV", "getDocumentTypes: response code=${response.code()}, isSuccessful=${response.isSuccessful}")
 
             if (response.isSuccessful && response.body() != null) {
                 val body = response.body()!!
-                Log.d("KoraIDV", "getDocumentTypes: body has ${body.documentTypes?.size ?: 0} docTypes, ${body.countries?.size ?: 0} countries")
+                if (configuration.debugLogging) Log.d("KoraIDV", "getDocumentTypes: body has ${body.documentTypes?.size ?: 0} docTypes, ${body.countries?.size ?: 0} countries")
                 Result.success(
                     DocumentTypesResult(
                         documentTypes = body.documentTypes?.map { dto ->
@@ -310,11 +312,12 @@ internal class SessionManager(
                     )
                 )
             } else {
-                Log.e("KoraIDV", "getDocumentTypes: HTTP error ${response.code()} - ${response.errorBody()?.string()}")
-                Result.failure(mapHttpError(response.code(), response.errorBody()?.string()))
+                val errorBodyString = response.errorBody()?.string()
+                if (configuration.debugLogging) Log.e("KoraIDV", "getDocumentTypes: HTTP error ${response.code()} - $errorBodyString")
+                Result.failure(mapHttpError(response.code(), errorBodyString))
             }
         } catch (e: Exception) {
-            Log.e("KoraIDV", "getDocumentTypes: exception", e)
+            if (configuration.debugLogging) Log.e("KoraIDV", "getDocumentTypes: exception", e)
             Result.failure(mapException(e))
         }
     }

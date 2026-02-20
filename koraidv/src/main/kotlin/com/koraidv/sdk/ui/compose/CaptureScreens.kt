@@ -5,7 +5,6 @@ import android.graphics.BitmapFactory
 import android.graphics.Matrix
 import android.os.Handler
 import android.os.Looper
-import androidx.camera.core.ImageProxy
 import androidx.camera.view.PreviewView
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
@@ -15,6 +14,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -44,7 +45,6 @@ import com.koraidv.sdk.capture.CameraPosition
 import com.koraidv.sdk.capture.DocumentScanner
 import com.koraidv.sdk.capture.FaceDetectionInfo
 import com.koraidv.sdk.capture.FaceScanner
-import com.koraidv.sdk.capture.QualityValidator
 import com.koraidv.sdk.liveness.*
 import java.io.ByteArrayOutputStream
 
@@ -64,7 +64,9 @@ fun DocumentCaptureScreen(
     val lifecycleOwner = LocalLifecycleOwner.current
     val cameraManager = remember { CameraManager(context) }
     val documentScanner = remember { DocumentScanner() }
-    val qualityValidator = remember { QualityValidator() }
+
+    // Manage side internally so FRONT→BACK never goes through AnimatedContent
+    var currentSide by remember { mutableStateOf(side) }
 
     var cameraReady by remember { mutableStateOf(false) }
     var isCapturing by remember { mutableStateOf(false) }
@@ -74,6 +76,7 @@ fun DocumentCaptureScreen(
     var capturedImageBytes by remember { mutableStateOf<ByteArray?>(null) }
     var capturedBitmap by remember { mutableStateOf<Bitmap?>(null) }
     var autoCapturePending by remember { mutableStateOf(false) }
+    var firstDetectedTime by remember { mutableStateOf<Long?>(null) }
 
     LaunchedEffect(autoCapturePending) {
         if (autoCapturePending && !isCapturing && cameraReady) {
@@ -82,15 +85,13 @@ fun DocumentCaptureScreen(
                 if (bytes != null) {
                     val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
                     if (bitmap != null) {
-                        val validation = qualityValidator.validateDocumentImage(bitmap)
-                        if (validation.isValid) {
-                            val stream = ByteArrayOutputStream()
-                            bitmap.compress(Bitmap.CompressFormat.JPEG, 90, stream)
-                            capturedImageBytes = stream.toByteArray()
-                            capturedBitmap = bitmap
-                        } else {
-                            documentScanner.resetStability()
-                        }
+                        // Skip client-side quality validation — always show review screen.
+                        // User can retake if quality is poor; server-side Vision API
+                        // performs the real quality assessment.
+                        val stream = ByteArrayOutputStream()
+                        bitmap.compress(Bitmap.CompressFormat.JPEG, 90, stream)
+                        capturedImageBytes = stream.toByteArray()
+                        capturedBitmap = bitmap
                     }
                 }
                 isCapturing = false
@@ -102,7 +103,7 @@ fun DocumentCaptureScreen(
     DisposableEffect(Unit) {
         onDispose {
             cameraManager.release()
-            documentScanner.resetStability()
+            documentScanner.close()
         }
     }
 
@@ -113,13 +114,33 @@ fun DocumentCaptureScreen(
         DocumentReviewScreen(
             bitmap = reviewBitmap,
             title = "Review photo",
-            subtitle = "${if (side == DocumentSide.FRONT) "Front" else "Back"} of $documentDisplayName",
+            subtitle = "${if (currentSide == DocumentSide.FRONT) "Front" else "Back"} of $documentDisplayName",
             onRetake = {
+                capturedBitmap?.recycle()
                 capturedImageBytes = null
                 capturedBitmap = null
                 documentScanner.resetStability()
             },
-            onAccept = { onCaptured(reviewBytes) },
+            onAccept = {
+                if (currentSide == DocumentSide.FRONT && requiresBack) {
+                    // Submit front image to ViewModel (background upload)
+                    onCaptured(reviewBytes)
+                    // Transition to back capture internally — camera stays alive
+                    currentSide = DocumentSide.BACK
+                    capturedImageBytes = null
+                    capturedBitmap = null
+                    isCapturing = false
+                    documentDetected = false
+                    documentReady = false
+                    qualityGuidance = null
+                    autoCapturePending = false
+                    firstDetectedTime = null
+                    documentScanner.resetStability()
+                } else {
+                    // Back side or no-back document — hand off to ViewModel
+                    onCaptured(reviewBytes)
+                }
+            },
             onCancel = onCancel
         )
         return
@@ -136,7 +157,7 @@ fun DocumentCaptureScreen(
 
         // Dark header
         DarkScreenHeader(
-            title = if (side == DocumentSide.FRONT) "Front of ID" else "Back of ID",
+            title = if (currentSide == DocumentSide.FRONT) "Front of ID" else "Back of ID",
             subtitle = documentDisplayName,
             onClose = onCancel
         )
@@ -160,7 +181,9 @@ fun DocumentCaptureScreen(
                 AndroidView(
                     factory = { ctx ->
                         val mainHandler = Handler(Looper.getMainLooper())
-                        PreviewView(ctx).also { previewView ->
+                        PreviewView(ctx).apply {
+                            scaleType = PreviewView.ScaleType.FILL_CENTER
+                        }.also { previewView ->
                             cameraManager.initialize(
                                 lifecycleOwner = lifecycleOwner,
                                 previewView = previewView,
@@ -172,13 +195,30 @@ fun DocumentCaptureScreen(
                                             @Suppress("OPT_IN_USAGE")
                                             val detection = documentScanner.detectDocument(imageProxy)
                                             mainHandler.post {
-                                                documentDetected = detection != null
+                                                val detected = detection != null
+                                                documentDetected = detected
                                                 qualityGuidance = detection?.qualityGuidance
-                                                val ready = detection != null &&
-                                                        detection.isStable &&
+
+                                                // Track when document was first detected for deadline timer
+                                                if (detected) {
+                                                    if (firstDetectedTime == null) {
+                                                        firstDetectedTime = System.currentTimeMillis()
+                                                    }
+                                                } else {
+                                                    firstDetectedTime = null
+                                                }
+
+                                                val ready = detected &&
+                                                        detection!!.isStable &&
                                                         detection.qualityGuidance == null
                                                 documentReady = ready
-                                                if (ready && !isCapturing && capturedImageBytes == null) {
+
+                                                // Force capture after 3s deadline if document is detected
+                                                val deadline = firstDetectedTime
+                                                val forceCapture = detected && deadline != null &&
+                                                        (System.currentTimeMillis() - deadline) >= 3000L
+
+                                                if ((ready || forceCapture) && !isCapturing && capturedImageBytes == null) {
                                                     autoCapturePending = true
                                                 }
                                             }
@@ -268,7 +308,7 @@ fun DocumentCaptureScreen(
             Spacer(modifier = Modifier.height(12.dp))
 
             Text(
-                text = if (side == DocumentSide.FRONT)
+                text = if (currentSide == DocumentSide.FRONT)
                     "Hold your ID flat in good lighting.\nAuto-capture when ready."
                 else
                     "Ensure the barcode is clearly visible.\nAuto-capture when ready.",
@@ -283,7 +323,7 @@ fun DocumentCaptureScreen(
             // Step pills (Front/Back)
             if (requiresBack) {
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    if (side == DocumentSide.FRONT) {
+                    if (currentSide == DocumentSide.FRONT) {
                         StepPill("Front", StepPillState.Active)
                         StepPill("Back", StepPillState.Inactive)
                     } else {
@@ -410,7 +450,6 @@ fun SelfieCaptureScreen(
     val lifecycleOwner = LocalLifecycleOwner.current
     val cameraManager = remember { CameraManager(context) }
     val faceScanner = remember { FaceScanner() }
-    val qualityValidator = remember { QualityValidator() }
 
     var cameraReady by remember { mutableStateOf(false) }
     var isCapturing by remember { mutableStateOf(false) }
@@ -419,9 +458,11 @@ fun SelfieCaptureScreen(
     var guidanceMessage by remember { mutableStateOf<String?>("Position your face in the oval") }
     var capturedImageBytes by remember { mutableStateOf<ByteArray?>(null) }
     var capturedBitmap by remember { mutableStateOf<Bitmap?>(null) }
+    var autoCapturePending by remember { mutableStateOf(false) }
+    var firstFaceDetectedTime by remember { mutableStateOf<Long?>(null) }
 
-    LaunchedEffect(faceReady) {
-        if (faceReady && !isCapturing && cameraReady && capturedImageBytes == null) {
+    LaunchedEffect(autoCapturePending) {
+        if (autoCapturePending && !isCapturing && cameraReady && capturedImageBytes == null) {
             isCapturing = true
             cameraManager.capturePhotoOnMain { bytes ->
                 if (bytes != null) {
@@ -430,24 +471,20 @@ fun SelfieCaptureScreen(
                         val matrix = Matrix()
                         matrix.postScale(-1f, 1f)
                         val mirrored = Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
-
-                        val faceInfo = FaceDetectionInfo(
-                            boundingBox = android.graphics.RectF(0f, 0f, mirrored.width.toFloat(), mirrored.height.toFloat()),
-                            confidence = 0.95f
-                        )
-                        val validation = qualityValidator.validateSelfieImage(mirrored, faceInfo)
-                        if (validation.isValid) {
-                            val stream = ByteArrayOutputStream()
-                            mirrored.compress(Bitmap.CompressFormat.JPEG, 90, stream)
-                            capturedImageBytes = stream.toByteArray()
-                            capturedBitmap = mirrored
-                        } else {
-                            faceScanner.resetStability()
-                            faceReady = false
+                        // Recycle the original — only the mirrored copy is needed
+                        if (mirrored !== bitmap) {
+                            bitmap.recycle()
                         }
+
+                        // Always show review screen — server-side ML performs real quality assessment
+                        val stream = ByteArrayOutputStream()
+                        mirrored.compress(Bitmap.CompressFormat.JPEG, 90, stream)
+                        capturedImageBytes = stream.toByteArray()
+                        capturedBitmap = mirrored
                     }
                 }
                 isCapturing = false
+                autoCapturePending = false
             }
         }
     }
@@ -466,6 +503,7 @@ fun SelfieCaptureScreen(
         SelfieReviewScreen(
             bitmap = reviewBitmap,
             onRetake = {
+                capturedBitmap?.recycle()
                 capturedImageBytes = null
                 capturedBitmap = null
                 faceReady = false
@@ -546,11 +584,30 @@ fun SelfieCaptureScreen(
                                                     if (result != null) {
                                                         faceDetected = result.faceDetected
                                                         guidanceMessage = result.guidanceMessage
+
+                                                        // Track when face was first detected for deadline timer
+                                                        if (result.faceDetected) {
+                                                            if (firstFaceDetectedTime == null) {
+                                                                firstFaceDetectedTime = System.currentTimeMillis()
+                                                            }
+                                                        } else {
+                                                            firstFaceDetectedTime = null
+                                                        }
+
                                                         val ready = result.faceDetected &&
                                                                 result.isCentered &&
                                                                 result.isSizedCorrectly &&
                                                                 result.isStable
                                                         faceReady = ready
+
+                                                        // Force capture after 5s deadline if face is detected
+                                                        val deadline = firstFaceDetectedTime
+                                                        val forceCapture = result.faceDetected && deadline != null &&
+                                                                (System.currentTimeMillis() - deadline) >= 5000L
+
+                                                        if ((ready || forceCapture) && !isCapturing && capturedImageBytes == null) {
+                                                            autoCapturePending = true
+                                                        }
                                                     }
                                                 }
                                             }
@@ -600,8 +657,14 @@ fun SelfieCaptureScreen(
                 .padding(bottom = 40.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
+            val pillText = when {
+                faceReady -> "Ready to capture"
+                guidanceMessage != null -> guidanceMessage!!
+                faceDetected -> "Hold steady..."
+                else -> "Detecting face..."
+            }
             GuidancePill(
-                text = if (faceReady) "Ready to capture" else "Detecting face...",
+                text = pillText,
                 variant = if (faceReady) GuidancePillVariant.Ready else GuidancePillVariant.Scanning
             )
             Spacer(modifier = Modifier.height(12.dp))
@@ -723,7 +786,8 @@ private fun SelfieReviewScreen(
 }
 
 /**
- * Liveness check screen — dark bg, oval with countdown and progress ring
+ * Liveness check screen — premium design with animated challenge icons,
+ * progress ring, and clear visual cues for each challenge type.
  */
 @Composable
 internal fun LivenessScreen(
@@ -740,6 +804,7 @@ internal fun LivenessScreen(
     var cameraReady by remember { mutableStateOf(false) }
     var sessionLoaded by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
+    var totalChallenges by remember { mutableIntStateOf(3) }
 
     val livenessState by livenessManager.state.collectAsState()
 
@@ -748,6 +813,7 @@ internal fun LivenessScreen(
             val result = sessionManager.createLivenessSession(verificationId)
             result.fold(
                 onSuccess = { session ->
+                    totalChallenges = session.challenges.size
                     livenessManager.start(session)
                     sessionLoaded = true
                 },
@@ -765,6 +831,7 @@ internal fun LivenessScreen(
                 ),
                 expiresAt = java.util.Date(System.currentTimeMillis() + 300_000)
             )
+            totalChallenges = fallbackSession.challenges.size
             livenessManager.start(fallbackSession)
             sessionLoaded = true
         }
@@ -795,6 +862,26 @@ internal fun LivenessScreen(
             cameraManager.release()
             livenessManager.stop()
         }
+    }
+
+    // Derive challenge info
+    val challengeType = when (val state = livenessState) {
+        is LivenessState.Countdown -> state.challenge.type
+        is LivenessState.InProgress -> state.challenge.type
+        is LivenessState.ChallengeComplete -> state.challenge.type
+        else -> null
+    }
+    val isCountdown = livenessState is LivenessState.Countdown
+    val countdownValue = (livenessState as? LivenessState.Countdown)?.count ?: 0
+    val isChallengeComplete = livenessState is LivenessState.ChallengeComplete
+    val challengePassed = (livenessState as? LivenessState.ChallengeComplete)?.passed == true
+
+    val currentIndex = when (val state = livenessState) {
+        is LivenessState.Countdown -> state.challenge.order
+        is LivenessState.InProgress -> state.challenge.order
+        is LivenessState.ChallengeComplete -> state.challenge.order + 1
+        is LivenessState.Complete -> totalChallenges
+        else -> 0
     }
 
     Column(
@@ -832,161 +919,264 @@ internal fun LivenessScreen(
             return@Column
         }
 
-        // Challenge title
-        val challengeTitle = when (val state = livenessState) {
-            is LivenessState.InProgress -> state.challenge.instruction
-            is LivenessState.ChallengeComplete -> if (state.passed) "Great!" else "Try again"
-            else -> "Get ready..."
-        }
-        val challengeSubtitle = when (val state = livenessState) {
-            is LivenessState.InProgress -> when (state.challenge.type) {
-                com.koraidv.sdk.api.ChallengeType.BLINK -> "Blink naturally when ready"
-                com.koraidv.sdk.api.ChallengeType.SMILE -> "Show a natural smile"
-                com.koraidv.sdk.api.ChallengeType.TURN_LEFT -> "Slowly turn left"
-                com.koraidv.sdk.api.ChallengeType.TURN_RIGHT -> "Slowly turn right"
-                else -> "Follow the instruction"
-            }
-            else -> ""
-        }
-
+        // ── Challenge instruction with icon ──────────────────────────────────
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 24.dp, vertical = 16.dp),
+                .padding(horizontal = 24.dp, vertical = 12.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Text(
-                text = challengeTitle,
-                fontSize = 24.sp,
-                fontWeight = FontWeight.W700,
-                color = Color.White,
-                letterSpacing = (-0.5).sp
-            )
-            if (challengeSubtitle.isNotEmpty()) {
+            if (isCountdown && challengeType != null) {
+                // Countdown before challenge starts
+                Text(
+                    text = "$countdownValue",
+                    fontSize = 64.sp,
+                    fontWeight = FontWeight.W700,
+                    color = KoraColors.TealBright,
+                    letterSpacing = (-1).sp
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "Get ready to...",
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.W500,
+                    color = KoraColors.WhiteAlpha50
+                )
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = challengeSubtitle,
+                    text = when (challengeType) {
+                        com.koraidv.sdk.api.ChallengeType.BLINK -> "Blink your eyes"
+                        com.koraidv.sdk.api.ChallengeType.SMILE -> "Smile naturally"
+                        com.koraidv.sdk.api.ChallengeType.TURN_LEFT -> "Turn head left"
+                        com.koraidv.sdk.api.ChallengeType.TURN_RIGHT -> "Turn head right"
+                        com.koraidv.sdk.api.ChallengeType.NOD_UP -> "Look up"
+                        com.koraidv.sdk.api.ChallengeType.NOD_DOWN -> "Look down"
+                    },
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.W600,
+                    color = Color.White,
+                    letterSpacing = (-0.5).sp
+                )
+            } else if (isChallengeComplete) {
+                // Prominent completion indicator
+                Icon(
+                    imageVector = Icons.Default.CheckCircle,
+                    contentDescription = null,
+                    modifier = Modifier.size(56.dp),
+                    tint = if (challengePassed) KoraColors.TealBright else KoraColors.ErrorRed
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = if (challengePassed) "Challenge complete!" else "Try again",
+                    fontSize = 24.sp,
+                    fontWeight = FontWeight.W700,
+                    color = if (challengePassed) KoraColors.TealBright else KoraColors.ErrorRed,
+                    letterSpacing = (-0.5).sp
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                val completedNum = (livenessState as? LivenessState.ChallengeComplete)
+                    ?.challenge?.order?.plus(1) ?: currentIndex
+                Text(
+                    text = "Step $completedNum of $totalChallenges done",
+                    fontSize = 14.sp,
+                    color = KoraColors.WhiteAlpha50
+                )
+            } else if (challengeType != null) {
+                // Active challenge — show icon + instruction
+                LivenessChallengeIcon(
+                    challengeType = challengeType,
+                    modifier = Modifier.size(40.dp)
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = when (challengeType) {
+                        com.koraidv.sdk.api.ChallengeType.BLINK -> "Blink your eyes"
+                        com.koraidv.sdk.api.ChallengeType.SMILE -> "Smile naturally"
+                        com.koraidv.sdk.api.ChallengeType.TURN_LEFT -> "Turn head left"
+                        com.koraidv.sdk.api.ChallengeType.TURN_RIGHT -> "Turn head right"
+                        com.koraidv.sdk.api.ChallengeType.NOD_UP -> "Look up"
+                        com.koraidv.sdk.api.ChallengeType.NOD_DOWN -> "Look down"
+                    },
+                    fontSize = 22.sp,
+                    fontWeight = FontWeight.W700,
+                    color = Color.White,
+                    letterSpacing = (-0.5).sp
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = when (challengeType) {
+                        com.koraidv.sdk.api.ChallengeType.BLINK -> "Blink naturally, then hold still"
+                        com.koraidv.sdk.api.ChallengeType.SMILE -> "Show a natural smile"
+                        com.koraidv.sdk.api.ChallengeType.TURN_LEFT -> "Slowly turn your head to the left"
+                        com.koraidv.sdk.api.ChallengeType.TURN_RIGHT -> "Slowly turn your head to the right"
+                        com.koraidv.sdk.api.ChallengeType.NOD_UP -> "Slowly tilt your head upward"
+                        com.koraidv.sdk.api.ChallengeType.NOD_DOWN -> "Slowly tilt your head downward"
+                    },
+                    fontSize = 14.sp,
+                    color = KoraColors.WhiteAlpha50
+                )
+            } else {
+                Text(
+                    text = "Get ready...",
+                    fontSize = 22.sp,
+                    fontWeight = FontWeight.W700,
+                    color = Color.White,
+                    letterSpacing = (-0.5).sp
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "Face the camera and hold steady",
                     fontSize = 14.sp,
                     color = KoraColors.WhiteAlpha50
                 )
             }
         }
 
-        // Oval viewfinder with progress ring and countdown
+        // ── Oval viewfinder with progress ring and directional cue ───────────
         Box(
             modifier = Modifier
                 .weight(1f)
-                .fillMaxWidth()
-                .padding(bottom = 140.dp),
+                .fillMaxWidth(),
             contentAlignment = Alignment.Center
         ) {
-            Box(contentAlignment = Alignment.Center) {
-                // Camera preview
-                Box(
-                    modifier = Modifier
-                        .width(240.dp)
-                        .height(300.dp)
-                        .clip(OvalViewfinderShape)
-                ) {
-                    AndroidView(
-                        factory = { ctx ->
-                            PreviewView(ctx).also { previewView ->
-                                cameraManager.initialize(
-                                    lifecycleOwner = lifecycleOwner,
-                                    previewView = previewView,
-                                    position = CameraPosition.FRONT,
-                                    onInitialized = { success ->
-                                        cameraReady = success
-                                        if (success) {
-                                            cameraManager.setFrameAnalysisListener { imageProxy ->
-                                                @Suppress("OPT_IN_USAGE")
-                                                livenessManager.processFrame(imageProxy)
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                // Left arrow cue for TURN_LEFT
+                Box(modifier = Modifier.width(48.dp), contentAlignment = Alignment.Center) {
+                    if (challengeType == com.koraidv.sdk.api.ChallengeType.TURN_LEFT && !isChallengeComplete) {
+                        AnimatedDirectionArrow(direction = ArrowDirection.LEFT)
+                    }
+                }
+
+                Box(contentAlignment = Alignment.Center) {
+                    // Camera preview in oval
+                    Box(
+                        modifier = Modifier
+                            .width(240.dp)
+                            .height(300.dp)
+                            .clip(OvalViewfinderShape)
+                    ) {
+                        AndroidView(
+                            factory = { ctx ->
+                                PreviewView(ctx).apply {
+                                    scaleType = PreviewView.ScaleType.FILL_CENTER
+                                }.also { previewView ->
+                                    cameraManager.initialize(
+                                        lifecycleOwner = lifecycleOwner,
+                                        previewView = previewView,
+                                        position = CameraPosition.FRONT,
+                                        onInitialized = { success ->
+                                            cameraReady = success
+                                            if (success) {
+                                                cameraManager.setFrameAnalysisListener { imageProxy ->
+                                                    @Suppress("OPT_IN_USAGE")
+                                                    livenessManager.processFrame(imageProxy)
+                                                }
                                             }
                                         }
-                                    }
-                                )
-                            }
-                        },
-                        modifier = Modifier.fillMaxSize()
-                    )
-                }
+                                    )
+                                }
+                            },
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    }
 
-                // Progress ring via Canvas
-                val progress = when (val state = livenessState) {
-                    is LivenessState.InProgress -> state.progress
-                    is LivenessState.ChallengeComplete -> 1f
-                    else -> 0f
-                }
+                    // Progress ring
+                    val progress = when (val state = livenessState) {
+                        is LivenessState.InProgress -> state.progress
+                        is LivenessState.ChallengeComplete -> 1f
+                        else -> 0f
+                    }
+                    val ringColor = when {
+                        isChallengeComplete && challengePassed -> KoraColors.TealBright
+                        isChallengeComplete -> KoraColors.ErrorRed
+                        else -> KoraColors.Teal
+                    }
 
-                Canvas(
-                    modifier = Modifier
-                        .width(252.dp)
-                        .height(312.dp)
-                ) {
-                    val strokeWidth = 4.dp.toPx()
-                    // Background track
-                    drawOval(
-                        color = KoraColors.WhiteAlpha15,
-                        style = Stroke(width = strokeWidth),
-                        topLeft = Offset(strokeWidth / 2, strokeWidth / 2),
-                        size = Size(size.width - strokeWidth, size.height - strokeWidth)
-                    )
-                    // Progress fill
-                    if (progress > 0f) {
-                        drawArc(
-                            color = KoraColors.Teal,
-                            startAngle = -90f,
-                            sweepAngle = 360f * progress,
-                            useCenter = false,
-                            style = Stroke(width = strokeWidth, cap = StrokeCap.Round),
+                    Canvas(
+                        modifier = Modifier
+                            .width(252.dp)
+                            .height(312.dp)
+                    ) {
+                        val strokeWidth = 4.dp.toPx()
+                        drawOval(
+                            color = KoraColors.WhiteAlpha15,
+                            style = Stroke(width = strokeWidth),
                             topLeft = Offset(strokeWidth / 2, strokeWidth / 2),
                             size = Size(size.width - strokeWidth, size.height - strokeWidth)
                         )
+                        if (progress > 0f) {
+                            drawArc(
+                                color = ringColor,
+                                startAngle = -90f,
+                                sweepAngle = 360f * progress,
+                                useCenter = false,
+                                style = Stroke(width = strokeWidth, cap = StrokeCap.Round),
+                                topLeft = Offset(strokeWidth / 2, strokeWidth / 2),
+                                size = Size(size.width - strokeWidth, size.height - strokeWidth)
+                            )
+                        }
+                    }
+
+                    // Nod arrows (above/below oval)
+                    if (!isChallengeComplete) {
+                        if (challengeType == com.koraidv.sdk.api.ChallengeType.NOD_UP) {
+                            Box(modifier = Modifier.align(Alignment.TopCenter).offset(y = (-20).dp)) {
+                                AnimatedDirectionArrow(direction = ArrowDirection.UP)
+                            }
+                        }
+                        if (challengeType == com.koraidv.sdk.api.ChallengeType.NOD_DOWN) {
+                            Box(modifier = Modifier.align(Alignment.BottomCenter).offset(y = 20.dp)) {
+                                AnimatedDirectionArrow(direction = ArrowDirection.DOWN)
+                            }
+                        }
                     }
                 }
 
-                // Countdown badge
-                val countdown = when (val state = livenessState) {
-                    is LivenessState.InProgress -> {
-                        val remaining = ((1f - state.progress) * 3).toInt() + 1
-                        remaining.coerceIn(1, 3)
-                    }
-                    else -> null
-                }
-                if (countdown != null) {
-                    Box(
-                        modifier = Modifier
-                            .align(Alignment.TopCenter)
-                            .offset(y = (-12).dp)
-                    ) {
-                        CountdownBadge(count = countdown)
+                // Right arrow cue for TURN_RIGHT
+                Box(modifier = Modifier.width(48.dp), contentAlignment = Alignment.Center) {
+                    if (challengeType == com.koraidv.sdk.api.ChallengeType.TURN_RIGHT && !isChallengeComplete) {
+                        AnimatedDirectionArrow(direction = ArrowDirection.RIGHT)
                     }
                 }
             }
         }
 
-        // Challenge progress dots and info
+        // ── Bottom: challenge step pills + progress ──────────────────────────
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 24.dp)
                 .padding(bottom = 40.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            val currentIndex = when (val state = livenessState) {
-                is LivenessState.InProgress -> state.challenge.order
-                is LivenessState.ChallengeComplete -> state.challenge.order + 1
-                is LivenessState.Complete -> 3
-                else -> 0
+            // Challenge step pills with labels
+            if (sessionLoaded) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    repeat(totalChallenges) { index ->
+                        val state = when {
+                            index < currentIndex -> StepPillState.Done
+                            index == currentIndex -> StepPillState.Active
+                            else -> StepPillState.Inactive
+                        }
+                        StepPill("Step ${index + 1}", state)
+                    }
+                }
             }
 
-            ChallengeDots(total = 3, currentIndex = currentIndex)
+            ChallengeDots(total = totalChallenges, currentIndex = currentIndex)
 
             if (sessionLoaded) {
-                val challengeNum = (currentIndex + 1).coerceAtMost(3)
+                val challengeNum = (currentIndex + 1).coerceAtMost(totalChallenges)
                 Text(
-                    text = "Challenge $challengeNum of 3",
+                    text = "Challenge $challengeNum of $totalChallenges",
                     fontSize = 13.sp,
                     color = KoraColors.WhiteAlpha50
                 )
@@ -996,31 +1186,111 @@ internal fun LivenessScreen(
 }
 
 /**
- * Convert ImageProxy to JPEG byte array
+ * Animated icon for liveness challenge type
  */
-private fun imageProxyToJpegBytes(image: ImageProxy, mirror: Boolean): ByteArray {
-    val buffer = image.planes[0].buffer
-    val data = ByteArray(buffer.remaining())
-    buffer.get(data)
-
-    val bitmap = BitmapFactory.decodeByteArray(data, 0, data.size)
-    val rotation = image.imageInfo.rotationDegrees.toFloat()
-
-    val matrix = Matrix()
-    if (rotation != 0f) {
-        matrix.postRotate(rotation)
+@Composable
+private fun LivenessChallengeIcon(
+    challengeType: com.koraidv.sdk.api.ChallengeType,
+    modifier: Modifier = Modifier
+) {
+    val icon = when (challengeType) {
+        com.koraidv.sdk.api.ChallengeType.BLINK -> Icons.Default.Visibility
+        com.koraidv.sdk.api.ChallengeType.SMILE -> Icons.Default.SentimentSatisfied
+        com.koraidv.sdk.api.ChallengeType.TURN_LEFT -> Icons.AutoMirrored.Filled.ArrowBack
+        com.koraidv.sdk.api.ChallengeType.TURN_RIGHT -> Icons.AutoMirrored.Filled.ArrowForward
+        com.koraidv.sdk.api.ChallengeType.NOD_UP -> Icons.Default.ArrowUpward
+        com.koraidv.sdk.api.ChallengeType.NOD_DOWN -> Icons.Default.ArrowDownward
     }
-    if (mirror) {
-        matrix.postScale(-1f, 1f)
-    }
+    // Pulsing animation
+    val infiniteTransition = rememberInfiniteTransition(label = "challenge_icon")
+    val alpha by infiniteTransition.animateFloat(
+        initialValue = 0.6f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(800, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "icon_pulse"
+    )
 
-    val rotated = if (rotation != 0f || mirror) {
-        Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
-    } else {
-        bitmap
-    }
-
-    val stream = ByteArrayOutputStream()
-    rotated.compress(Bitmap.CompressFormat.JPEG, 90, stream)
-    return stream.toByteArray()
+    Icon(
+        imageVector = icon,
+        contentDescription = null,
+        modifier = modifier,
+        tint = KoraColors.TealBright.copy(alpha = alpha)
+    )
 }
+
+/**
+ * Direction for animated arrows
+ */
+private enum class ArrowDirection { LEFT, RIGHT, UP, DOWN }
+
+/**
+ * Animated pulsing/sliding arrow for directional challenges
+ */
+@Composable
+private fun AnimatedDirectionArrow(
+    direction: ArrowDirection,
+    modifier: Modifier = Modifier
+) {
+    val icon = when (direction) {
+        ArrowDirection.LEFT -> Icons.AutoMirrored.Filled.ArrowBack
+        ArrowDirection.RIGHT -> Icons.AutoMirrored.Filled.ArrowForward
+        ArrowDirection.UP -> Icons.Default.ArrowUpward
+        ArrowDirection.DOWN -> Icons.Default.ArrowDownward
+    }
+
+    val infiniteTransition = rememberInfiniteTransition(label = "arrow_$direction")
+
+    val offset by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 8f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(600, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "arrow_offset_$direction"
+    )
+    val alpha by infiniteTransition.animateFloat(
+        initialValue = 0.4f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(600, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "arrow_alpha_$direction"
+    )
+
+    val xOff = when (direction) {
+        ArrowDirection.LEFT -> -offset
+        ArrowDirection.RIGHT -> offset
+        else -> 0f
+    }
+    val yOff = when (direction) {
+        ArrowDirection.UP -> -offset
+        ArrowDirection.DOWN -> offset
+        else -> 0f
+    }
+
+    Column(
+        modifier = modifier,
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(2.dp)
+    ) {
+        // Triple layered arrows for emphasis
+        repeat(3) { i ->
+            val layerAlpha = alpha * (1f - i * 0.25f)
+            val layerOffset = (i + 1) * xOff to (i + 1) * yOff
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                modifier = Modifier
+                    .size(28.dp)
+                    .offset(x = layerOffset.first.dp, y = layerOffset.second.dp),
+                tint = KoraColors.TealBright.copy(alpha = layerAlpha.coerceAtLeast(0.15f))
+            )
+        }
+    }
+}
+

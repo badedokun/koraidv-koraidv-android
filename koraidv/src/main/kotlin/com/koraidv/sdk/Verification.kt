@@ -25,6 +25,8 @@ data class Verification(
     val faceVerification: FaceVerification? = null,
     /** Liveness verification result */
     val livenessVerification: LivenessVerification? = null,
+    /** Backend verification scores (0-100 scale) */
+    val scores: VerificationScores? = null,
     /** Risk signals */
     val riskSignals: List<RiskSignal>? = null,
     /** Overall risk score (0-100) */
@@ -113,4 +115,18 @@ data class RiskSignal(
     val code: String,
     val severity: String,
     val message: String
+) : Parcelable
+
+/**
+ * Backend verification scores (0-100 scale).
+ */
+@Parcelize
+data class VerificationScores(
+    val documentQuality: Double,
+    val documentAuth: Double,
+    val faceMatch: Double,
+    val liveness: Double,
+    val nameMatch: Double,
+    val dataConsistency: Double,
+    val overall: Double
 ) : Parcelable

@@ -26,6 +26,11 @@ data class Configuration(
     val timeout: Long = 600,
     val debugLogging: Boolean = false
 ) {
+    init {
+        require(apiKey.isNotBlank()) { "apiKey must not be blank" }
+        require(tenantId.isNotBlank()) { "tenantId must not be blank" }
+    }
+
     /**
      * Resolved base URL: uses custom [baseUrl] if provided, otherwise falls back to [environment] default.
      */

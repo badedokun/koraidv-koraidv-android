@@ -1,7 +1,10 @@
 package com.koraidv.sdk.liveness
 
 import android.graphics.Bitmap
+import android.os.Handler
+import android.os.Looper
 import androidx.camera.core.ImageProxy
+import java.io.ByteArrayOutputStream
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.face.Face
 import com.google.mlkit.vision.face.FaceDetection
@@ -38,6 +41,7 @@ data class ChallengeResultItem(
  */
 sealed class LivenessState {
     data object Idle : LivenessState()
+    data class Countdown(val challenge: LivenessChallenge, val count: Int) : LivenessState()
     data class InProgress(val challenge: LivenessChallenge, val progress: Float) : LivenessState()
     data class ChallengeComplete(val challenge: LivenessChallenge, val passed: Boolean) : LivenessState()
     data class Complete(val result: LivenessResult) : LivenessState()
@@ -51,6 +55,8 @@ class LivenessManager {
 
     private val _state = MutableStateFlow<LivenessState>(LivenessState.Idle)
     val state: StateFlow<LivenessState> = _state.asStateFlow()
+    private val mainHandler = Handler(Looper.getMainLooper())
+    private var isTransitioning = false
 
     private val faceDetectorOptions = FaceDetectorOptions.Builder()
         .setPerformanceMode(FaceDetectorOptions.PERFORMANCE_MODE_FAST)
@@ -94,7 +100,10 @@ class LivenessManager {
      */
     fun stop() {
         session = null
+        mainHandler.removeCallbacksAndMessages(null)
+        isTransitioning = false
         challengeDetector.reset()
+        faceDetector.close()
         _state.value = LivenessState.Idle
     }
 
@@ -103,7 +112,7 @@ class LivenessManager {
      */
     @androidx.camera.core.ExperimentalGetImage
     fun processFrame(imageProxy: ImageProxy) {
-        if (isProcessing) {
+        if (isProcessing || isTransitioning) {
             imageProxy.close()
             return
         }
@@ -134,11 +143,21 @@ class LivenessManager {
                     _state.value = LivenessState.InProgress(challenge, detectionResult.progress)
 
                     if (detectionResult.completed) {
+                        // Capture the current frame as JPEG for backend submission
+                        val capturedBytes = try {
+                            val bitmap = imageProxy.toBitmap()
+                            val stream = ByteArrayOutputStream()
+                            bitmap.compress(Bitmap.CompressFormat.JPEG, 95, stream)
+                            stream.toByteArray()
+                        } catch (e: Exception) {
+                            null
+                        }
+
                         recordChallengeResult(
                             challenge = challenge,
                             passed = true,
                             confidence = detectionResult.confidence.toDouble(),
-                            imageData = null // In production, capture frame
+                            imageData = capturedBytes
                         )
                     }
                 }
@@ -159,8 +178,24 @@ class LivenessManager {
         }
 
         challengeDetector.reset()
-        challengeDetector.startDetecting(challenge.type)
-        _state.value = LivenessState.InProgress(challenge, 0f)
+
+        // Start countdown 3 → 2 → 1 → begin detection
+        isTransitioning = true
+        _state.value = LivenessState.Countdown(challenge, 3)
+
+        mainHandler.postDelayed({
+            _state.value = LivenessState.Countdown(challenge, 2)
+        }, 1000)
+
+        mainHandler.postDelayed({
+            _state.value = LivenessState.Countdown(challenge, 1)
+        }, 2000)
+
+        mainHandler.postDelayed({
+            isTransitioning = false
+            challengeDetector.startDetecting(challenge.type)
+            _state.value = LivenessState.InProgress(challenge, 0f)
+        }, 3000)
     }
 
     private fun recordChallengeResult(
@@ -177,10 +212,15 @@ class LivenessManager {
         )
         challengeResults.add(result)
 
+        // Show ChallengeComplete state for 2.5s so user sees the checkmark clearly
+        isTransitioning = true
         _state.value = LivenessState.ChallengeComplete(challenge, passed)
 
-        currentChallengeIndex++
-        startNextChallenge()
+        mainHandler.postDelayed({
+            isTransitioning = false
+            currentChallengeIndex++
+            startNextChallenge()
+        }, 2500)
     }
 
     private fun completeSession() {

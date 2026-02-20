@@ -143,4 +143,96 @@ class KoraExceptionTest {
         assertThat(fe.field).isEqualTo("age")
         assertThat(fe.message).isEqualTo("must be >= 18")
     }
+
+    // =====================================================================
+    // Remaining exception types coverage
+    // =====================================================================
+
+    @Test
+    fun `InvalidApiKey has correct errorCode`() {
+        val ex = KoraException.InvalidApiKey()
+        assertThat(ex.errorCode).isEqualTo("INVALID_API_KEY")
+    }
+
+    @Test
+    fun `InvalidTenantId has correct errorCode`() {
+        val ex = KoraException.InvalidTenantId()
+        assertThat(ex.errorCode).isEqualTo("INVALID_TENANT_ID")
+    }
+
+    @Test
+    fun `CameraNotAvailable has correct errorCode`() {
+        val ex = KoraException.CameraNotAvailable()
+        assertThat(ex.errorCode).isEqualTo("CAMERA_NOT_AVAILABLE")
+    }
+
+    @Test
+    fun `DocumentNotDetected has recoverySuggestion`() {
+        val ex = KoraException.DocumentNotDetected()
+        assertThat(ex.errorCode).isEqualTo("DOCUMENT_NOT_DETECTED")
+        assertThat(ex.recoverySuggestion).isNotNull()
+    }
+
+    @Test
+    fun `DocumentTypeNotSupported has correct errorCode`() {
+        val ex = KoraException.DocumentTypeNotSupported()
+        assertThat(ex.errorCode).isEqualTo("DOCUMENT_TYPE_NOT_SUPPORTED")
+    }
+
+    @Test
+    fun `MrzReadFailed has correct errorCode`() {
+        val ex = KoraException.MrzReadFailed()
+        assertThat(ex.errorCode).isEqualTo("MRZ_READ_FAILED")
+    }
+
+    @Test
+    fun `FaceNotDetected has recoverySuggestion`() {
+        val ex = KoraException.FaceNotDetected()
+        assertThat(ex.errorCode).isEqualTo("FACE_NOT_DETECTED")
+        assertThat(ex.recoverySuggestion).isNotNull()
+    }
+
+    @Test
+    fun `MultipleFacesDetected has correct errorCode`() {
+        val ex = KoraException.MultipleFacesDetected()
+        assertThat(ex.errorCode).isEqualTo("MULTIPLE_FACES_DETECTED")
+    }
+
+    @Test
+    fun `FaceMatchFailed has correct errorCode`() {
+        val ex = KoraException.FaceMatchFailed()
+        assertThat(ex.errorCode).isEqualTo("FACE_MATCH_FAILED")
+    }
+
+    @Test
+    fun `LivenessCheckFailed has correct errorCode`() {
+        val ex = KoraException.LivenessCheckFailed()
+        assertThat(ex.errorCode).isEqualTo("LIVENESS_CHECK_FAILED")
+    }
+
+    @Test
+    fun `VerificationExpired has correct errorCode`() {
+        val ex = KoraException.VerificationExpired()
+        assertThat(ex.errorCode).isEqualTo("VERIFICATION_EXPIRED")
+    }
+
+    @Test
+    fun `VerificationAlreadyCompleted has correct errorCode`() {
+        val ex = KoraException.VerificationAlreadyCompleted()
+        assertThat(ex.errorCode).isEqualTo("VERIFICATION_ALREADY_COMPLETED")
+    }
+
+    @Test
+    fun `InvalidVerificationState includes state in message`() {
+        val ex = KoraException.InvalidVerificationState("pending")
+        assertThat(ex.message).contains("pending")
+        assertThat(ex.errorCode).isEqualTo("INVALID_VERIFICATION_STATE")
+    }
+
+    @Test
+    fun `ValidationError with empty errors has empty message`() {
+        val ex = KoraException.ValidationError(emptyList())
+        assertThat(ex.errors).isEmpty()
+        assertThat(ex.message).isEmpty()
+    }
 }

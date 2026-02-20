@@ -8,6 +8,7 @@ import androidx.lifecycle.viewModelScope
 import com.koraidv.sdk.*
 import com.koraidv.sdk.api.*
 import com.koraidv.sdk.liveness.LivenessResult
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -74,6 +75,8 @@ class VerificationViewModel : ViewModel() {
     private var selectedDocumentRequiresBack: Boolean = false
     private var selectedCountry: CountryInfo? = null
     private var documentFrontCaptured = false
+    private var frontUploadJob: Job? = null
+    private var frontUploadResult: Result<DocumentUploadResult>? = null
 
     fun initialize(request: VerificationRequest) {
         this.request = request
@@ -247,53 +250,60 @@ class VerificationViewModel : ViewModel() {
     }
 
     companion object {
-        private val countryNames = mapOf(
-            "US" to "United States",
-            "GB" to "United Kingdom",
-            "DE" to "Germany",
-            "FR" to "France",
-            "ES" to "Spain",
-            "IT" to "Italy",
-            "GH" to "Ghana",
-            "NG" to "Nigeria",
-            "KE" to "Kenya",
-            "ZA" to "South Africa",
+        private val specialNames = mapOf(
             "INTL" to "International"
         )
 
         fun countryCodeToName(code: String): String {
-            return countryNames[code] ?: code
+            specialNames[code]?.let { return it }
+            // Use Java Locale for ISO 3166 country code → display name
+            val localeName = java.util.Locale("", code).displayCountry
+            // Locale returns the raw code if it doesn't recognize it
+            return if (localeName != code) localeName else code
         }
 
         /**
          * Compute score breakdown from verification results.
-         * Returns 4 metrics: Liveness, Name Match, Document Quality, Selfie Match
+         * Returns 4 metrics: Liveness, Name Match, Document Quality, Selfie Match.
+         * Uses backend `scores` object as primary source (0-100 scale).
+         * Overall is always computed as the average of the 4 displayed metrics
+         * so the math is visually consistent for the user.
          */
         fun computeScoreBreakdown(verification: Verification): ScoreBreakdown {
-            val liveness = verification.livenessVerification?.let {
-                (it.livenessScore * 100).toInt().coerceIn(0, 100)
-            } ?: 0
+            val scores = verification.scores
 
-            val selfieMatch = verification.faceVerification?.let {
-                (it.matchScore * 100).toInt().coerceIn(0, 100)
-            } ?: 0
-
-            val documentQuality = verification.documentVerification?.let {
-                ((it.authenticityScore ?: 0.0) * 100).toInt().coerceIn(0, 100)
-            } ?: 0
-
-            // Name match: check if names are present and consistent
-            val nameMatch = if (verification.documentVerification?.firstName != null) 100 else 0
-
-            val overall = verification.riskScore?.let { 100 - it } ?: run {
-                val scores = listOfNotNull(
-                    if (liveness > 0) liveness else null,
-                    if (selfieMatch > 0) selfieMatch else null,
-                    if (documentQuality > 0) documentQuality else null,
-                    if (nameMatch > 0) nameMatch else null
-                )
-                if (scores.isNotEmpty()) scores.average().toInt() else 0
+            val liveness = if (scores != null) {
+                scores.liveness.toInt().coerceIn(0, 100)
+            } else {
+                verification.livenessVerification?.let {
+                    it.livenessScore.toInt().coerceIn(0, 100)
+                } ?: 0
             }
+
+            val selfieMatch = if (scores != null) {
+                scores.faceMatch.toInt().coerceIn(0, 100)
+            } else {
+                verification.faceVerification?.let {
+                    it.matchScore.toInt().coerceIn(0, 100)
+                } ?: 0
+            }
+
+            val documentQuality = if (scores != null) {
+                scores.documentQuality.toInt().coerceIn(0, 100)
+            } else {
+                verification.documentVerification?.let {
+                    ((it.authenticityScore ?: 0.0) * 100).toInt().coerceIn(0, 100)
+                } ?: 0
+            }
+
+            val nameMatch = if (scores != null) {
+                scores.nameMatch.toInt().coerceIn(0, 100)
+            } else {
+                if (verification.documentVerification?.firstName != null) 100 else 0
+            }
+
+            // Always compute overall as the average of the 4 displayed scores
+            val overall = (liveness + selfieMatch + documentQuality + nameMatch) / 4
 
             return ScoreBreakdown(
                 liveness = liveness,
@@ -320,61 +330,99 @@ class VerificationViewModel : ViewModel() {
 
     fun submitDocument(imageData: ByteArray) {
         viewModelScope.launch {
-            _state.value = VerificationState.Processing(ProcessingStep.ANALYZING)
-
             val verification = currentVerification ?: return@launch
             val manager = sessionManager ?: return@launch
             val docTypeCode = selectedDocumentTypeCode ?: return@launch
 
             val side = if (documentFrontCaptured) DocumentSide.BACK else DocumentSide.FRONT
 
-            _state.value = VerificationState.Processing(ProcessingStep.CHECKING_QUALITY)
+            if (side == DocumentSide.FRONT && selectedDocumentRequiresBack) {
+                // Upload front in background — DON'T change state.
+                // DocumentCaptureScreen handles the FRONT→BACK transition internally
+                // to keep the camera alive (AnimatedContent would kill it).
+                documentFrontCaptured = true
+                frontUploadResult = null
+                frontUploadJob = viewModelScope.launch {
+                    frontUploadResult = manager.uploadDocumentByCode(
+                        verificationId = verification.id,
+                        imageData = imageData,
+                        side = DocumentSide.FRONT,
+                        documentTypeCode = docTypeCode
+                    )
+                }
+            } else {
+                // Back side, or front of no-back documents: show processing as before
+                _state.value = VerificationState.Processing(ProcessingStep.ANALYZING)
+                _state.value = VerificationState.Processing(ProcessingStep.CHECKING_QUALITY)
 
-            val result = manager.uploadDocumentByCode(
-                verificationId = verification.id,
-                imageData = imageData,
-                side = side,
-                documentTypeCode = docTypeCode
-            )
+                val result = manager.uploadDocumentByCode(
+                    verificationId = verification.id,
+                    imageData = imageData,
+                    side = side,
+                    documentTypeCode = docTypeCode
+                )
 
-            result.fold(
-                onSuccess = { response ->
-                    if (response.success) {
-                        if (side == DocumentSide.FRONT) {
-                            documentFrontCaptured = true
-                            if (selectedDocumentRequiresBack) {
-                                _state.value = VerificationState.DocumentCapture(
-                                    documentTypeCode = docTypeCode,
-                                    documentDisplayName = selectedDocumentDisplayName ?: "",
-                                    requiresBack = true,
-                                    side = DocumentSide.BACK
-                                )
-                            } else {
-                                _state.value = VerificationState.SelfieCapture
-                            }
-                        } else {
-                            _state.value = VerificationState.SelfieCapture
-                        }
-                    } else {
-                        val issues = response.warnings ?: listOf("Quality check failed")
-                        _state.value = VerificationState.Error(
-                            KoraException.QualityValidationFailed(issues)
-                        )
-                    }
-                },
-                onFailure = { error ->
+                val response = result.getOrElse { error ->
                     _state.value = VerificationState.Error(
                         error as? KoraException ?: KoraException.Unknown(error.message ?: "Unknown error")
                     )
+                    return@launch
                 }
-            )
+
+                if (!response.success) {
+                    val issues = response.warnings ?: listOf("Quality check failed")
+                    _state.value = VerificationState.Error(
+                        KoraException.QualityValidationFailed(issues)
+                    )
+                    return@launch
+                }
+
+                // Before moving to selfie: await front upload if pending
+                frontUploadJob?.join()
+                val frontResult = frontUploadResult
+                if (frontResult != null) {
+                    val frontResponse = frontResult.getOrElse { error ->
+                        _state.value = VerificationState.Error(
+                            error as? KoraException ?: KoraException.Unknown(error.message ?: "Front upload failed")
+                        )
+                        return@launch
+                    }
+                    if (!frontResponse.success) {
+                        val issues = frontResponse.warnings ?: listOf("Front document quality check failed")
+                        _state.value = VerificationState.Error(
+                            KoraException.QualityValidationFailed(issues)
+                        )
+                        return@launch
+                    }
+                }
+
+                _state.value = VerificationState.SelfieCapture
+            }
         }
     }
 
+    private var selfieUploadJob: Job? = null
+    private var selfieUploadResult: Result<SelfieUploadResult>? = null
+
     fun submitSelfie(imageData: ByteArray) {
+        if (KoraIDV.getConfiguration().livenessMode == LivenessMode.ACTIVE) {
+            // Go straight to liveness — no Processing screen
+            _state.value = VerificationState.LivenessCheck
+            // Upload selfie in background while user does liveness challenges
+            val verification = currentVerification ?: return
+            val manager = sessionManager ?: return
+            selfieUploadResult = null
+            selfieUploadJob = viewModelScope.launch {
+                selfieUploadResult = manager.uploadSelfie(
+                    verificationId = verification.id,
+                    imageData = imageData
+                )
+            }
+            return
+        }
+
         viewModelScope.launch {
             _state.value = VerificationState.Processing(ProcessingStep.ANALYZING)
-
             val verification = currentVerification ?: return@launch
             val manager = sessionManager ?: return@launch
 
@@ -386,11 +434,7 @@ class VerificationViewModel : ViewModel() {
             result.fold(
                 onSuccess = { response ->
                     if (response.faceDetected) {
-                        if (KoraIDV.getConfiguration().livenessMode == LivenessMode.ACTIVE) {
-                            _state.value = VerificationState.LivenessCheck
-                        } else {
-                            completeVerification()
-                        }
+                        completeVerification()
                     } else {
                         val issues = response.qualityIssues ?: listOf("Face not detected")
                         _state.value = VerificationState.Error(
@@ -423,6 +467,18 @@ class VerificationViewModel : ViewModel() {
     private suspend fun completeVerification() {
         _state.value = VerificationState.Processing(ProcessingStep.FINALIZING)
 
+        // Await background selfie upload if pending
+        selfieUploadJob?.join()
+        val selfieResult = selfieUploadResult
+        if (selfieResult != null) {
+            selfieResult.getOrElse { error ->
+                _state.value = VerificationState.Error(
+                    error as? KoraException ?: KoraException.Unknown(error.message ?: "Selfie upload failed")
+                )
+                return
+            }
+        }
+
         val verification = currentVerification ?: return
         val manager = sessionManager ?: return
 
@@ -452,27 +508,27 @@ class VerificationViewModel : ViewModel() {
     }
 
     fun retry() {
+        // Clear stale upload state so retries start fresh
+        frontUploadJob?.cancel()
+        frontUploadJob = null
+        frontUploadResult = null
+        selfieUploadJob?.cancel()
+        selfieUploadJob = null
+        selfieUploadResult = null
+
         val docTypeCode = selectedDocumentTypeCode
         when (_state.value) {
             is VerificationState.Error -> {
                 if (docTypeCode != null) {
-                    if (!documentFrontCaptured) {
-                        _state.value = VerificationState.DocumentCapture(
-                            documentTypeCode = docTypeCode,
-                            documentDisplayName = selectedDocumentDisplayName ?: "",
-                            requiresBack = selectedDocumentRequiresBack,
-                            side = DocumentSide.FRONT
-                        )
-                    } else if (selectedDocumentRequiresBack) {
-                        _state.value = VerificationState.DocumentCapture(
-                            documentTypeCode = docTypeCode,
-                            documentDisplayName = selectedDocumentDisplayName ?: "",
-                            requiresBack = true,
-                            side = DocumentSide.BACK
-                        )
-                    } else {
-                        _state.value = VerificationState.SelfieCapture
-                    }
+                    // Always restart from FRONT capture on retry — the previous
+                    // front upload may have failed, so we can't skip it.
+                    documentFrontCaptured = false
+                    _state.value = VerificationState.DocumentCapture(
+                        documentTypeCode = docTypeCode,
+                        documentDisplayName = selectedDocumentDisplayName ?: "",
+                        requiresBack = selectedDocumentRequiresBack,
+                        side = DocumentSide.FRONT
+                    )
                 } else {
                     _state.value = VerificationState.Consent
                 }
@@ -480,6 +536,7 @@ class VerificationViewModel : ViewModel() {
             is VerificationState.ExpiredDocument,
             is VerificationState.Complete -> {
                 // Retry from document selection
+                documentFrontCaptured = false
                 _state.value = VerificationState.Consent
             }
             else -> {}

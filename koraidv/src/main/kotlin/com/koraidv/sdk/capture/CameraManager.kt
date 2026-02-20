@@ -128,7 +128,11 @@ class CameraManager(private val context: Context) : DefaultLifecycleObserver {
         }
 
         try {
-            cameraProvider.unbindAll()
+            // Unbind only this instance's use cases to avoid killing cameras
+            // bound by other CameraManager instances sharing the singleton provider.
+            listOfNotNull(preview, imageCapture, imageAnalyzer).let { existing ->
+                if (existing.isNotEmpty()) cameraProvider.unbind(*existing.toTypedArray())
+            }
             camera = cameraProvider.bindToLifecycle(
                 lifecycleOwner,
                 cameraSelector,

@@ -219,4 +219,78 @@ class SessionManagerMappingTest {
     fun `isSessionTimedOut returns false before any session`() {
         assertThat(sessionManager.isSessionTimedOut).isFalse()
     }
+
+    // =====================================================================
+    // Additional mapHttpError coverage
+    // =====================================================================
+
+    @Test
+    fun `mapHttpError 400 returns HttpError`() {
+        val error = sessionManager.mapHttpError(400)
+        assertThat(error).isInstanceOf(KoraException.HttpError::class.java)
+        assertThat((error as KoraException.HttpError).statusCode).isEqualTo(400)
+    }
+
+    @Test
+    fun `mapHttpError 599 returns ServerError`() {
+        val error = sessionManager.mapHttpError(599)
+        assertThat(error).isInstanceOf(KoraException.ServerError::class.java)
+    }
+
+    // =====================================================================
+    // Additional parseValidationErrors coverage
+    // =====================================================================
+
+    @Test
+    fun `parseValidationErrors with null field uses unknown`() {
+        val body = """{"errors": [{"message": "something wrong"}]}"""
+        val errors = sessionManager.parseValidationErrors(body)
+        assertThat(errors).hasSize(1)
+        assertThat(errors[0].field).isEqualTo("unknown")
+    }
+
+    @Test
+    fun `parseValidationErrors with null message uses default`() {
+        val body = """{"errors": [{"field": "email"}]}"""
+        val errors = sessionManager.parseValidationErrors(body)
+        assertThat(errors).hasSize(1)
+        assertThat(errors[0].message).isEqualTo("Validation failed")
+    }
+
+    @Test
+    fun `parseValidationErrors with empty errors array returns empty`() {
+        val body = """{"errors": []}"""
+        val errors = sessionManager.parseValidationErrors(body)
+        assertThat(errors).isEmpty()
+    }
+
+    // =====================================================================
+    // Additional parseDate coverage
+    // =====================================================================
+
+    @Test
+    fun `parseDate preserves hour and minute for millis format`() {
+        val date = sessionManager.parseDate("2024-12-25T14:30:00.000Z")
+        val cal = Calendar.getInstance(TimeZone.getTimeZone("UTC")).apply { time = date }
+        assertThat(cal.get(Calendar.HOUR_OF_DAY)).isEqualTo(14)
+        assertThat(cal.get(Calendar.MINUTE)).isEqualTo(30)
+    }
+
+    @Test
+    fun `parseDate preserves hour and minute for no-millis format`() {
+        val date = sessionManager.parseDate("2024-12-25T14:30:00Z")
+        val cal = Calendar.getInstance(TimeZone.getTimeZone("UTC")).apply { time = date }
+        assertThat(cal.get(Calendar.HOUR_OF_DAY)).isEqualTo(14)
+        assertThat(cal.get(Calendar.MINUTE)).isEqualTo(30)
+    }
+
+    // =====================================================================
+    // Additional session management coverage
+    // =====================================================================
+
+    @Test
+    fun `refreshSession does not crash and prevents timeout`() {
+        sessionManager.refreshSession()
+        assertThat(sessionManager.isSessionTimedOut).isFalse()
+    }
 }

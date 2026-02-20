@@ -221,12 +221,14 @@ class MrzReaderTest {
     // =====================================================================
 
     @Test
-    fun `formatDate converts YYMMDD to year-MM-DD for 2000s`() {
-        assertThat(MrzReader.formatDate("250101")).isEqualTo("2025-01-01")
+    fun `formatDate birth date clearly recent year maps to 2000s`() {
+        // yy=01 is always <= currentYY for any year >= 2001
+        assertThat(MrzReader.formatDate("010101")).isEqualTo("2001-01-01")
     }
 
     @Test
-    fun `formatDate converts YYMMDD to year-MM-DD for 1900s`() {
+    fun `formatDate birth date clearly old year maps to 1900s`() {
+        // yy=85 is always > currentYY for the foreseeable future
         assertThat(MrzReader.formatDate("850612")).isEqualTo("1985-06-12")
     }
 
@@ -241,12 +243,29 @@ class MrzReaderTest {
     }
 
     @Test
-    fun `formatDate boundary year 30 maps to 2030`() {
-        assertThat(MrzReader.formatDate("300101")).isEqualTo("2030-01-01")
+    fun `formatDate birth date pivot is current year`() {
+        val currentYY = java.util.Calendar.getInstance().get(java.util.Calendar.YEAR) % 100
+        // Year just above currentYY should map to 1900s (birth date)
+        val testYY = currentYY + 1
+        val yyStr = "%02d".format(testYY)
+        val result = MrzReader.formatDate("${yyStr}0101")
+        assertThat(result).isEqualTo("${1900 + testYY}-01-01")
     }
 
     @Test
-    fun `formatDate boundary year 31 maps to 1931`() {
-        assertThat(MrzReader.formatDate("310101")).isEqualTo("1931-01-01")
+    fun `formatDate expiration date 2031 parsed correctly`() {
+        // The whole point of the context-aware pivot: 2031 passports shouldn't become 1931
+        assertThat(MrzReader.formatDate("310101", isExpiration = true)).isEqualTo("2031-01-01")
+    }
+
+    @Test
+    fun `formatDate expiration date 2036 parsed correctly`() {
+        assertThat(MrzReader.formatDate("360601", isExpiration = true)).isEqualTo("2036-06-01")
+    }
+
+    @Test
+    fun `formatDate expiration old year still maps to 1900s`() {
+        // yy=99 is > expiration pivot (~76) → 1999
+        assertThat(MrzReader.formatDate("990101", isExpiration = true)).isEqualTo("1999-01-01")
     }
 }

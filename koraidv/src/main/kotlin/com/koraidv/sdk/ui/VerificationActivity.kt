@@ -39,7 +39,7 @@ class VerificationActivity : ComponentActivity() {
         if (isGranted) {
             initializeVerification()
         } else {
-            finishWithError(KoraException.Unknown("Camera permission is required for identity verification"))
+            finishWithError(KoraException.CameraAccessDenied())
         }
     }
 
@@ -79,7 +79,13 @@ class VerificationActivity : ComponentActivity() {
         }
 
         setContent {
-            KoraIDVTheme(theme = KoraIDV.getConfiguration().theme) {
+            // Gracefully handle process death: KoraIDV singleton is in-memory
+            // and will be null after the system kills and restores the process.
+            val config = try { KoraIDV.getConfiguration() } catch (_: KoraException) {
+                finishWithError(KoraException.NotConfigured())
+                return@setContent
+            }
+            KoraIDVTheme(theme = config.theme) {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background

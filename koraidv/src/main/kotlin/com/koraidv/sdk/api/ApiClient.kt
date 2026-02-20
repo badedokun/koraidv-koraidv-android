@@ -35,14 +35,14 @@ internal class ApiClient(private val configuration: Configuration) {
             .addInterceptor(authInterceptor())
             .addInterceptor(retryInterceptor())
 
-        // Certificate pinning for production API endpoints
-        if (configuration.environment == Environment.PRODUCTION && configuration.baseUrl == null) {
-            builder.certificatePinner(
-                CertificatePinner.Builder()
-                    .add("api.koraidv.com", "sha256/BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB=") // TODO: Replace with actual production certificate pin
-                    .build()
-            )
-        }
+        // Certificate pinning for production API endpoints.
+        // Enable this once the production TLS certificate is provisioned:
+        //   builder.certificatePinner(
+        //       CertificatePinner.Builder()
+        //           .add("api.koraidv.com", "sha256/<primary-leaf-pin>")
+        //           .add("api.koraidv.com", "sha256/<backup-pin>")
+        //           .build()
+        //   )
 
         if (configuration.debugLogging) {
             // Use HEADERS level to avoid logging base64 image payloads (PII/biometric data)

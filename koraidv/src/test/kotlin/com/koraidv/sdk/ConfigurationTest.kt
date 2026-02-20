@@ -182,4 +182,58 @@ class ConfigurationTest {
         val theme = KoraTheme()
         assertThat(theme.cornerRadius).isEqualTo(12f)
     }
+
+    // =====================================================================
+    // Custom configuration values
+    // =====================================================================
+
+    @Test
+    fun `custom timeout value is stored`() {
+        val config = Configuration(apiKey = "ck_live_x", tenantId = "t", timeout = 1200)
+        assertThat(config.timeout).isEqualTo(1200)
+    }
+
+    @Test
+    fun `custom livenessMode PASSIVE is stored`() {
+        val config = Configuration(apiKey = "ck_live_x", tenantId = "t", livenessMode = LivenessMode.PASSIVE)
+        assertThat(config.livenessMode).isEqualTo(LivenessMode.PASSIVE)
+    }
+
+    @Test
+    fun `custom documentTypes subset is stored`() {
+        val subset = listOf(DocumentType.INTERNATIONAL_PASSPORT, DocumentType.US_DRIVERS_LICENSE)
+        val config = Configuration(apiKey = "ck_live_x", tenantId = "t", documentTypes = subset)
+        assertThat(config.documentTypes).hasSize(2)
+        assertThat(config.documentTypes).contains(DocumentType.INTERNATIONAL_PASSPORT)
+    }
+
+    @Test
+    fun `debugLogging can be enabled`() {
+        val config = Configuration(apiKey = "ck_live_x", tenantId = "t", debugLogging = true)
+        assertThat(config.debugLogging).isTrue()
+    }
+
+    // =====================================================================
+    // Validation
+    // =====================================================================
+
+    @Test(expected = IllegalArgumentException::class)
+    fun `blank apiKey throws IllegalArgumentException`() {
+        Configuration(apiKey = "", tenantId = "test-tenant")
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun `whitespace-only apiKey throws IllegalArgumentException`() {
+        Configuration(apiKey = "   ", tenantId = "test-tenant")
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun `blank tenantId throws IllegalArgumentException`() {
+        Configuration(apiKey = "ck_live_x", tenantId = "")
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun `whitespace-only tenantId throws IllegalArgumentException`() {
+        Configuration(apiKey = "ck_live_x", tenantId = "   ")
+    }
 }

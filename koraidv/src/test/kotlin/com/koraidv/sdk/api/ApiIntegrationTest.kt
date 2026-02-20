@@ -353,6 +353,109 @@ class ApiIntegrationTest {
     }
 
     // =====================================================================
+    // Additional error responses
+    // =====================================================================
+
+    @Test
+    fun `422 response is not successful`() = runTest {
+        mockServer.enqueue(
+            MockResponse()
+                .setResponseCode(422)
+                .setBody("""{"errors": [{"field": "document_type", "message": "unsupported"}]}""")
+        )
+
+        val response = apiService.createVerification(
+            CreateVerificationRequest("user-1", "standard")
+        )
+        assertThat(response.isSuccessful).isFalse()
+        assertThat(response.code()).isEqualTo(422)
+    }
+
+    @Test
+    fun `429 response is not successful`() = runTest {
+        mockServer.enqueue(
+            MockResponse()
+                .setResponseCode(429)
+                .setBody("""{"error": "Rate limit exceeded"}""")
+        )
+
+        val response = apiService.getVerification("ver-123")
+        assertThat(response.isSuccessful).isFalse()
+        assertThat(response.code()).isEqualTo(429)
+    }
+
+    // =====================================================================
+    // Additional response parsing
+    // =====================================================================
+
+    @Test
+    fun `verification with null optional fields parses`() = runTest {
+        val json = """{
+            "id": "ver-null",
+            "tier": "basic",
+            "status": "pending",
+            "createdAt": "2024-06-15T10:30:45.000Z",
+            "updatedAt": "2024-06-15T10:30:45.000Z"
+        }"""
+        mockServer.enqueue(
+            MockResponse().setResponseCode(200).setBody(json)
+                .setHeader("Content-Type", "application/json")
+        )
+        val response = apiService.getVerification("ver-null")
+        assertThat(response.isSuccessful).isTrue()
+        assertThat(response.body()?.documentVerification).isNull()
+        assertThat(response.body()?.scores).isNull()
+        assertThat(response.body()?.riskSignals).isNull()
+    }
+
+    @Test
+    fun `selfie response with quality issues parses`() = runTest {
+        mockServer.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setBody("""{"faceDetected": false, "qualityScore": 0.3, "qualityIssues": ["too_dark", "blurry"]}""")
+                .setHeader("Content-Type", "application/json")
+        )
+        val response = apiService.uploadSelfie("ver-123", UploadSelfieRequest("data"))
+        assertThat(response.isSuccessful).isTrue()
+        assertThat(response.body()?.faceDetected).isFalse()
+        assertThat(response.body()?.qualityIssues).containsExactly("too_dark", "blurry")
+    }
+
+    @Test
+    fun `liveness challenge response with remaining challenges parses`() = runTest {
+        mockServer.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setBody("""{"type": "smile", "completed": false, "score": 0.3, "remainingChallenges": 2}""")
+                .setHeader("Content-Type", "application/json")
+        )
+        val response = apiService.submitLivenessChallenge(
+            "ver-123",
+            SubmitLivenessChallengeRequest("smile", "frame")
+        )
+        assertThat(response.isSuccessful).isTrue()
+        assertThat(response.body()?.completed).isFalse()
+        assertThat(response.body()?.remainingChallenges).isEqualTo(2)
+    }
+
+    @Test
+    fun `document upload with warnings parses`() = runTest {
+        mockServer.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setBody("""{"documentId": "doc-1", "qualityScore": 0.7, "warnings": ["slight_blur", "low_contrast"]}""")
+                .setHeader("Content-Type", "application/json")
+        )
+        val response = apiService.uploadDocument(
+            "ver-123",
+            UploadDocumentRequest("passport", "base64data")
+        )
+        assertThat(response.isSuccessful).isTrue()
+        assertThat(response.body()?.warnings).containsExactly("slight_blur", "low_contrast")
+    }
+
+    // =====================================================================
     // JSON helpers
     // =====================================================================
 

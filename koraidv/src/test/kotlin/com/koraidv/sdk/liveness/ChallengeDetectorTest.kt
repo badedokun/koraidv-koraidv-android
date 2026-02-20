@@ -267,6 +267,81 @@ class ChallengeDetectorTest {
     }
 
     // =====================================================================
+    // Wrong direction detection
+    // =====================================================================
+
+    @Test
+    fun `turn left not detected when turning right`() {
+        detector.startDetecting(ChallengeType.TURN_LEFT)
+        val straightFace = mockFace(headEulerAngleY = 0f)
+        detector.process(straightFace, ChallengeType.TURN_LEFT)
+
+        val wrongDirection = mockFace(headEulerAngleY = 15f)
+        repeat(3) { detector.process(wrongDirection, ChallengeType.TURN_LEFT) }
+        val result = detector.process(wrongDirection, ChallengeType.TURN_LEFT)
+        assertThat(result.completed).isFalse()
+    }
+
+    @Test
+    fun `turn right not detected when turning left`() {
+        detector.startDetecting(ChallengeType.TURN_RIGHT)
+        val straightFace = mockFace(headEulerAngleY = 0f)
+        detector.process(straightFace, ChallengeType.TURN_RIGHT)
+
+        val wrongDirection = mockFace(headEulerAngleY = -15f)
+        repeat(3) { detector.process(wrongDirection, ChallengeType.TURN_RIGHT) }
+        val result = detector.process(wrongDirection, ChallengeType.TURN_RIGHT)
+        assertThat(result.completed).isFalse()
+    }
+
+    @Test
+    fun `nod up not detected when nodding down`() {
+        detector.startDetecting(ChallengeType.NOD_UP)
+        val straightFace = mockFace(headEulerAngleX = 0f)
+        detector.process(straightFace, ChallengeType.NOD_UP)
+
+        val nodDown = mockFace(headEulerAngleX = -10f)
+        repeat(3) { detector.process(nodDown, ChallengeType.NOD_UP) }
+        val result = detector.process(nodDown, ChallengeType.NOD_UP)
+        assertThat(result.completed).isFalse()
+    }
+
+    @Test
+    fun `nod down not detected when nodding up`() {
+        detector.startDetecting(ChallengeType.NOD_DOWN)
+        val straightFace = mockFace(headEulerAngleX = 0f)
+        detector.process(straightFace, ChallengeType.NOD_DOWN)
+
+        val nodUp = mockFace(headEulerAngleX = 10f)
+        repeat(3) { detector.process(nodUp, ChallengeType.NOD_DOWN) }
+        val result = detector.process(nodUp, ChallengeType.NOD_DOWN)
+        assertThat(result.completed).isFalse()
+    }
+
+    // =====================================================================
+    // Threshold edge cases
+    // =====================================================================
+
+    @Test
+    fun `smile at exact threshold is not detected`() {
+        val face = mockFace(smilingProbability = 0.5f)
+        detector.startDetecting(ChallengeType.SMILE)
+
+        repeat(5) { detector.process(face, ChallengeType.SMILE) }
+        val result = detector.process(face, ChallengeType.SMILE)
+        assertThat(result.completed).isFalse()
+    }
+
+    @Test
+    fun `blink with one eye null returns false`() {
+        val face = mockFace(leftEyeOpen = 0.1f, rightEyeOpen = null)
+        detector.startDetecting(ChallengeType.BLINK)
+
+        val result = detector.process(face, ChallengeType.BLINK)
+        assertThat(result.completed).isFalse()
+    }
+
+    // =====================================================================
     // Helpers
     // =====================================================================
 

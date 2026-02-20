@@ -22,13 +22,13 @@ class ChallengeDetector {
     private var frameCount = 0
     private var detectionHistory = mutableListOf<Boolean>()
 
-    private val requiredConsecutiveDetections = 5
+    private val requiredConsecutiveDetections = 3
 
     // Thresholds
     private val blinkThreshold = 0.3f
-    private val smileThreshold = 0.6f
-    private val turnThreshold = 20f // degrees
-    private val nodThreshold = 10f // degrees
+    private val smileThreshold = 0.5f
+    private val turnThreshold = 10f // degrees — lowered for front camera noise
+    private val nodThreshold = 7f // degrees
 
     // State tracking
     private var blinkState = BlinkState.OPEN
@@ -160,10 +160,13 @@ class ChallengeDetector {
 
         val delta = yaw - (initialYaw ?: 0f)
 
+        // ML Kit headEulerAngleY: positive = face rotated left from CAMERA's perspective,
+        // which is the USER's RIGHT on a front camera. So for the user to turn LEFT,
+        // the delta is negative; for the user to turn RIGHT, the delta is positive.
         turnDetected = if (isLeft) {
-            delta > turnThreshold
-        } else {
             delta < -turnThreshold
+        } else {
+            delta > turnThreshold
         }
 
         return turnDetected

@@ -205,6 +205,10 @@ class DocumentScanner {
         lastDetectionResult = null
     }
 
+    fun close() {
+        textRecognizer.close()
+    }
+
     fun extractDocument(bitmap: Bitmap, corners: List<PointF>): Bitmap {
         if (corners.size != 4) return bitmap
 

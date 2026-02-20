@@ -29,6 +29,10 @@
 -keep class com.koraidv.sdk.api.DocumentTypeInfoResponse { *; }
 -keep class com.koraidv.sdk.api.CountryResponse { *; }
 
+# Internal models deserialized with Gson (422 validation error parsing)
+-keep class com.koraidv.sdk.api.ValidationErrorBody { *; }
+-keep class com.koraidv.sdk.api.ValidationFieldError { *; }
+
 # === Parcelable models (passed via Intent extras) ===
 -keep class com.koraidv.sdk.Verification { *; }
 -keep class com.koraidv.sdk.VerificationRequest { *; }

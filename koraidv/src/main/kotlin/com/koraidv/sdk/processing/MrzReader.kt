@@ -314,16 +314,33 @@ class MrzReader {
 
     companion object {
         /**
-         * Format date from YYMMDD to human readable
+         * Format date from YYMMDD to human readable.
+         *
+         * @param yymmdd 6-digit date string from MRZ
+         * @param isExpiration true for expiration dates (pivot: current year + 10),
+         *                     false for birth dates (pivot: current year)
          */
-        fun formatDate(yymmdd: String): String? {
+        fun formatDate(yymmdd: String, isExpiration: Boolean = false): String? {
             if (yymmdd.length != 6) return null
 
             val yy = yymmdd.substring(0, 2).toIntOrNull() ?: return null
             val mm = yymmdd.substring(2, 4)
             val dd = yymmdd.substring(4, 6)
 
-            val year = if (yy <= 30) 2000 + yy else 1900 + yy
+            // Context-aware pivot: expiration dates can be up to ~10 years in the future,
+            // birth dates should be in the past. Using the current year avoids the
+            // hard-coded pivot problem (e.g., 2031 expiration dates parsed as 1931).
+            val currentYear = java.util.Calendar.getInstance().get(java.util.Calendar.YEAR)
+            val currentYY = currentYear % 100
+            val pivot = if (isExpiration) {
+                // Expiration dates: assume within the next 50 years
+                (currentYY + 50) % 100
+            } else {
+                // Birth dates: assume within the last 100 years
+                currentYY
+            }
+
+            val year = if (yy <= pivot) 2000 + yy else 1900 + yy
 
             return "$year-$mm-$dd"
         }

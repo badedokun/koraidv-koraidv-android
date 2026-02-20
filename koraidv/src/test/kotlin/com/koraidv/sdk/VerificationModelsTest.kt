@@ -256,6 +256,50 @@ class VerificationModelsTest {
         assertThat(signal.severity).isEqualTo("high")
     }
 
+    // =====================================================================
+    // Additional Verification model coverage
+    // =====================================================================
+
+    @Test
+    fun `Verification with all optional fields null`() {
+        val v = Verification(
+            id = "ver-1", externalId = "e-1", tenantId = "t-1",
+            tier = "basic", status = VerificationStatus.PENDING,
+            createdAt = java.util.Date(), updatedAt = java.util.Date()
+        )
+        assertThat(v.documentVerification).isNull()
+        assertThat(v.faceVerification).isNull()
+        assertThat(v.livenessVerification).isNull()
+        assertThat(v.scores).isNull()
+        assertThat(v.riskSignals).isNull()
+        assertThat(v.riskScore).isNull()
+        assertThat(v.completedAt).isNull()
+    }
+
+    @Test
+    fun `Verification equality with same data`() {
+        val date = java.util.Date()
+        val v1 = Verification("id", "ext", "t", "basic", VerificationStatus.PENDING, createdAt = date, updatedAt = date)
+        val v2 = Verification("id", "ext", "t", "basic", VerificationStatus.PENDING, createdAt = date, updatedAt = date)
+        assertThat(v1).isEqualTo(v2)
+    }
+
+    @Test
+    fun `DocumentVerification with all null optionals`() {
+        val doc = DocumentVerification(documentType = "passport")
+        assertThat(doc.documentNumber).isNull()
+        assertThat(doc.firstName).isNull()
+        assertThat(doc.authenticityScore).isNull()
+        assertThat(doc.extractedFields).isNull()
+    }
+
+    @Test
+    fun `LivenessVerification with null challengeResults`() {
+        val liveness = LivenessVerification(livenessScore = 0.5, isLive = false, challengeResults = null)
+        assertThat(liveness.challengeResults).isNull()
+        assertThat(liveness.isLive).isFalse()
+    }
+
     private fun createTestVerification(): Verification {
         return Verification(
             id = "ver-123",
