@@ -28,7 +28,14 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.sp
+import com.koraidv.sdk.R
 
 // ─── Color Tokens ────────────────────────────────────────────────────────────
 
@@ -216,10 +223,12 @@ fun StepProgressBar(
     isDark: Boolean = false,
     modifier: Modifier = Modifier
 ) {
+    val progressDesc = stringResource(R.string.koraidv_a11y_step_progress, current, total)
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 24.dp, vertical = 8.dp),
+            .padding(horizontal = 24.dp, vertical = 8.dp)
+            .semantics { contentDescription = progressDesc },
         horizontalArrangement = Arrangement.spacedBy(4.dp)
     ) {
         repeat(total) { index ->
@@ -274,7 +283,7 @@ fun ScoreCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "Overall Score",
+                    text = stringResource(R.string.koraidv_score_overall),
                     color = Color.White.copy(alpha = 0.8f),
                     fontSize = 14.sp,
                     fontWeight = FontWeight.W500
@@ -485,7 +494,7 @@ fun DarkScreenHeader(
         ) {
             Icon(
                 imageVector = Icons.Default.Close,
-                contentDescription = "Close",
+                contentDescription = stringResource(R.string.koraidv_a11y_close),
                 modifier = Modifier.size(20.dp),
                 tint = Color.White
             )
@@ -500,6 +509,7 @@ fun DarkScreenHeader(
         ) {
             Text(
                 text = title,
+                modifier = Modifier.semantics { heading() },
                 color = Color.White,
                 fontSize = 17.sp,
                 fontWeight = FontWeight.W600
@@ -552,7 +562,8 @@ fun GuidancePill(
     Row(
         modifier = modifier
             .background(bgColor, RoundedCornerShape(24.dp))
-            .padding(horizontal = 20.dp, vertical = 10.dp),
+            .padding(horizontal = 20.dp, vertical = 10.dp)
+            .semantics { liveRegion = LiveRegionMode.Polite },
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.Center
     ) {
@@ -659,7 +670,7 @@ fun LightCloseButton(
     ) {
         Icon(
             imageVector = Icons.Default.Close,
-            contentDescription = "Close",
+            contentDescription = stringResource(R.string.koraidv_a11y_close),
             modifier = Modifier.size(18.dp),
             tint = KoraColors.TextTertiary
         )
@@ -681,7 +692,7 @@ fun LightBackButton(
     ) {
         Icon(
             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-            contentDescription = "Back",
+            contentDescription = stringResource(R.string.koraidv_a11y_back),
             modifier = Modifier.size(18.dp),
             tint = KoraColors.TextTertiary
         )

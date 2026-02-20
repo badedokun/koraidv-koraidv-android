@@ -16,9 +16,14 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.koraidv.sdk.R
 
 @Composable
 fun ConsentScreen(
@@ -78,18 +83,19 @@ fun ConsentScreen(
 
             // Title
             Text(
-                text = "Verify your identity",
+                text = stringResource(R.string.koraidv_consent_title),
                 fontSize = 26.sp,
                 fontWeight = FontWeight.W700,
                 letterSpacing = (-0.5).sp,
-                color = KoraColors.TextPrimary
+                color = KoraColors.TextPrimary,
+                modifier = Modifier.semantics { heading() }
             )
 
             Spacer(modifier = Modifier.height(8.dp))
 
             // Description
             Text(
-                text = "We need to verify your identity to comply with regulations and keep your account secure.",
+                text = stringResource(R.string.koraidv_consent_description),
                 fontSize = 15.sp,
                 color = KoraColors.TextTertiary,
                 lineHeight = 22.sp
@@ -103,22 +109,22 @@ fun ConsentScreen(
                     icon = Icons.Default.CreditCard,
                     iconBg = KoraColors.InfoBlueLight,
                     iconTint = KoraColors.InfoBlue,
-                    title = "Government-issued ID",
-                    subtitle = "Photo of your passport or front & back of your ID"
+                    title = stringResource(R.string.koraidv_consent_item_id_title),
+                    subtitle = stringResource(R.string.koraidv_consent_item_id_subtitle)
                 )
                 ConsentItem(
                     icon = Icons.Default.Person,
                     iconBg = KoraColors.SuccessGreenLight,
                     iconTint = KoraColors.SuccessGreen,
-                    title = "Selfie photo",
-                    subtitle = "A quick selfie to match your ID"
+                    title = stringResource(R.string.koraidv_consent_item_selfie_title),
+                    subtitle = stringResource(R.string.koraidv_consent_item_selfie_subtitle)
                 )
                 ConsentItem(
                     icon = Icons.Default.Visibility,
                     iconBg = KoraColors.PurpleLight,
                     iconTint = KoraColors.Purple,
-                    title = "Liveness check",
-                    subtitle = "Quick video to confirm it's really you"
+                    title = stringResource(R.string.koraidv_consent_item_liveness_title),
+                    subtitle = stringResource(R.string.koraidv_consent_item_liveness_subtitle)
                 )
             }
         }
@@ -131,7 +137,7 @@ fun ConsentScreen(
                 .padding(top = 16.dp, bottom = 40.dp)
         ) {
             KoraButton(
-                text = "Get started",
+                text = stringResource(R.string.koraidv_consent_button),
                 onClick = onAccept,
                 trailingIcon = {
                     Icon(
@@ -146,7 +152,7 @@ fun ConsentScreen(
             Spacer(modifier = Modifier.height(12.dp))
 
             Text(
-                text = "By continuing, you agree to our Privacy Policy and consent to biometric processing.",
+                text = stringResource(R.string.koraidv_consent_privacy),
                 fontSize = 12.sp,
                 color = KoraColors.TextMuted,
                 textAlign = TextAlign.Center,
@@ -170,7 +176,8 @@ private fun ConsentItem(
             .fillMaxWidth()
             .clip(RoundedCornerShape(14.dp))
             .background(KoraColors.Surface)
-            .padding(16.dp),
+            .padding(16.dp)
+            .semantics(mergeDescendants = true) { },
         verticalAlignment = Alignment.Top,
         horizontalArrangement = Arrangement.spacedBy(14.dp)
     ) {

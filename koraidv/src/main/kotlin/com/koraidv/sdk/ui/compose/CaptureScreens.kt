@@ -45,6 +45,13 @@ import com.koraidv.sdk.capture.CameraPosition
 import com.koraidv.sdk.capture.DocumentScanner
 import com.koraidv.sdk.capture.FaceDetectionInfo
 import com.koraidv.sdk.capture.FaceScanner
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
+import com.koraidv.sdk.R
 import com.koraidv.sdk.liveness.*
 import java.io.ByteArrayOutputStream
 
@@ -116,8 +123,8 @@ fun DocumentCaptureScreen(
     if (reviewBytes != null && reviewBitmap != null) {
         DocumentReviewScreen(
             bitmap = reviewBitmap,
-            title = "Review photo",
-            subtitle = "${if (currentSide == DocumentSide.FRONT) "Front" else "Back"} of $documentDisplayName",
+            title = stringResource(R.string.koraidv_capture_review_title),
+            subtitle = "${if (currentSide == DocumentSide.FRONT) stringResource(R.string.koraidv_capture_step_front) else stringResource(R.string.koraidv_capture_step_back)} of $documentDisplayName",
             onRetake = {
                 capturedBitmap?.recycle()
                 capturedImageBytes = null
@@ -160,7 +167,7 @@ fun DocumentCaptureScreen(
 
         // Dark header
         DarkScreenHeader(
-            title = if (currentSide == DocumentSide.FRONT) "Front of ID" else "Back of ID",
+            title = if (currentSide == DocumentSide.FRONT) stringResource(R.string.koraidv_capture_front) else stringResource(R.string.koraidv_capture_back),
             subtitle = documentDisplayName,
             onClose = onCancel
         )
@@ -302,9 +309,9 @@ fun DocumentCaptureScreen(
         ) {
             val pillVariant = if (documentReady) GuidancePillVariant.Ready else GuidancePillVariant.Scanning
             val pillText = when {
-                documentReady -> "Ready to capture"
+                documentReady -> stringResource(R.string.koraidv_capture_ready)
                 qualityGuidance != null -> qualityGuidance!!
-                else -> "Scanning document..."
+                else -> stringResource(R.string.koraidv_capture_scanning)
             }
             GuidancePill(text = pillText, variant = pillVariant)
 
@@ -312,9 +319,9 @@ fun DocumentCaptureScreen(
 
             Text(
                 text = if (currentSide == DocumentSide.FRONT)
-                    "Hold your ID flat in good lighting.\nAuto-capture when ready."
+                    stringResource(R.string.koraidv_capture_instruction_front)
                 else
-                    "Ensure the barcode is clearly visible.\nAuto-capture when ready.",
+                    stringResource(R.string.koraidv_capture_instruction_back),
                 fontSize = 13.sp,
                 color = KoraColors.WhiteAlpha40,
                 textAlign = TextAlign.Center,
@@ -327,11 +334,11 @@ fun DocumentCaptureScreen(
             if (requiresBack) {
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     if (currentSide == DocumentSide.FRONT) {
-                        StepPill("Front", StepPillState.Active)
-                        StepPill("Back", StepPillState.Inactive)
+                        StepPill(stringResource(R.string.koraidv_capture_step_front), StepPillState.Active)
+                        StepPill(stringResource(R.string.koraidv_capture_step_back), StepPillState.Inactive)
                     } else {
-                        StepPill("Front", StepPillState.Done)
-                        StepPill("Back", StepPillState.Active)
+                        StepPill(stringResource(R.string.koraidv_capture_step_front), StepPillState.Done)
+                        StepPill(stringResource(R.string.koraidv_capture_step_back), StepPillState.Active)
                     }
                 }
             }
@@ -393,7 +400,7 @@ private fun DocumentReviewScreen(
                             .align(Alignment.TopEnd)
                             .padding(16.dp)
                     ) {
-                        ReviewBadge(text = "Good quality")
+                        ReviewBadge(text = stringResource(R.string.koraidv_capture_review_quality))
                     }
                 }
 
@@ -401,9 +408,9 @@ private fun DocumentReviewScreen(
 
                 // Quality checks
                 Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                    ReviewQualityCheck("Sharp")
-                    ReviewQualityCheck("Well-lit")
-                    ReviewQualityCheck("No glare")
+                    ReviewQualityCheck(stringResource(R.string.koraidv_capture_review_sharp))
+                    ReviewQualityCheck(stringResource(R.string.koraidv_capture_review_well_lit))
+                    ReviewQualityCheck(stringResource(R.string.koraidv_capture_review_no_glare))
                 }
             }
         }
@@ -416,7 +423,7 @@ private fun DocumentReviewScreen(
                 .padding(bottom = 40.dp)
         ) {
             Text(
-                text = "Is the document clearly readable?",
+                text = stringResource(R.string.koraidv_capture_review_readable),
                 fontSize = 14.sp,
                 color = KoraColors.WhiteAlpha50,
                 textAlign = TextAlign.Center,
@@ -426,13 +433,13 @@ private fun DocumentReviewScreen(
             )
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 KoraButton(
-                    text = "Retake",
+                    text = stringResource(R.string.koraidv_capture_retake),
                     onClick = onRetake,
                     variant = KoraButtonVariant.DarkOutline,
                     modifier = Modifier.weight(1f)
                 )
                 KoraButton(
-                    text = "Looks good",
+                    text = stringResource(R.string.koraidv_capture_looks_good),
                     onClick = onAccept,
                     modifier = Modifier.weight(1f)
                 )
@@ -530,7 +537,7 @@ fun SelfieCaptureScreen(
         StepProgressBar(total = 5, current = 4, isDark = true)
 
         DarkScreenHeader(
-            title = "Take a selfie",
+            title = stringResource(R.string.koraidv_selfie_title),
             onClose = onCancel
         )
 
@@ -542,7 +549,7 @@ fun SelfieCaptureScreen(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text(
-                text = "Face the camera",
+                text = stringResource(R.string.koraidv_selfie_face_camera),
                 fontSize = 24.sp,
                 fontWeight = FontWeight.W700,
                 color = Color.White,
@@ -550,7 +557,7 @@ fun SelfieCaptureScreen(
             )
             Spacer(modifier = Modifier.height(4.dp))
             Text(
-                text = "Keep a neutral expression",
+                text = stringResource(R.string.koraidv_selfie_neutral),
                 fontSize = 14.sp,
                 color = KoraColors.WhiteAlpha50
             )
@@ -664,7 +671,7 @@ fun SelfieCaptureScreen(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             val pillText = when {
-                faceReady -> "Ready to capture"
+                faceReady -> stringResource(R.string.koraidv_capture_ready)
                 guidanceMessage != null -> guidanceMessage!!
                 faceDetected -> "Hold steady..."
                 else -> "Detecting face..."
@@ -675,7 +682,7 @@ fun SelfieCaptureScreen(
             )
             Spacer(modifier = Modifier.height(12.dp))
             Text(
-                text = "Position your face within the oval.\nKeep a neutral expression. Auto-capture when ready.",
+                text = stringResource(R.string.koraidv_selfie_instruction),
                 fontSize = 13.sp,
                 color = KoraColors.WhiteAlpha40,
                 textAlign = TextAlign.Center,
@@ -702,7 +709,7 @@ private fun SelfieReviewScreen(
     ) {
         StepProgressBar(total = 5, current = 4, isDark = true)
 
-        DarkScreenHeader(title = "Review selfie", onClose = onCancel)
+        DarkScreenHeader(title = stringResource(R.string.koraidv_selfie_review_title), onClose = onCancel)
 
         // Bold title
         Column(
@@ -712,7 +719,7 @@ private fun SelfieReviewScreen(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text(
-                text = "Does this look like you?",
+                text = stringResource(R.string.koraidv_selfie_review_question),
                 fontSize = 24.sp,
                 fontWeight = FontWeight.W700,
                 color = Color.White,
@@ -720,7 +727,7 @@ private fun SelfieReviewScreen(
             )
             Spacer(modifier = Modifier.height(4.dp))
             Text(
-                text = "Check clarity and lighting",
+                text = stringResource(R.string.koraidv_selfie_review_subtitle),
                 fontSize = 14.sp,
                 color = KoraColors.WhiteAlpha50
             )
@@ -752,7 +759,7 @@ private fun SelfieReviewScreen(
                         .align(Alignment.TopEnd)
                         .padding(12.dp)
                 ) {
-                    ReviewBadge(text = "Face detected")
+                    ReviewBadge(text = stringResource(R.string.koraidv_selfie_review_detected))
                 }
             }
         }
@@ -770,19 +777,19 @@ private fun SelfieReviewScreen(
                     .padding(bottom = 16.dp),
                 horizontalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterHorizontally)
             ) {
-                ReviewQualityCheck("Clear")
-                ReviewQualityCheck("Centered")
-                ReviewQualityCheck("Well-lit")
+                ReviewQualityCheck(stringResource(R.string.koraidv_selfie_review_clear))
+                ReviewQualityCheck(stringResource(R.string.koraidv_selfie_review_centered))
+                ReviewQualityCheck(stringResource(R.string.koraidv_selfie_review_well_lit))
             }
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 KoraButton(
-                    text = "Retake",
+                    text = stringResource(R.string.koraidv_selfie_retake),
                     onClick = onRetake,
                     variant = KoraButtonVariant.DarkOutline,
                     modifier = Modifier.weight(1f)
                 )
                 KoraButton(
-                    text = "Use this",
+                    text = stringResource(R.string.koraidv_selfie_use_this),
                     onClick = onAccept,
                     modifier = Modifier.weight(1f)
                 )
@@ -901,7 +908,7 @@ internal fun LivenessScreen(
     ) {
         StepProgressBar(total = 5, current = 5, isDark = true)
 
-        DarkScreenHeader(title = "Liveness check", onClose = onCancel)
+        DarkScreenHeader(title = stringResource(R.string.koraidv_liveness_title), onClose = onCancel)
 
         if (errorMessage != null) {
             Box(
@@ -947,7 +954,7 @@ internal fun LivenessScreen(
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
-                    text = "Get ready to...",
+                    text = stringResource(R.string.koraidv_liveness_get_ready),
                     fontSize = 16.sp,
                     fontWeight = FontWeight.W500,
                     color = KoraColors.WhiteAlpha50
@@ -955,12 +962,12 @@ internal fun LivenessScreen(
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     text = when (challengeType) {
-                        com.koraidv.sdk.api.ChallengeType.BLINK -> "Blink your eyes"
-                        com.koraidv.sdk.api.ChallengeType.SMILE -> "Smile naturally"
-                        com.koraidv.sdk.api.ChallengeType.TURN_LEFT -> "Turn head left"
-                        com.koraidv.sdk.api.ChallengeType.TURN_RIGHT -> "Turn head right"
-                        com.koraidv.sdk.api.ChallengeType.NOD_UP -> "Look up"
-                        com.koraidv.sdk.api.ChallengeType.NOD_DOWN -> "Look down"
+                        com.koraidv.sdk.api.ChallengeType.BLINK -> stringResource(R.string.koraidv_liveness_challenge_blink)
+                        com.koraidv.sdk.api.ChallengeType.SMILE -> stringResource(R.string.koraidv_liveness_smile_naturally)
+                        com.koraidv.sdk.api.ChallengeType.TURN_LEFT -> stringResource(R.string.koraidv_liveness_turn_head_left)
+                        com.koraidv.sdk.api.ChallengeType.TURN_RIGHT -> stringResource(R.string.koraidv_liveness_turn_head_right)
+                        com.koraidv.sdk.api.ChallengeType.NOD_UP -> stringResource(R.string.koraidv_liveness_challenge_nod_up)
+                        com.koraidv.sdk.api.ChallengeType.NOD_DOWN -> stringResource(R.string.koraidv_liveness_challenge_nod_down)
                     },
                     fontSize = 20.sp,
                     fontWeight = FontWeight.W600,
@@ -977,7 +984,7 @@ internal fun LivenessScreen(
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
-                    text = if (challengePassed) "Challenge complete!" else "Try again",
+                    text = if (challengePassed) stringResource(R.string.koraidv_liveness_complete) else stringResource(R.string.koraidv_liveness_try_again),
                     fontSize = 24.sp,
                     fontWeight = FontWeight.W700,
                     color = if (challengePassed) KoraColors.TealBright else KoraColors.ErrorRed,
@@ -987,7 +994,7 @@ internal fun LivenessScreen(
                 val completedNum = (livenessState as? LivenessState.ChallengeComplete)
                     ?.challenge?.order?.plus(1) ?: currentIndex
                 Text(
-                    text = "Step $completedNum of $totalChallenges done",
+                    text = stringResource(R.string.koraidv_liveness_step_done, completedNum, totalChallenges),
                     fontSize = 14.sp,
                     color = KoraColors.WhiteAlpha50
                 )
@@ -1000,12 +1007,12 @@ internal fun LivenessScreen(
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
                     text = when (challengeType) {
-                        com.koraidv.sdk.api.ChallengeType.BLINK -> "Blink your eyes"
-                        com.koraidv.sdk.api.ChallengeType.SMILE -> "Smile naturally"
-                        com.koraidv.sdk.api.ChallengeType.TURN_LEFT -> "Turn head left"
-                        com.koraidv.sdk.api.ChallengeType.TURN_RIGHT -> "Turn head right"
-                        com.koraidv.sdk.api.ChallengeType.NOD_UP -> "Look up"
-                        com.koraidv.sdk.api.ChallengeType.NOD_DOWN -> "Look down"
+                        com.koraidv.sdk.api.ChallengeType.BLINK -> stringResource(R.string.koraidv_liveness_challenge_blink)
+                        com.koraidv.sdk.api.ChallengeType.SMILE -> stringResource(R.string.koraidv_liveness_smile_naturally)
+                        com.koraidv.sdk.api.ChallengeType.TURN_LEFT -> stringResource(R.string.koraidv_liveness_turn_head_left)
+                        com.koraidv.sdk.api.ChallengeType.TURN_RIGHT -> stringResource(R.string.koraidv_liveness_turn_head_right)
+                        com.koraidv.sdk.api.ChallengeType.NOD_UP -> stringResource(R.string.koraidv_liveness_challenge_nod_up)
+                        com.koraidv.sdk.api.ChallengeType.NOD_DOWN -> stringResource(R.string.koraidv_liveness_challenge_nod_down)
                     },
                     fontSize = 22.sp,
                     fontWeight = FontWeight.W700,
@@ -1015,19 +1022,19 @@ internal fun LivenessScreen(
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     text = when (challengeType) {
-                        com.koraidv.sdk.api.ChallengeType.BLINK -> "Blink naturally, then hold still"
-                        com.koraidv.sdk.api.ChallengeType.SMILE -> "Show a natural smile"
-                        com.koraidv.sdk.api.ChallengeType.TURN_LEFT -> "Slowly turn your head to the left"
-                        com.koraidv.sdk.api.ChallengeType.TURN_RIGHT -> "Slowly turn your head to the right"
-                        com.koraidv.sdk.api.ChallengeType.NOD_UP -> "Slowly tilt your head upward"
-                        com.koraidv.sdk.api.ChallengeType.NOD_DOWN -> "Slowly tilt your head downward"
+                        com.koraidv.sdk.api.ChallengeType.BLINK -> stringResource(R.string.koraidv_liveness_blink_detail)
+                        com.koraidv.sdk.api.ChallengeType.SMILE -> stringResource(R.string.koraidv_liveness_smile_detail)
+                        com.koraidv.sdk.api.ChallengeType.TURN_LEFT -> stringResource(R.string.koraidv_liveness_turn_left_detail)
+                        com.koraidv.sdk.api.ChallengeType.TURN_RIGHT -> stringResource(R.string.koraidv_liveness_turn_right_detail)
+                        com.koraidv.sdk.api.ChallengeType.NOD_UP -> stringResource(R.string.koraidv_liveness_nod_up_detail)
+                        com.koraidv.sdk.api.ChallengeType.NOD_DOWN -> stringResource(R.string.koraidv_liveness_nod_down_detail)
                     },
                     fontSize = 14.sp,
                     color = KoraColors.WhiteAlpha50
                 )
             } else {
                 Text(
-                    text = "Get ready...",
+                    text = stringResource(R.string.koraidv_liveness_ready),
                     fontSize = 22.sp,
                     fontWeight = FontWeight.W700,
                     color = Color.White,
@@ -1035,7 +1042,7 @@ internal fun LivenessScreen(
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = "Face the camera and hold steady",
+                    text = stringResource(R.string.koraidv_liveness_hold_steady),
                     fontSize = 14.sp,
                     color = KoraColors.WhiteAlpha50
                 )
@@ -1176,7 +1183,7 @@ internal fun LivenessScreen(
                             index == currentIndex -> StepPillState.Active
                             else -> StepPillState.Inactive
                         }
-                        StepPill("Step ${index + 1}", state)
+                        StepPill(stringResource(R.string.koraidv_liveness_step, index + 1), state)
                     }
                 }
             }
@@ -1186,7 +1193,7 @@ internal fun LivenessScreen(
             if (sessionLoaded) {
                 val challengeNum = (currentIndex + 1).coerceAtMost(totalChallenges)
                 Text(
-                    text = "Challenge $challengeNum of $totalChallenges",
+                    text = stringResource(R.string.koraidv_liveness_challenge_of, challengeNum, totalChallenges),
                     fontSize = 13.sp,
                     color = KoraColors.WhiteAlpha50
                 )

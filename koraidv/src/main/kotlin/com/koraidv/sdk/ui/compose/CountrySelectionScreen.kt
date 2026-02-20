@@ -22,6 +22,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
+import com.koraidv.sdk.R
 import com.koraidv.sdk.api.CountryInfo
 
 @Composable
@@ -62,17 +68,18 @@ fun CountrySelectionScreen(
         ) {
             LightBackButton(onClick = onCancel)
             Text(
-                text = "Select your country",
+                text = stringResource(R.string.koraidv_country_title),
                 fontSize = 18.sp,
                 fontWeight = FontWeight.W600,
                 letterSpacing = (-0.3).sp,
-                color = KoraColors.TextPrimary
+                color = KoraColors.TextPrimary,
+                modifier = Modifier.semantics { heading() }
             )
         }
 
         // Subtitle
         Text(
-            text = "Where was your document issued?",
+            text = stringResource(R.string.koraidv_country_subtitle),
             fontSize = 14.sp,
             color = KoraColors.TextSecondary,
             modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp)
@@ -124,13 +131,16 @@ fun CountrySelectionScreen(
                 .padding(horizontal = 24.dp)
                 .padding(bottom = 12.dp)
         ) {
+            val searchLabel = stringResource(R.string.koraidv_country_search)
             OutlinedTextField(
                 value = searchQuery,
                 onValueChange = { searchQuery = it },
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .semantics { contentDescription = searchLabel },
                 placeholder = {
                     Text(
-                        "Search countries...",
+                        searchLabel,
                         color = Color(0xFFAAAAAA),
                         fontSize = 15.sp
                     )
@@ -175,7 +185,11 @@ fun CountrySelectionScreen(
                             } else Modifier
                         )
                         .clickable { selectedCountry = country }
-                        .padding(horizontal = 16.dp, vertical = 13.dp),
+                        .padding(horizontal = 16.dp, vertical = 13.dp)
+                        .semantics {
+                            contentDescription = country.name
+                            if (isSelected) stateDescription = "Selected"
+                        },
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
@@ -211,7 +225,7 @@ fun CountrySelectionScreen(
                 .padding(top = 16.dp, bottom = 40.dp)
         ) {
             KoraButton(
-                text = "Continue",
+                text = stringResource(R.string.koraidv_continue),
                 onClick = { selectedCountry?.let { onSelect(it) } },
                 enabled = selectedCountry != null
             )

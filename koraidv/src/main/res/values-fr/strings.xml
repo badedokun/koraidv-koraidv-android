@@ -9,7 +9,7 @@
     <string name="koraidv_done">Terminé</string>
     <string name="koraidv_loading">Chargement…</string>
 
-    <!-- Consent Screen -->
+    <!-- Consent Screen (legacy) -->
     <string name="koraidv_consent_title">Vérifiez votre identité</string>
     <string name="koraidv_consent_subtitle">Nous devons vérifier votre identité pour continuer.</string>
     <string name="koraidv_consent_what_to_expect">Ce qui vous attend</string>
@@ -22,11 +22,30 @@
     <string name="koraidv_consent_requirement_lighting">Un bon éclairage</string>
     <string name="koraidv_consent_start_button">Commencer la vérification</string>
 
+    <!-- Consent Screen (Compose) -->
+    <string name="koraidv_consent_item_id_title">Pièce d\'identité officielle</string>
+    <string name="koraidv_consent_item_id_subtitle">Photo de votre passeport ou recto &amp; verso de votre carte d\'identité</string>
+    <string name="koraidv_consent_item_selfie_title">Photo selfie</string>
+    <string name="koraidv_consent_item_selfie_subtitle">Un selfie rapide pour correspondre à votre pièce d\'identité</string>
+    <string name="koraidv_consent_item_liveness_title">Vérification de vivacité</string>
+    <string name="koraidv_consent_item_liveness_subtitle">Une courte vidéo pour confirmer que c\'est bien vous</string>
+    <string name="koraidv_consent_button">Commencer</string>
+    <string name="koraidv_consent_privacy">En continuant, vous acceptez notre politique de confidentialité et consentez au traitement biométrique.</string>
+    <string name="koraidv_consent_description">Nous devons vérifier votre identité pour nous conformer aux réglementations et sécuriser votre compte.</string>
+
+    <!-- Country Selection -->
+    <string name="koraidv_country_title">Sélectionnez votre pays</string>
+    <string name="koraidv_country_subtitle">Où votre document a-t-il été délivré ?</string>
+    <string name="koraidv_country_search">Rechercher des pays…</string>
+
     <!-- Document Selection -->
     <string name="koraidv_document_selection_title">Sélectionnez le type de document</string>
     <string name="koraidv_document_selection_subtitle">Choisissez le document que vous souhaitez utiliser pour la vérification.</string>
     <string name="koraidv_document_selection_category_recommended">Recommandé</string>
     <string name="koraidv_document_selection_category_other">Autres documents</string>
+    <string name="koraidv_document_title">Choisissez votre document</string>
+    <string name="koraidv_document_front_back">Recto &amp; verso requis</string>
+    <string name="koraidv_document_photo_page">Page photo uniquement</string>
 
     <!-- Document Types -->
     <string name="koraidv_document_us_drivers_license">Permis de conduire</string>
@@ -53,6 +72,23 @@
     <string name="koraidv_document_capture_too_bright">Trop lumineux</string>
     <string name="koraidv_document_capture_reduce_glare">Réduisez les reflets</string>
     <string name="koraidv_document_capture_position_in_frame">Positionnez le document dans le cadre</string>
+    <string name="koraidv_capture_front">Recto de la pièce d\'identité</string>
+    <string name="koraidv_capture_back">Verso de la pièce d\'identité</string>
+    <string name="koraidv_capture_step_front">Recto</string>
+    <string name="koraidv_capture_step_back">Verso</string>
+    <string name="koraidv_capture_ready">Prêt à capturer</string>
+    <string name="koraidv_capture_scanning">Numérisation du document…</string>
+    <string name="koraidv_capture_retry">Capture échouée, nouvelle tentative…</string>
+    <string name="koraidv_capture_instruction_front">Tenez votre pièce d\'identité à plat avec un bon éclairage.\nCapture automatique quand prêt.</string>
+    <string name="koraidv_capture_instruction_back">Assurez-vous que le code-barres est clairement visible.\nCapture automatique quand prêt.</string>
+    <string name="koraidv_capture_review_title">Vérifiez votre photo</string>
+    <string name="koraidv_capture_review_quality">Bonne qualité</string>
+    <string name="koraidv_capture_review_sharp">Net</string>
+    <string name="koraidv_capture_review_well_lit">Bien éclairé</string>
+    <string name="koraidv_capture_review_no_glare">Pas de reflet</string>
+    <string name="koraidv_capture_review_readable">Le document est-il clairement lisible ?</string>
+    <string name="koraidv_capture_retake">Reprendre</string>
+    <string name="koraidv_capture_looks_good">C\'est bon</string>
 
     <!-- Selfie Capture -->
     <string name="koraidv_selfie_capture_title">Prenez un selfie</string>
@@ -61,6 +97,19 @@
     <string name="koraidv_selfie_capture_move_closer">Rapprochez-vous</string>
     <string name="koraidv_selfie_capture_center_face">Centrez votre visage</string>
     <string name="koraidv_selfie_capture_hold_still">Ne bougez pas…</string>
+    <string name="koraidv_selfie_title">Prenez un selfie</string>
+    <string name="koraidv_selfie_face_camera">Regardez la caméra</string>
+    <string name="koraidv_selfie_neutral">Gardez une expression neutre</string>
+    <string name="koraidv_selfie_instruction">Positionnez votre visage dans l\'ovale.\nGardez une expression neutre. Capture automatique quand prêt.</string>
+    <string name="koraidv_selfie_review_title">Vérifiez le selfie</string>
+    <string name="koraidv_selfie_review_question">Est-ce que cela vous ressemble ?</string>
+    <string name="koraidv_selfie_review_subtitle">Vérifiez la clarté et l\'éclairage</string>
+    <string name="koraidv_selfie_review_detected">Visage détecté</string>
+    <string name="koraidv_selfie_review_clear">Clair</string>
+    <string name="koraidv_selfie_review_centered">Centré</string>
+    <string name="koraidv_selfie_review_well_lit">Bien éclairé</string>
+    <string name="koraidv_selfie_retake">Reprendre</string>
+    <string name="koraidv_selfie_use_this">Utiliser celui-ci</string>
 
     <!-- Liveness Check -->
     <string name="koraidv_liveness_title">Vérification de vivacité</string>
@@ -72,6 +121,23 @@
     <string name="koraidv_liveness_challenge_turn_right">Tournez la tête à droite</string>
     <string name="koraidv_liveness_challenge_nod_up">Regardez en haut</string>
     <string name="koraidv_liveness_challenge_nod_down">Regardez en bas</string>
+    <string name="koraidv_liveness_get_ready">Préparez-vous à…</string>
+    <string name="koraidv_liveness_ready">Préparez-vous…</string>
+    <string name="koraidv_liveness_hold_steady">Regardez la caméra et ne bougez pas</string>
+    <string name="koraidv_liveness_complete">Défi réussi !</string>
+    <string name="koraidv_liveness_try_again">Réessayer</string>
+    <string name="koraidv_liveness_step_done">Étape %1$d sur %2$d terminée</string>
+    <string name="koraidv_liveness_step">Étape %1$d</string>
+    <string name="koraidv_liveness_challenge_of">Défi %1$d sur %2$d</string>
+    <string name="koraidv_liveness_blink_detail">Clignez naturellement, puis restez immobile</string>
+    <string name="koraidv_liveness_smile_detail">Montrez un sourire naturel</string>
+    <string name="koraidv_liveness_turn_left_detail">Tournez lentement la tête vers la gauche</string>
+    <string name="koraidv_liveness_turn_right_detail">Tournez lentement la tête vers la droite</string>
+    <string name="koraidv_liveness_nod_up_detail">Inclinez lentement la tête vers le haut</string>
+    <string name="koraidv_liveness_nod_down_detail">Inclinez lentement la tête vers le bas</string>
+    <string name="koraidv_liveness_smile_naturally">Souriez naturellement</string>
+    <string name="koraidv_liveness_turn_head_left">Tournez la tête à gauche</string>
+    <string name="koraidv_liveness_turn_head_right">Tournez la tête à droite</string>
 
     <!-- Results -->
     <string name="koraidv_result_success_title">Vérification réussie</string>
@@ -86,8 +152,48 @@
     <string name="koraidv_result_name">Nom</string>
     <string name="koraidv_result_date_of_birth">Date de naissance</string>
     <string name="koraidv_result_document">Document</string>
+    <string name="koraidv_result_approved_title">Vérification approuvée</string>
+    <string name="koraidv_result_approved_subtitle">Votre identité a été vérifiée avec succès.</string>
+    <string name="koraidv_result_approved_button">Terminé</string>
+    <string name="koraidv_result_rejected_title">Vérification rejetée</string>
+    <string name="koraidv_result_rejected_subtitle">Certaines vérifications n\'ont pas atteint le seuil requis.</string>
+    <string name="koraidv_result_rejected_button">Réessayer</string>
+    <string name="koraidv_result_expired_title">Document expiré</string>
+    <string name="koraidv_result_expired_subtitle">Le document que vous avez soumis a expiré et ne peut pas être utilisé pour la vérification.</string>
+    <string name="koraidv_result_expired_label">EXPIRÉ LE</string>
+    <string name="koraidv_result_expired_what_to_do">Ce que vous pouvez faire :</string>
+    <string name="koraidv_result_expired_tip1_title">Vérifiez la date d\'expiration de votre document</string>
+    <string name="koraidv_result_expired_tip1_subtitle">Recherchez la date d\'expiration imprimée sur votre carte d\'identité ou permis.</string>
+    <string name="koraidv_result_expired_tip2_title">Utilisez un autre document valide</string>
+    <string name="koraidv_result_expired_tip2_subtitle">Essayez un passeport, une carte d\'identité ou tout autre document officiel non expiré.</string>
+    <string name="koraidv_result_expired_tip3_title">Renouvelez d\'abord votre document</string>
+    <string name="koraidv_result_expired_tip3_subtitle">Rendez-vous dans votre bureau gouvernemental local pour le renouveler, puis réessayez.</string>
+    <string name="koraidv_result_expired_button">Essayer avec un document valide</string>
+    <string name="koraidv_result_review_title_v2">En cours d\'examen</string>
+    <string name="koraidv_result_review_subtitle_v2">Votre soumission nécessite un examen manuel. Cela prend généralement 1 à 2 jours ouvrables.</string>
+    <string name="koraidv_result_review_button">Compris</string>
+    <string name="koraidv_result_processing_title_v2">Vérification de votre identité</string>
+    <string name="koraidv_result_processing_subtitle_v2">Cela ne prendra qu\'un instant</string>
+    <string name="koraidv_result_preparing">Préparation de la vérification…</string>
 
-    <!-- Errors -->
+    <!-- Score labels -->
+    <string name="koraidv_score_passed">APPROUVÉ</string>
+    <string name="koraidv_score_rejected">REJETÉ</string>
+    <string name="koraidv_score_review">EXAMEN</string>
+    <string name="koraidv_score_liveness">Vivacité</string>
+    <string name="koraidv_score_name_match">Correspondance du nom</string>
+    <string name="koraidv_score_document_quality">Qualité du document</string>
+    <string name="koraidv_score_selfie_match">Correspondance du selfie</string>
+    <string name="koraidv_score_overall">Score global</string>
+
+    <!-- Score error messages -->
+    <string name="koraidv_score_error_liveness">Échoué — possible usurpation détectée</string>
+    <string name="koraidv_score_error_name">Le nom ne correspond pas</string>
+    <string name="koraidv_score_error_document">Qualité du document trop faible</string>
+    <string name="koraidv_score_error_selfie">Le visage ne correspond pas à la photo d\'identité</string>
+    <string name="koraidv_score_error_selfie_review">En dessous du seuil d\'approbation automatique — nécessite un examen humain</string>
+
+    <!-- Error screen -->
     <string name="koraidv_error_title">Une erreur s\'est produite</string>
     <string name="koraidv_error_camera_permission">L\'accès à la caméra est requis pour la vérification.</string>
     <string name="koraidv_error_network">Erreur réseau. Veuillez vérifier votre connexion et réessayer.</string>
@@ -97,4 +203,27 @@
     <string name="koraidv_error_face_not_matched">Le selfie ne correspond pas à la photo du document.</string>
     <string name="koraidv_error_liveness_check_failed">La vérification de vivacité a échoué. Veuillez réessayer.</string>
     <string name="koraidv_error_quality_too_low">La qualité de l\'image est trop faible. Veuillez réessayer avec un meilleur éclairage.</string>
+    <string name="koraidv_error_quality_title">Problème de qualité</string>
+    <string name="koraidv_error_quality_guidance">Placez le document sur une surface plane et bien éclairée. Évitez les ombres et les reflets. Tenez votre appareil fermement.</string>
+    <string name="koraidv_error_face_title">Visage non détecté</string>
+    <string name="koraidv_error_face_guidance">Assurez-vous que votre visage est clairement visible. Utilisez un bon éclairage et regardez directement la caméra.</string>
+    <string name="koraidv_error_liveness_title">Échec de la vérification de vivacité</string>
+    <string name="koraidv_error_liveness_guidance">Suivez attentivement les instructions à l\'écran. Assurez-vous que votre visage est bien éclairé et clairement visible.</string>
+    <string name="koraidv_error_network_title">Pas de connexion</string>
+    <string name="koraidv_error_network_guidance">Vérifiez votre connexion Wi-Fi ou cellulaire et réessayez.</string>
+    <string name="koraidv_error_timeout_title">Délai d\'attente dépassé</string>
+    <string name="koraidv_error_timeout_guidance">Le serveur a mis trop de temps à répondre. Veuillez réessayer.</string>
+    <string name="koraidv_error_auth_title">Erreur d\'authentification</string>
+    <string name="koraidv_error_generic_title">Une erreur s\'est produite</string>
+    <string name="koraidv_error_upload_failed">Échec du téléchargement des données de vivacité. Veuillez réessayer.</string>
+
+    <!-- Accessibility -->
+    <string name="koraidv_a11y_close">Fermer</string>
+    <string name="koraidv_a11y_back">Retour</string>
+    <string name="koraidv_a11y_camera_viewfinder">Viseur de la caméra</string>
+    <string name="koraidv_a11y_front_camera">Caméra frontale pour selfie</string>
+    <string name="koraidv_a11y_liveness_camera">Caméra pour vérification de vivacité</string>
+    <string name="koraidv_a11y_captured_document">Document capturé</string>
+    <string name="koraidv_a11y_captured_selfie">Selfie capturé</string>
+    <string name="koraidv_a11y_step_progress">Étape %1$d sur %2$d</string>
 </resources>

@@ -19,6 +19,11 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
+import com.koraidv.sdk.R
 import com.koraidv.sdk.api.CountryInfo
 import com.koraidv.sdk.api.DocumentTypeInfo
 
@@ -47,11 +52,12 @@ fun DocumentSelectionScreen(
         ) {
             LightBackButton(onClick = onCancel)
             Text(
-                text = "Choose your document",
+                text = stringResource(R.string.koraidv_document_title),
                 fontSize = 18.sp,
                 fontWeight = FontWeight.W600,
                 letterSpacing = (-0.3).sp,
-                color = KoraColors.TextPrimary
+                color = KoraColors.TextPrimary,
+                modifier = Modifier.semantics { heading() }
             )
         }
 
@@ -90,6 +96,8 @@ private fun DocumentCard(
 ) {
     val (iconBg, iconTint) = getDocumentStyle(docType.code)
 
+    val subtitle = if (docType.requiresBack) stringResource(R.string.koraidv_document_front_back) else stringResource(R.string.koraidv_document_photo_page)
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -97,7 +105,10 @@ private fun DocumentCard(
             .background(KoraColors.Surface)
             .border(2.dp, Color.Transparent, RoundedCornerShape(16.dp))
             .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 18.dp),
+            .padding(horizontal = 16.dp, vertical = 18.dp)
+            .semantics(mergeDescendants = true) {
+                contentDescription = "${docType.displayName}. $subtitle"
+            },
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(16.dp)
     ) {
@@ -127,7 +138,7 @@ private fun DocumentCard(
             )
             Spacer(modifier = Modifier.height(2.dp))
             Text(
-                text = if (docType.requiresBack) "Front & back required" else "Photo page only",
+                text = subtitle,
                 fontSize = 13.sp,
                 color = KoraColors.TextSecondary
             )

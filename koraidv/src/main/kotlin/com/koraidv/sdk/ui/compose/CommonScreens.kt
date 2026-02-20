@@ -29,6 +29,11 @@ import androidx.compose.ui.unit.sp
 import com.koraidv.sdk.KoraException
 import com.koraidv.sdk.Verification
 import com.koraidv.sdk.VerificationStatus
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
+import com.koraidv.sdk.R
 import com.koraidv.sdk.ui.ProcessingStep
 import com.koraidv.sdk.ui.ScoreBreakdown
 import com.koraidv.sdk.ui.VerificationViewModel
@@ -70,7 +75,7 @@ fun LoadingScreen() {
             )
             Spacer(modifier = Modifier.height(16.dp))
             Text(
-                text = "Preparing verification...",
+                text = stringResource(R.string.koraidv_result_preparing),
                 fontSize = 15.sp,
                 color = KoraColors.TextSecondary
             )
@@ -174,15 +179,16 @@ fun ProcessingScreen(step: ProcessingStep = ProcessingStep.ANALYZING) {
         Spacer(modifier = Modifier.height(32.dp))
 
         Text(
-            text = "Verifying your identity",
+            text = stringResource(R.string.koraidv_result_processing_title_v2),
             fontSize = 22.sp,
             fontWeight = FontWeight.W700,
             color = Color.White,
-            letterSpacing = (-0.3).sp
+            letterSpacing = (-0.3).sp,
+            modifier = Modifier.semantics { heading() }
         )
         Spacer(modifier = Modifier.height(8.dp))
         Text(
-            text = "This will only take a moment",
+            text = stringResource(R.string.koraidv_result_processing_subtitle_v2),
             fontSize = 15.sp,
             color = KoraColors.WhiteAlpha40
         )
@@ -283,15 +289,16 @@ fun SuccessScreen(
                 )
                 Spacer(modifier = Modifier.height(10.dp))
                 Text(
-                    text = "Verification approved",
+                    text = stringResource(R.string.koraidv_result_approved_title),
                     fontSize = 22.sp,
                     fontWeight = FontWeight.W700,
                     letterSpacing = (-0.5).sp,
-                    color = KoraColors.TextPrimary
+                    color = KoraColors.TextPrimary,
+                    modifier = Modifier.semantics { heading() }
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = "Your identity has been verified successfully.",
+                    text = stringResource(R.string.koraidv_result_approved_subtitle),
                     fontSize = 14.sp,
                     color = KoraColors.TextSecondary,
                     textAlign = TextAlign.Center
@@ -303,7 +310,7 @@ fun SuccessScreen(
             // Teal score card
             ScoreCard(
                 score = scores.overallScore,
-                badge = "PASSED",
+                badge = stringResource(R.string.koraidv_score_passed),
                 gradientBrush = KoraColors.TealGradient135
             )
 
@@ -316,7 +323,7 @@ fun SuccessScreen(
             ) {
                 ScoreMetricRow(
                     metric = ScoreMetric(
-                        label = "Liveness",
+                        label = stringResource(R.string.koraidv_score_liveness),
                         score = scores.liveness,
                         icon = Icons.Default.Visibility,
                         status = if (scores.liveness >= 70) MetricStatus.PASS else MetricStatus.BORDERLINE
@@ -324,7 +331,7 @@ fun SuccessScreen(
                 )
                 ScoreMetricRow(
                     metric = ScoreMetric(
-                        label = "Name Match",
+                        label = stringResource(R.string.koraidv_score_name_match),
                         score = scores.nameMatch,
                         icon = Icons.Default.Check,
                         status = if (scores.nameMatch >= 70) MetricStatus.PASS else MetricStatus.BORDERLINE
@@ -332,7 +339,7 @@ fun SuccessScreen(
                 )
                 ScoreMetricRow(
                     metric = ScoreMetric(
-                        label = "Document Quality",
+                        label = stringResource(R.string.koraidv_score_document_quality),
                         score = scores.documentQuality,
                         icon = Icons.Default.CreditCard,
                         status = if (scores.documentQuality >= 70) MetricStatus.PASS else MetricStatus.BORDERLINE
@@ -340,7 +347,7 @@ fun SuccessScreen(
                 )
                 ScoreMetricRow(
                     metric = ScoreMetric(
-                        label = "Selfie Match",
+                        label = stringResource(R.string.koraidv_score_selfie_match),
                         score = scores.selfieMatch,
                         icon = Icons.Default.Person,
                         status = if (scores.selfieMatch >= 70) MetricStatus.PASS
@@ -358,7 +365,7 @@ fun SuccessScreen(
                 .padding(horizontal = 24.dp)
                 .padding(top = 16.dp, bottom = 40.dp)
         ) {
-            KoraButton(text = "Done", onClick = onDone)
+            KoraButton(text = stringResource(R.string.koraidv_result_approved_button), onClick = onDone)
         }
     }
 }
@@ -398,15 +405,16 @@ fun RejectedScreen(
                 )
                 Spacer(modifier = Modifier.height(10.dp))
                 Text(
-                    text = "Verification rejected",
+                    text = stringResource(R.string.koraidv_result_rejected_title),
                     fontSize = 22.sp,
                     fontWeight = FontWeight.W700,
                     letterSpacing = (-0.5).sp,
-                    color = KoraColors.TextPrimary
+                    color = KoraColors.TextPrimary,
+                    modifier = Modifier.semantics { heading() }
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = "Some checks didn't meet the required threshold.",
+                    text = stringResource(R.string.koraidv_result_rejected_subtitle),
                     fontSize = 14.sp,
                     color = KoraColors.TextSecondary,
                     textAlign = TextAlign.Center
@@ -418,7 +426,7 @@ fun RejectedScreen(
             // Red score card
             ScoreCard(
                 score = scores.overallScore,
-                badge = "REJECTED",
+                badge = stringResource(R.string.koraidv_score_rejected),
                 gradientBrush = KoraColors.RedGradient
             )
 
@@ -431,16 +439,16 @@ fun RejectedScreen(
                 val livenessStatus = if (scores.liveness >= 70) MetricStatus.PASS else MetricStatus.FAIL
                 ScoreMetricRow(
                     metric = ScoreMetric(
-                        label = "Liveness",
+                        label = stringResource(R.string.koraidv_score_liveness),
                         score = scores.liveness,
                         icon = if (livenessStatus == MetricStatus.PASS) Icons.Default.Visibility else Icons.Default.Close,
                         status = livenessStatus,
-                        errorMessage = if (livenessStatus == MetricStatus.FAIL) "Failed — possible spoof detected" else null
+                        errorMessage = if (livenessStatus == MetricStatus.FAIL) stringResource(R.string.koraidv_score_error_liveness) else null
                     )
                 )
                 ScoreMetricRow(
                     metric = ScoreMetric(
-                        label = "Name Match",
+                        label = stringResource(R.string.koraidv_score_name_match),
                         score = scores.nameMatch,
                         icon = Icons.Default.Check,
                         status = if (scores.nameMatch >= 70) MetricStatus.PASS else MetricStatus.FAIL
@@ -448,7 +456,7 @@ fun RejectedScreen(
                 )
                 ScoreMetricRow(
                     metric = ScoreMetric(
-                        label = "Document Quality",
+                        label = stringResource(R.string.koraidv_score_document_quality),
                         score = scores.documentQuality,
                         icon = if (scores.documentQuality >= 70) Icons.Default.Check else Icons.Default.Close,
                         status = if (scores.documentQuality >= 70) MetricStatus.PASS else MetricStatus.FAIL
@@ -457,11 +465,11 @@ fun RejectedScreen(
                 val selfieStatus = if (scores.selfieMatch >= 70) MetricStatus.PASS else MetricStatus.FAIL
                 ScoreMetricRow(
                     metric = ScoreMetric(
-                        label = "Selfie Match",
+                        label = stringResource(R.string.koraidv_score_selfie_match),
                         score = scores.selfieMatch,
                         icon = if (selfieStatus == MetricStatus.PASS) Icons.Default.Person else Icons.Default.Close,
                         status = selfieStatus,
-                        errorMessage = if (selfieStatus == MetricStatus.FAIL) "Face does not match ID photo" else null
+                        errorMessage = if (selfieStatus == MetricStatus.FAIL) stringResource(R.string.koraidv_score_error_selfie) else null
                     )
                 )
             }
@@ -473,7 +481,7 @@ fun RejectedScreen(
                 .padding(horizontal = 24.dp)
                 .padding(top = 16.dp, bottom = 40.dp)
         ) {
-            KoraButton(text = "Try again", onClick = onRetry)
+            KoraButton(text = stringResource(R.string.koraidv_result_rejected_button), onClick = onRetry)
         }
     }
 }
@@ -516,15 +524,16 @@ fun ExpiredDocumentScreen(
                 )
                 Spacer(modifier = Modifier.height(16.dp))
                 Text(
-                    text = "Document expired",
+                    text = stringResource(R.string.koraidv_result_expired_title),
                     fontSize = 22.sp,
                     fontWeight = FontWeight.W700,
                     letterSpacing = (-0.5).sp,
-                    color = KoraColors.TextPrimary
+                    color = KoraColors.TextPrimary,
+                    modifier = Modifier.semantics { heading() }
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = "The document you submitted has expired and cannot be used for verification.",
+                    text = stringResource(R.string.koraidv_result_expired_subtitle),
                     fontSize = 14.sp,
                     color = KoraColors.TextSecondary,
                     textAlign = TextAlign.Center,
@@ -581,7 +590,7 @@ fun ExpiredDocumentScreen(
                         ) {
                             Column {
                                 Text(
-                                    text = "EXPIRED ON",
+                                    text = stringResource(R.string.koraidv_result_expired_label),
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.W500,
                                     color = KoraColors.WarningAmberMid
@@ -604,7 +613,7 @@ fun ExpiredDocumentScreen(
             // Guidance tips
             Column(modifier = Modifier.padding(horizontal = 24.dp)) {
                 Text(
-                    text = "What you can do:",
+                    text = stringResource(R.string.koraidv_result_expired_what_to_do),
                     fontSize = 14.sp,
                     fontWeight = FontWeight.W600,
                     color = KoraColors.TextPrimary,
@@ -613,20 +622,20 @@ fun ExpiredDocumentScreen(
 
                 GuidanceTip(
                     number = "1",
-                    title = "Check your document's expiration date",
-                    subtitle = "Look for the expiry date printed on your ID card or license."
+                    title = stringResource(R.string.koraidv_result_expired_tip1_title),
+                    subtitle = stringResource(R.string.koraidv_result_expired_tip1_subtitle)
                 )
                 Spacer(modifier = Modifier.height(10.dp))
                 GuidanceTip(
                     number = "2",
-                    title = "Use a different valid document",
-                    subtitle = "Try a passport, state ID, or any other unexpired government-issued ID."
+                    title = stringResource(R.string.koraidv_result_expired_tip2_title),
+                    subtitle = stringResource(R.string.koraidv_result_expired_tip2_subtitle)
                 )
                 Spacer(modifier = Modifier.height(10.dp))
                 GuidanceTip(
                     number = "3",
-                    title = "Renew your document first",
-                    subtitle = "Visit your local DMV or government office to renew, then try again."
+                    title = stringResource(R.string.koraidv_result_expired_tip3_title),
+                    subtitle = stringResource(R.string.koraidv_result_expired_tip3_subtitle)
                 )
             }
         }
@@ -637,7 +646,7 @@ fun ExpiredDocumentScreen(
                 .padding(horizontal = 24.dp)
                 .padding(top = 16.dp, bottom = 40.dp)
         ) {
-            KoraButton(text = "Try with a valid document", onClick = onRetry)
+            KoraButton(text = stringResource(R.string.koraidv_result_expired_button), onClick = onRetry)
         }
     }
 }
@@ -653,7 +662,8 @@ private fun GuidanceTip(
             .fillMaxWidth()
             .clip(RoundedCornerShape(14.dp))
             .background(KoraColors.Surface)
-            .padding(14.dp),
+            .padding(14.dp)
+            .semantics(mergeDescendants = true) { },
         verticalAlignment = Alignment.Top,
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
@@ -724,15 +734,16 @@ fun ManualReviewScreen(
                 )
                 Spacer(modifier = Modifier.height(16.dp))
                 Text(
-                    text = "Under review",
+                    text = stringResource(R.string.koraidv_result_review_title_v2),
                     fontSize = 22.sp,
                     fontWeight = FontWeight.W700,
                     letterSpacing = (-0.5).sp,
-                    color = KoraColors.TextPrimary
+                    color = KoraColors.TextPrimary,
+                    modifier = Modifier.semantics { heading() }
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = "Your submission needs manual review. This typically takes 1-2 business days.",
+                    text = stringResource(R.string.koraidv_result_review_subtitle_v2),
                     fontSize = 14.sp,
                     color = KoraColors.TextSecondary,
                     textAlign = TextAlign.Center,
@@ -745,7 +756,7 @@ fun ManualReviewScreen(
             // Blue score card
             ScoreCard(
                 score = scores.overallScore,
-                badge = "REVIEW",
+                badge = stringResource(R.string.koraidv_score_review),
                 gradientBrush = KoraColors.BlueGradient
             )
 
@@ -757,7 +768,7 @@ fun ManualReviewScreen(
             ) {
                 ScoreMetricRow(
                     metric = ScoreMetric(
-                        label = "Liveness",
+                        label = stringResource(R.string.koraidv_score_liveness),
                         score = scores.liveness,
                         icon = Icons.Default.Check,
                         status = if (scores.liveness >= 70) MetricStatus.PASS else MetricStatus.BORDERLINE
@@ -765,7 +776,7 @@ fun ManualReviewScreen(
                 )
                 ScoreMetricRow(
                     metric = ScoreMetric(
-                        label = "Name Match",
+                        label = stringResource(R.string.koraidv_score_name_match),
                         score = scores.nameMatch,
                         icon = Icons.Default.Check,
                         status = if (scores.nameMatch >= 70) MetricStatus.PASS else MetricStatus.BORDERLINE
@@ -773,7 +784,7 @@ fun ManualReviewScreen(
                 )
                 ScoreMetricRow(
                     metric = ScoreMetric(
-                        label = "Document Quality",
+                        label = stringResource(R.string.koraidv_score_document_quality),
                         score = scores.documentQuality,
                         icon = Icons.Default.Check,
                         status = if (scores.documentQuality >= 70) MetricStatus.PASS else MetricStatus.BORDERLINE
@@ -786,12 +797,12 @@ fun ManualReviewScreen(
                 }
                 ScoreMetricRow(
                     metric = ScoreMetric(
-                        label = "Selfie Match",
+                        label = stringResource(R.string.koraidv_score_selfie_match),
                         score = scores.selfieMatch,
                         icon = if (selfieStatus == MetricStatus.BORDERLINE) Icons.Default.Info else Icons.Default.Check,
                         status = selfieStatus,
                         errorMessage = if (selfieStatus == MetricStatus.BORDERLINE)
-                            "Below auto-approval threshold — requires human review" else null
+                            stringResource(R.string.koraidv_score_error_selfie_review) else null
                     )
                 )
             }
@@ -803,7 +814,7 @@ fun ManualReviewScreen(
                 .padding(horizontal = 24.dp)
                 .padding(top = 16.dp, bottom = 40.dp)
         ) {
-            KoraButton(text = "Got it", onClick = onDone)
+            KoraButton(text = stringResource(R.string.koraidv_result_review_button), onClick = onDone)
         }
     }
 }
@@ -844,7 +855,8 @@ fun ErrorScreen(
             fontSize = 22.sp,
             fontWeight = FontWeight.W700,
             textAlign = TextAlign.Center,
-            color = KoraColors.TextPrimary
+            color = KoraColors.TextPrimary,
+            modifier = Modifier.semantics { heading() }
         )
 
         Spacer(modifier = Modifier.height(8.dp))
@@ -887,12 +899,12 @@ fun ErrorScreen(
         Spacer(modifier = Modifier.weight(1f))
 
         if (canRetry) {
-            KoraButton(text = "Try Again", onClick = onRetry)
+            KoraButton(text = stringResource(R.string.koraidv_try_again), onClick = onRetry)
             Spacer(modifier = Modifier.height(10.dp))
         }
 
         KoraButton(
-            text = "Cancel",
+            text = stringResource(R.string.koraidv_cancel),
             onClick = onCancel,
             variant = KoraButtonVariant.WhiteOutline
         )
