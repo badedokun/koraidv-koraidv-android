@@ -76,7 +76,7 @@ class LivenessManager {
     private var challengeResults = mutableListOf<ChallengeResultItem>()
     private var isProcessing = false
     private var frameCount = 0
-    private val maxFramesPerChallenge = 30
+    private val maxFramesPerChallenge = 150
 
     val currentChallenge: LivenessChallenge?
         get() {
@@ -253,15 +253,35 @@ class LivenessManager {
         )
         challengeResults.add(result)
 
-        // Show ChallengeComplete state for 2.5s so user sees the checkmark clearly
+        // Show ChallengeComplete state
         isTransitioning = true
         _state.value = LivenessState.ChallengeComplete(challenge, passed)
 
-        mainHandler.postDelayed({
-            isTransitioning = false
-            currentChallengeIndex++
-            startNextChallenge()
-        }, 2500)
+        if (passed) {
+            // Auto-advance to next challenge after 2.5s
+            mainHandler.postDelayed({
+                isTransitioning = false
+                currentChallengeIndex++
+                startNextChallenge()
+            }, 2500)
+        }
+        // If failed, do NOT auto-advance — wait for user to tap "Try Again"
+        // (handled by retryCurrentChallenge())
+    }
+
+    /**
+     * Retry the current challenge after a failure.
+     * Called from the UI when the user taps "Try Again" on a failed challenge.
+     */
+    fun retryCurrentChallenge() {
+        // Remove the failed result so it can be re-attempted
+        if (challengeResults.isNotEmpty() && !challengeResults.last().passed) {
+            challengeResults.removeAt(challengeResults.size - 1)
+        }
+        isTransitioning = false
+        challengeDetector.reset()
+        frameCount = 0
+        startNextChallenge()
     }
 
     private fun completeSession() {

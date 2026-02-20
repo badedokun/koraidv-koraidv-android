@@ -58,6 +58,7 @@ class CameraManager(private val context: Context) : DefaultLifecycleObserver {
         position: CameraPosition = CameraPosition.BACK,
         onInitialized: (Boolean) -> Unit
     ) {
+        android.util.Log.d("KoraIDV", "CameraManager.initialize() position=$position lifecycle=${lifecycleOwner.lifecycle.currentState}")
         currentPosition = position
         boundLifecycleOwner = lifecycleOwner
         lifecycleOwner.lifecycle.addObserver(this)
@@ -66,9 +67,12 @@ class CameraManager(private val context: Context) : DefaultLifecycleObserver {
         cameraProviderFuture.addListener({
             try {
                 cameraProvider = cameraProviderFuture.get()
+                android.util.Log.d("KoraIDV", "CameraManager: provider obtained, binding use cases")
                 bindCameraUseCases(lifecycleOwner, previewView)
+                android.util.Log.d("KoraIDV", "CameraManager: bind succeeded, camera=$camera")
                 onInitialized(true)
             } catch (e: Exception) {
+                android.util.Log.e("KoraIDV", "CameraManager: initialize failed", e)
                 onInitialized(false)
             }
         }, ContextCompat.getMainExecutor(context))
@@ -76,6 +80,17 @@ class CameraManager(private val context: Context) : DefaultLifecycleObserver {
 
     private fun bindCameraUseCases(lifecycleOwner: LifecycleOwner, previewView: PreviewView) {
         val cameraProvider = cameraProvider ?: return
+
+        // Unbind ALL use cases before binding new ones. The ProcessCameraProvider
+        // is a singleton — another CameraManager (e.g. selfie screen) may still have
+        // use cases bound when this one initializes (race between Compose
+        // DisposableEffect.onDispose and AndroidView.factory). unbindAll() is safe
+        // because only one camera screen is active at a time in the verification flow.
+        cameraProvider.unbindAll()
+        preview = null
+        imageCapture = null
+        imageAnalyzer = null
+        camera = null
 
         // Use ResolutionSelector (CameraX 1.3+ replacement for deprecated setTargetResolution)
         val previewResolution = ResolutionSelector.Builder()
@@ -128,11 +143,6 @@ class CameraManager(private val context: Context) : DefaultLifecycleObserver {
         }
 
         try {
-            // Unbind only this instance's use cases to avoid killing cameras
-            // bound by other CameraManager instances sharing the singleton provider.
-            listOfNotNull(preview, imageCapture, imageAnalyzer).let { existing ->
-                if (existing.isNotEmpty()) cameraProvider.unbind(*existing.toTypedArray())
-            }
             camera = cameraProvider.bindToLifecycle(
                 lifecycleOwner,
                 cameraSelector,
@@ -143,15 +153,19 @@ class CameraManager(private val context: Context) : DefaultLifecycleObserver {
 
             // Enable continuous auto-focus on center of frame
             camera?.cameraControl?.let { control ->
-                val factory = SurfaceOrientedMeteringPointFactory(1f, 1f)
-                val centerPoint = factory.createPoint(0.5f, 0.5f)
-                val action = FocusMeteringAction.Builder(
-                    centerPoint,
-                    FocusMeteringAction.FLAG_AF or FocusMeteringAction.FLAG_AE
-                )
-                    .setAutoCancelDuration(0, TimeUnit.SECONDS) // Continuous — never cancel
-                    .build()
-                control.startFocusAndMetering(action)
+                try {
+                    val factory = SurfaceOrientedMeteringPointFactory(1f, 1f)
+                    val centerPoint = factory.createPoint(0.5f, 0.5f)
+                    val action = FocusMeteringAction.Builder(
+                        centerPoint,
+                        FocusMeteringAction.FLAG_AF or FocusMeteringAction.FLAG_AE
+                    )
+                        .setAutoCancelDuration(5, TimeUnit.SECONDS)
+                        .build()
+                    control.startFocusAndMetering(action)
+                } catch (_: Exception) {
+                    // Auto-focus setup is best-effort; camera still works without it
+                }
             }
         } catch (e: Exception) {
             android.util.Log.e("KoraIDV", "Failed to bind camera use cases", e)
@@ -281,6 +295,7 @@ class CameraManager(private val context: Context) : DefaultLifecycleObserver {
      * Called automatically when the bound lifecycle owner is destroyed.
      */
     fun release() {
+        android.util.Log.d("KoraIDV", "CameraManager.release() cameraProvider=${cameraProvider != null}")
         // Only unbind this instance's use cases — NOT unbindAll() which would
         // kill cameras bound by other CameraManager instances sharing the
         // singleton ProcessCameraProvider.

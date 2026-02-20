@@ -72,3 +72,7 @@
 
 # VerificationActivity (referenced in AndroidManifest)
 -keep class com.koraidv.sdk.ui.VerificationActivity { *; }
+
+# Suppress R8 warnings for Java 9+ StringConcatFactory (not available on Android,
+# but referenced by Kotlin-compiled bytecode targeting JVM 17).
+-dontwarn java.lang.invoke.StringConcatFactory

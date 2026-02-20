@@ -129,6 +129,13 @@ fun DocumentCaptureScreen(
                 capturedBitmap?.recycle()
                 capturedImageBytes = null
                 capturedBitmap = null
+                cameraReady = false
+                isCapturing = false
+                documentDetected = false
+                documentReady = false
+                qualityGuidance = null
+                autoCapturePending = false
+                firstDetectedTime = null
                 documentScanner.resetStability()
             },
             onAccept = {
@@ -393,18 +400,14 @@ private fun DocumentReviewScreen(
                         modifier = Modifier.fillMaxSize(),
                         contentScale = ContentScale.Crop
                     )
-
-                    // Good quality badge
-                    Box(
-                        modifier = Modifier
-                            .align(Alignment.TopEnd)
-                            .padding(16.dp)
-                    ) {
-                        ReviewBadge(text = stringResource(R.string.koraidv_capture_review_quality))
-                    }
                 }
 
-                Spacer(modifier = Modifier.height(20.dp))
+                Spacer(modifier = Modifier.height(24.dp))
+
+                // Good quality badge
+                ReviewBadge(text = stringResource(R.string.koraidv_capture_review_quality))
+
+                Spacer(modifier = Modifier.height(16.dp))
 
                 // Quality checks
                 Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -519,7 +522,13 @@ fun SelfieCaptureScreen(
                 capturedBitmap?.recycle()
                 capturedImageBytes = null
                 capturedBitmap = null
+                cameraReady = false
+                isCapturing = false
+                faceDetected = false
                 faceReady = false
+                guidanceMessage = "Position your face in the oval"
+                autoCapturePending = false
+                firstFaceDetectedTime = null
                 faceScanner.resetStability()
             },
             onAccept = { onCaptured(reviewBytes) },
@@ -738,29 +747,27 @@ private fun SelfieReviewScreen(
             modifier = Modifier
                 .weight(1f)
                 .fillMaxWidth()
-                .padding(bottom = 140.dp),
+                .padding(bottom = 100.dp),
             contentAlignment = Alignment.Center
         ) {
-            Box(
-                modifier = Modifier
-                    .width(240.dp)
-                    .height(300.dp)
-                    .clip(OvalViewfinderShape)
-            ) {
-                Image(
-                    bitmap = bitmap.asImageBitmap(),
-                    contentDescription = "Captured selfie",
-                    modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.Crop
-                )
-
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Box(
                     modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .padding(12.dp)
+                        .width(240.dp)
+                        .height(300.dp)
+                        .clip(OvalViewfinderShape)
                 ) {
-                    ReviewBadge(text = stringResource(R.string.koraidv_selfie_review_detected))
+                    Image(
+                        bitmap = bitmap.asImageBitmap(),
+                        contentDescription = "Captured selfie",
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop
+                    )
                 }
+
+                Spacer(modifier = Modifier.height(20.dp))
+
+                ReviewBadge(text = stringResource(R.string.koraidv_selfie_review_detected))
             }
         }
 
@@ -977,27 +984,42 @@ internal fun LivenessScreen(
             } else if (isChallengeComplete) {
                 // Prominent completion indicator
                 Icon(
-                    imageVector = Icons.Default.CheckCircle,
+                    imageVector = if (challengePassed) Icons.Default.CheckCircle else Icons.Default.Cancel,
                     contentDescription = null,
                     modifier = Modifier.size(56.dp),
                     tint = if (challengePassed) KoraColors.TealBright else KoraColors.ErrorRed
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
-                    text = if (challengePassed) stringResource(R.string.koraidv_liveness_complete) else stringResource(R.string.koraidv_liveness_try_again),
+                    text = if (challengePassed) stringResource(R.string.koraidv_liveness_complete) else "Challenge failed",
                     fontSize = 24.sp,
                     fontWeight = FontWeight.W700,
                     color = if (challengePassed) KoraColors.TealBright else KoraColors.ErrorRed,
                     letterSpacing = (-0.5).sp
                 )
-                Spacer(modifier = Modifier.height(4.dp))
-                val completedNum = (livenessState as? LivenessState.ChallengeComplete)
-                    ?.challenge?.order?.plus(1) ?: currentIndex
-                Text(
-                    text = stringResource(R.string.koraidv_liveness_step_done, completedNum, totalChallenges),
-                    fontSize = 14.sp,
-                    color = KoraColors.WhiteAlpha50
-                )
+                if (!challengePassed) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "Don\u2019t worry, you can try again",
+                        fontSize = 14.sp,
+                        color = KoraColors.WhiteAlpha50
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    KoraButton(
+                        text = stringResource(R.string.koraidv_liveness_try_again),
+                        onClick = { livenessManager.retryCurrentChallenge() },
+                        modifier = Modifier.widthIn(min = 200.dp)
+                    )
+                } else {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    val completedNum = (livenessState as? LivenessState.ChallengeComplete)
+                        ?.challenge?.order?.plus(1) ?: currentIndex
+                    Text(
+                        text = stringResource(R.string.koraidv_liveness_step_done, completedNum, totalChallenges),
+                        fontSize = 14.sp,
+                        color = KoraColors.WhiteAlpha50
+                    )
+                }
             } else if (challengeType != null) {
                 // Active challenge — show icon + instruction
                 LivenessChallengeIcon(

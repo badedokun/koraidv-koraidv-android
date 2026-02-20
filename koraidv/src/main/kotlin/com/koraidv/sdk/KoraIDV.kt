@@ -60,7 +60,6 @@ object KoraIDV {
      *
      * @param configuration SDK configuration with API key and tenant ID
      */
-    @JvmStatic
     fun configure(configuration: Configuration) {
         sdkState = SdkState(configuration, ApiClient(configuration))
     }
@@ -68,7 +67,6 @@ object KoraIDV {
     /**
      * Check if the SDK is configured.
      */
-    @JvmStatic
     val isConfigured: Boolean
         get() = sdkState != null
 
@@ -89,7 +87,6 @@ object KoraIDV {
      * Reset the SDK configuration.
      * Thread-safe — a single volatile write.
      */
-    @JvmStatic
     fun reset() {
         sdkState = null
     }
