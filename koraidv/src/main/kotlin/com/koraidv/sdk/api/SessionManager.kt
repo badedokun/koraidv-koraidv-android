@@ -6,8 +6,12 @@ import com.google.gson.Gson
 import com.google.gson.annotations.SerializedName
 import com.koraidv.sdk.*
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
-import java.text.SimpleDateFormat
+import retrofit2.Response
+import java.time.Instant
+import java.time.format.DateTimeFormatter
+import java.time.format.DateTimeParseException
 import java.util.*
 
 /**
@@ -25,24 +29,54 @@ internal class SessionManager(
     @Volatile
     private var sessionStartTime: Date? = null
 
-    // ThreadLocal ensures each coroutine/thread gets its own SimpleDateFormat instance,
-    // avoiding the thread-safety issues with SimpleDateFormat's internal mutable state.
-    private val dateFormatLocal = ThreadLocal.withInitial {
-        SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US).apply {
-            timeZone = TimeZone.getTimeZone("UTC")
-        }
-    }
-
-    // Fallback format for servers that return dates without milliseconds
-    private val dateFormatFallbackLocal = ThreadLocal.withInitial {
-        SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US).apply {
-            timeZone = TimeZone.getTimeZone("UTC")
-        }
-    }
-
     private val gson = Gson()
 
-    // Verification lifecycle
+    // ===== Coroutine-based retry (non-blocking, replaces Thread.sleep interceptor) =====
+
+    private companion object {
+        const val MAX_RETRIES = 3
+        const val BASE_RETRY_DELAY_MS = 1000L
+    }
+
+    private suspend fun <T> executeWithRetry(
+        block: suspend () -> Response<T>
+    ): Response<T> {
+        var lastResponse: Response<T>? = null
+
+        for (attempt in 0..MAX_RETRIES) {
+            try {
+                val response = block()
+                if (response.isSuccessful || !isRetryableStatusCode(response.code())) {
+                    return response
+                }
+                lastResponse = response
+            } catch (e: java.io.IOException) {
+                if (attempt >= MAX_RETRIES) throw e
+            }
+
+            if (attempt < MAX_RETRIES) {
+                val retryDelay = calculateRetryDelay(attempt + 1)
+                if (configuration.debugLogging) {
+                    Log.d("KoraIDV", "Retrying request (attempt ${attempt + 1}/$MAX_RETRIES)")
+                }
+                delay(retryDelay)
+            }
+        }
+
+        return lastResponse ?: throw java.io.IOException("Retry exhausted with no response")
+    }
+
+    private fun isRetryableStatusCode(statusCode: Int): Boolean {
+        return statusCode == 429 || statusCode in 500..599
+    }
+
+    private fun calculateRetryDelay(attempt: Int): Long {
+        val delayMs = BASE_RETRY_DELAY_MS * (1 shl (attempt - 1))
+        val jitter = (Math.random() * 500).toLong()
+        return delayMs + jitter
+    }
+
+    // ===== Verification lifecycle =====
 
     suspend fun createVerification(
         externalId: String,
@@ -51,7 +85,9 @@ internal class SessionManager(
         try {
             sessionStartTime = Date()
             val request = CreateVerificationRequest(externalId, tier.value)
-            val response = apiClient.apiService.createVerification(request)
+            val response = executeWithRetry {
+                apiClient.apiService.createVerification(request)
+            }
 
             if (response.isSuccessful && response.body() != null) {
                 val verification = mapVerification(response.body()!!)
@@ -67,7 +103,9 @@ internal class SessionManager(
 
     suspend fun getVerification(id: String): Result<Verification> = withContext(Dispatchers.IO) {
         try {
-            val response = apiClient.apiService.getVerification(id)
+            val response = executeWithRetry {
+                apiClient.apiService.getVerification(id)
+            }
 
             if (response.isSuccessful && response.body() != null) {
                 val verification = mapVerification(response.body()!!)
@@ -82,49 +120,15 @@ internal class SessionManager(
         }
     }
 
+    /**
+     * Upload a document image for verification.
+     *
+     * @param verificationId The verification session ID
+     * @param imageData Raw JPEG image bytes
+     * @param side Front or back of the document
+     * @param documentTypeCode The document type code string (e.g. "us_drivers_license")
+     */
     suspend fun uploadDocument(
-        verificationId: String,
-        imageData: ByteArray,
-        side: DocumentSide,
-        documentType: DocumentType
-    ): Result<DocumentUploadResult> = withContext(Dispatchers.IO) {
-        try {
-            val base64Image = Base64.encodeToString(imageData, Base64.NO_WRAP)
-
-            val response = if (side == DocumentSide.FRONT) {
-                apiClient.apiService.uploadDocument(
-                    verificationId,
-                    UploadDocumentRequest(
-                        documentType = documentType.code,
-                        imageBase64 = base64Image
-                    )
-                )
-            } else {
-                apiClient.apiService.uploadDocumentBack(
-                    verificationId,
-                    UploadDocumentBackRequest(imageBase64 = base64Image)
-                )
-            }
-
-            if (response.isSuccessful && response.body() != null) {
-                val body = response.body()!!
-                Result.success(
-                    DocumentUploadResult(
-                        success = body.documentId != null,
-                        documentId = body.documentId,
-                        qualityScore = body.qualityScore,
-                        warnings = body.warnings
-                    )
-                )
-            } else {
-                Result.failure(mapHttpError(response.code(), response.errorBody()?.string()))
-            }
-        } catch (e: Exception) {
-            Result.failure(mapException(e))
-        }
-    }
-
-    suspend fun uploadDocumentByCode(
         verificationId: String,
         imageData: ByteArray,
         side: DocumentSide,
@@ -133,19 +137,21 @@ internal class SessionManager(
         try {
             val base64Image = Base64.encodeToString(imageData, Base64.NO_WRAP)
 
-            val response = if (side == DocumentSide.FRONT) {
-                apiClient.apiService.uploadDocument(
-                    verificationId,
-                    UploadDocumentRequest(
-                        documentType = documentTypeCode,
-                        imageBase64 = base64Image
+            val response = executeWithRetry {
+                if (side == DocumentSide.FRONT) {
+                    apiClient.apiService.uploadDocument(
+                        verificationId,
+                        UploadDocumentRequest(
+                            documentType = documentTypeCode,
+                            imageBase64 = base64Image
+                        )
                     )
-                )
-            } else {
-                apiClient.apiService.uploadDocumentBack(
-                    verificationId,
-                    UploadDocumentBackRequest(imageBase64 = base64Image)
-                )
+                } else {
+                    apiClient.apiService.uploadDocumentBack(
+                        verificationId,
+                        UploadDocumentBackRequest(imageBase64 = base64Image)
+                    )
+                }
             }
 
             if (response.isSuccessful && response.body() != null) {
@@ -173,10 +179,12 @@ internal class SessionManager(
         try {
             val base64Image = Base64.encodeToString(imageData, Base64.NO_WRAP)
 
-            val response = apiClient.apiService.uploadSelfie(
-                verificationId,
-                UploadSelfieRequest(imageBase64 = base64Image)
-            )
+            val response = executeWithRetry {
+                apiClient.apiService.uploadSelfie(
+                    verificationId,
+                    UploadSelfieRequest(imageBase64 = base64Image)
+                )
+            }
 
             if (response.isSuccessful && response.body() != null) {
                 val body = response.body()!!
@@ -200,7 +208,9 @@ internal class SessionManager(
         verificationId: String
     ): Result<LivenessSession> = withContext(Dispatchers.IO) {
         try {
-            val response = apiClient.apiService.createLivenessSession(verificationId)
+            val response = executeWithRetry {
+                apiClient.apiService.createLivenessSession(verificationId)
+            }
 
             if (response.isSuccessful && response.body() != null) {
                 val body = response.body()!!
@@ -234,13 +244,15 @@ internal class SessionManager(
         try {
             val base64Image = Base64.encodeToString(imageData, Base64.NO_WRAP)
 
-            val response = apiClient.apiService.submitLivenessChallenge(
-                verificationId,
-                SubmitLivenessChallengeRequest(
-                    challengeType = challenge.type.value,
-                    imageBase64 = base64Image
+            val response = executeWithRetry {
+                apiClient.apiService.submitLivenessChallenge(
+                    verificationId,
+                    SubmitLivenessChallengeRequest(
+                        challengeType = challenge.type.value,
+                        imageBase64 = base64Image
+                    )
                 )
-            )
+            }
 
             if (response.isSuccessful && response.body() != null) {
                 val body = response.body()!!
@@ -264,7 +276,9 @@ internal class SessionManager(
         verificationId: String
     ): Result<Verification> = withContext(Dispatchers.IO) {
         try {
-            val response = apiClient.apiService.completeVerification(verificationId)
+            val response = executeWithRetry {
+                apiClient.apiService.completeVerification(verificationId)
+            }
 
             if (response.isSuccessful && response.body() != null) {
                 val verification = mapVerification(response.body()!!)
@@ -283,7 +297,9 @@ internal class SessionManager(
     ): Result<DocumentTypesResult> = withContext(Dispatchers.IO) {
         try {
             if (configuration.debugLogging) Log.d("KoraIDV", "getDocumentTypes: calling API with country=$country")
-            val response = apiClient.apiService.getDocumentTypes(country)
+            val response = executeWithRetry {
+                apiClient.apiService.getDocumentTypes(country)
+            }
             if (configuration.debugLogging) Log.d("KoraIDV", "getDocumentTypes: response code=${response.code()}, isSuccessful=${response.isSuccessful}")
 
             if (response.isSuccessful && response.body() != null) {
@@ -405,13 +421,17 @@ internal class SessionManager(
         )
     }
 
+    /**
+     * Parse ISO 8601 date strings using java.time (thread-safe, no ThreadLocal needed).
+     * Handles both formats with and without milliseconds.
+     */
     internal fun parseDate(dateString: String): Date {
         return try {
-            dateFormatLocal.get()!!.parse(dateString) ?: Date()
-        } catch (e: Exception) {
-            // Try fallback format without milliseconds
+            Date.from(Instant.parse(dateString))
+        } catch (e: DateTimeParseException) {
             try {
-                dateFormatFallbackLocal.get()!!.parse(dateString) ?: Date()
+                val temporal = DateTimeFormatter.ISO_DATE_TIME.parse(dateString)
+                Date.from(Instant.from(temporal))
             } catch (e2: Exception) {
                 Date()
             }

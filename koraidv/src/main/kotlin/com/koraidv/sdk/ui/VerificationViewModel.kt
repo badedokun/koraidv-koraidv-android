@@ -346,7 +346,7 @@ class VerificationViewModel : ViewModel() {
                 documentFrontCaptured = true
                 frontUploadResult = null
                 frontUploadJob = viewModelScope.launch {
-                    frontUploadResult = manager.uploadDocumentByCode(
+                    frontUploadResult = manager.uploadDocument(
                         verificationId = verification.id,
                         imageData = imageData,
                         side = DocumentSide.FRONT,
@@ -358,7 +358,7 @@ class VerificationViewModel : ViewModel() {
                 _state.value = VerificationState.Processing(ProcessingStep.ANALYZING)
                 _state.value = VerificationState.Processing(ProcessingStep.CHECKING_QUALITY)
 
-                val result = manager.uploadDocumentByCode(
+                val result = manager.uploadDocument(
                     verificationId = verification.id,
                     imageData = imageData,
                     side = side,

@@ -156,7 +156,10 @@ class DocumentScanner {
                 }
             }
             .addOnFailureListener { e ->
-                Log.w("KoraIDV", "DocumentScanner: ML Kit text recognition failed", e)
+                val debug = try { com.koraidv.sdk.KoraIDV.getConfiguration().debugLogging } catch (_: Exception) { false }
+                if (debug) {
+                    Log.w("KoraIDV", "DocumentScanner: ML Kit text recognition failed", e)
+                }
             }
             .addOnCompleteListener {
                 // Always close imageProxy and mark analysis as done

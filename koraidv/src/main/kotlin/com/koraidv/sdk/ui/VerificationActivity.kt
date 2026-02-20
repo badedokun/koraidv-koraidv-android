@@ -7,6 +7,7 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Bundle
 import android.os.Parcelable
+import com.koraidv.sdk.getParcelableExtraCompat
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
@@ -60,12 +61,7 @@ class VerificationActivity : ComponentActivity() {
 
     private fun initializeVerification() {
         val verificationId = intent.getStringExtra(EXTRA_VERIFICATION_ID)
-        val request = if (android.os.Build.VERSION.SDK_INT >= 33) {
-            intent.getParcelableExtra(EXTRA_REQUEST, VerificationRequest::class.java)
-        } else {
-            @Suppress("DEPRECATION")
-            intent.getParcelableExtra(EXTRA_REQUEST)
-        }
+        val request = intent.getParcelableExtraCompat<VerificationRequest>(EXTRA_REQUEST)
 
         if (verificationId != null) {
             viewModel.initializeForResume(verificationId)

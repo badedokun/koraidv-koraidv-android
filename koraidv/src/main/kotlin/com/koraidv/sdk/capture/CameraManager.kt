@@ -154,7 +154,7 @@ class CameraManager(private val context: Context) : DefaultLifecycleObserver {
                 control.startFocusAndMetering(action)
             }
         } catch (e: Exception) {
-            e.printStackTrace()
+            android.util.Log.e("KoraIDV", "Failed to bind camera use cases", e)
         }
     }
 

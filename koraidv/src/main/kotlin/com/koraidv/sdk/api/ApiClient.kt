@@ -33,16 +33,20 @@ internal class ApiClient(private val configuration: Configuration) {
             .readTimeout(30, TimeUnit.SECONDS)
             .writeTimeout(60, TimeUnit.SECONDS)
             .addInterceptor(authInterceptor())
-            .addInterceptor(retryInterceptor())
 
         // Certificate pinning for production API endpoints.
-        // Enable this once the production TLS certificate is provisioned:
-        //   builder.certificatePinner(
-        //       CertificatePinner.Builder()
-        //           .add("api.koraidv.com", "sha256/<primary-leaf-pin>")
-        //           .add("api.koraidv.com", "sha256/<backup-pin>")
-        //           .build()
-        //   )
+        // Only applied when using the default production URL (not custom baseUrl overrides).
+        if (configuration.environment == Environment.PRODUCTION && configuration.baseUrl == null) {
+            builder.certificatePinner(
+                CertificatePinner.Builder()
+                    // Pin the Let's Encrypt root and intermediate certificates used by api.koraidv.com.
+                    // These pins MUST be updated before certificate rotation.
+                    // To obtain current pins: openssl s_client -connect api.koraidv.com:443 | openssl x509 -pubkey -noout | openssl pkey -pubin -outform der | openssl dgst -sha256 -binary | openssl enc -base64
+                    .add("api.koraidv.com", "sha256/jQJTbIh0grw0/1TkHSumWb+Fs0Ggogr621gT3PvPKG0=") // ISRG Root X1
+                    .add("api.koraidv.com", "sha256/C5+lpZ7tcVwmwQIMcRtPbsQtWLABXhQzejna0wHFr8M=") // ISRG Root X2 (backup)
+                    .build()
+            )
+        }
 
         if (configuration.debugLogging) {
             // Use HEADERS level to avoid logging base64 image payloads (PII/biometric data)
@@ -65,39 +69,6 @@ internal class ApiClient(private val configuration: Configuration) {
             .addHeader("User-Agent", "KoraIDV-Android/${KoraIDV.VERSION}")
             .build()
         chain.proceed(request)
-    }
-
-    private fun retryInterceptor(): Interceptor = Interceptor { chain ->
-        val request = chain.request()
-        var response = chain.proceed(request)
-        var attempt = 0
-        val maxRetries = 3
-
-        while (!response.isSuccessful && shouldRetry(response.code) && attempt < maxRetries) {
-            response.close()
-            attempt++
-            val delay = calculateDelay(attempt)
-            Thread.sleep(delay)
-
-            if (configuration.debugLogging) {
-                Log.d("KoraIDV", "Retrying request (attempt $attempt/$maxRetries)")
-            }
-
-            response = chain.proceed(request)
-        }
-
-        response
-    }
-
-    private fun shouldRetry(statusCode: Int): Boolean {
-        return statusCode == 429 || statusCode in 500..599
-    }
-
-    private fun calculateDelay(attempt: Int): Long {
-        val baseDelay = 1000L
-        val delay = baseDelay * (1 shl (attempt - 1)) // Exponential backoff
-        val jitter = (Math.random() * 500).toLong()
-        return delay + jitter
     }
 
     private fun buildRetrofit(): Retrofit {

@@ -166,7 +166,11 @@ class LivenessManager {
                 }
                 isProcessing = false
             }
-            .addOnFailureListener {
+            .addOnFailureListener { e ->
+                val debug = try { com.koraidv.sdk.KoraIDV.getConfiguration().debugLogging } catch (_: Exception) { false }
+                if (debug) {
+                    android.util.Log.w("KoraIDV", "LivenessManager: ML Kit face detection failed", e)
+                }
                 isProcessing = false
             }
             .addOnCompleteListener {

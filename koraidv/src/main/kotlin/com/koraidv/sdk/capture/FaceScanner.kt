@@ -148,7 +148,10 @@ class FaceScanner {
                 )
             }
             .addOnFailureListener { e ->
-                Log.w("KoraIDV", "FaceScanner: ML Kit face detection failed", e)
+                val debug = try { com.koraidv.sdk.KoraIDV.getConfiguration().debugLogging } catch (_: Exception) { false }
+                if (debug) {
+                    Log.w("KoraIDV", "FaceScanner: ML Kit face detection failed", e)
+                }
             }
             .addOnCompleteListener {
                 imageProxy.close()

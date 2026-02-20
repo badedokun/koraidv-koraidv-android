@@ -7,7 +7,6 @@ import org.junit.Before
 import org.junit.Test
 import java.net.SocketTimeoutException
 import java.net.UnknownHostException
-import java.text.SimpleDateFormat
 import java.util.*
 
 class SessionManagerMappingTest {
