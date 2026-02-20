@@ -66,7 +66,7 @@ class LivenessManager {
         .enableTracking()
         .build()
 
-    private val faceDetector: FaceDetector = FaceDetection.getClient(faceDetectorOptions)
+    private var faceDetector: FaceDetector = FaceDetection.getClient(faceDetectorOptions)
     private val challengeDetector = ChallengeDetector()
 
     private var session: LivenessSession? = null
@@ -91,6 +91,8 @@ class LivenessManager {
         this.challengeResults.clear()
         this.isProcessing = false
 
+        // Re-create the face detector in case stop() closed the previous one
+        faceDetector = FaceDetection.getClient(faceDetectorOptions)
         challengeDetector.reset()
         startNextChallenge()
     }
@@ -148,6 +150,7 @@ class LivenessManager {
                             val bitmap = imageProxy.toBitmap()
                             val stream = ByteArrayOutputStream()
                             bitmap.compress(Bitmap.CompressFormat.JPEG, 95, stream)
+                            bitmap.recycle()
                             stream.toByteArray()
                         } catch (e: Exception) {
                             null

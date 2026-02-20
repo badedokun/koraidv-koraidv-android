@@ -92,6 +92,9 @@ fun DocumentCaptureScreen(
                         bitmap.compress(Bitmap.CompressFormat.JPEG, 90, stream)
                         capturedImageBytes = stream.toByteArray()
                         capturedBitmap = bitmap
+                    } else {
+                        // Corrupt JPEG — show guidance and let auto-capture retry
+                        qualityGuidance = "Capture failed, retrying..."
                     }
                 }
                 isCapturing = false
@@ -481,6 +484,9 @@ fun SelfieCaptureScreen(
                         mirrored.compress(Bitmap.CompressFormat.JPEG, 90, stream)
                         capturedImageBytes = stream.toByteArray()
                         capturedBitmap = mirrored
+                    } else {
+                        // Corrupt JPEG — show guidance and let auto-capture retry
+                        guidanceMessage = "Capture failed, retrying..."
                     }
                 }
                 isCapturing = false
@@ -843,11 +849,15 @@ internal fun LivenessScreen(
                 if (sessionManager != null && verificationId != null) {
                     for (challengeResult in state.result.challenges) {
                         challengeResult.imageData?.let { imageData ->
-                            sessionManager.submitLivenessChallenge(
+                            val uploadResult = sessionManager.submitLivenessChallenge(
                                 verificationId,
                                 challengeResult.challenge,
                                 imageData
                             )
+                            if (uploadResult.isFailure) {
+                                errorMessage = "Failed to upload liveness data. Please try again."
+                                return@LaunchedEffect
+                            }
                         }
                     }
                 }

@@ -70,6 +70,9 @@ class VerificationViewModel : ViewModel() {
     private var currentVerification: Verification? = null
 
     // Document selection state
+    private val debugLogging: Boolean
+        get() = try { KoraIDV.getConfiguration().debugLogging } catch (_: Exception) { false }
+
     private var selectedDocumentTypeCode: String? = null
     private var selectedDocumentDisplayName: String? = null
     private var selectedDocumentRequiresBack: Boolean = false
@@ -164,11 +167,11 @@ class VerificationViewModel : ViewModel() {
     private suspend fun loadCountries() {
         val manager = sessionManager ?: return
 
-        Log.d("KoraIDV", "loadCountries: calling getDocumentTypes(country=null)")
+        if (debugLogging) Log.d("KoraIDV", "loadCountries: calling getDocumentTypes(country=null)")
         val result = manager.getDocumentTypes(country = null)
         result.fold(
             onSuccess = { docTypesResult ->
-                Log.d("KoraIDV", "loadCountries: success - ${docTypesResult.countries.size} countries, ${docTypesResult.documentTypes.size} doc types")
+                if (debugLogging) Log.d("KoraIDV", "loadCountries: success - ${docTypesResult.countries.size} countries, ${docTypesResult.documentTypes.size} doc types")
                 if (docTypesResult.countries.isNotEmpty()) {
                     _state.value = VerificationState.CountrySelection(docTypesResult.countries)
                 } else {
@@ -179,7 +182,7 @@ class VerificationViewModel : ViewModel() {
                 }
             },
             onFailure = { error ->
-                Log.e("KoraIDV", "loadCountries: FAILED - ${error.message}", error)
+                if (debugLogging) Log.e("KoraIDV", "loadCountries: FAILED - ${error.message}", error)
                 val countryMap = buildFallbackCountryMap()
                 if (countryMap.size > 1) {
                     val countries = countryMap.keys.map { code ->
@@ -218,7 +221,7 @@ class VerificationViewModel : ViewModel() {
                     )
                 },
                 onFailure = { error ->
-                    Log.e("KoraIDV", "selectCountry: FAILED - ${error.message}", error)
+                    if (debugLogging) Log.e("KoraIDV", "selectCountry: FAILED - ${error.message}", error)
                     val filtered = KoraIDV.getConfiguration().documentTypes
                         .filter { it.country == country.code || it.country == "INTL" }
                         .map { it.toDocumentTypeInfo() }

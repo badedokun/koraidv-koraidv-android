@@ -42,9 +42,10 @@ enum class MrzFormat {
  */
 class MrzReader {
 
-    private val textRecognizer by lazy {
+    private val textRecognizerDelegate = lazy {
         TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
     }
+    private val textRecognizer by textRecognizerDelegate
 
     /**
      * Read MRZ from bitmap
@@ -61,6 +62,15 @@ class MrzReader {
             .addOnFailureListener { e ->
                 continuation.resume(null)
             }
+    }
+
+    /**
+     * Release the underlying TextRecognizer. Safe to call even if readMrz was never called.
+     */
+    fun close() {
+        if (textRecognizerDelegate.isInitialized()) {
+            textRecognizer.close()
+        }
     }
 
     /**
