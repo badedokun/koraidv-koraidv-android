@@ -13,6 +13,7 @@ import com.google.mlkit.vision.face.FaceDetectorOptions
 import com.koraidv.sdk.api.ChallengeType
 import com.koraidv.sdk.api.LivenessChallenge
 import com.koraidv.sdk.api.LivenessSession
+import com.koraidv.sdk.capture.AntiSpoofCheck
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -68,11 +69,14 @@ class LivenessManager {
 
     private var faceDetector: FaceDetector = FaceDetection.getClient(faceDetectorOptions)
     private val challengeDetector = ChallengeDetector()
+    private val antiSpoofCheck = AntiSpoofCheck()
 
     private var session: LivenessSession? = null
     private var currentChallengeIndex = 0
     private var challengeResults = mutableListOf<ChallengeResultItem>()
     private var isProcessing = false
+    private var frameCount = 0
+    private val maxFramesPerChallenge = 30
 
     val currentChallenge: LivenessChallenge?
         get() {
@@ -90,6 +94,7 @@ class LivenessManager {
         this.currentChallengeIndex = 0
         this.challengeResults.clear()
         this.isProcessing = false
+        this.frameCount = 0
 
         // Re-create the face detector in case stop() closed the previous one
         faceDetector = FaceDetection.getClient(faceDetectorOptions)
@@ -124,6 +129,19 @@ class LivenessManager {
             return
         }
 
+        // Enforce per-challenge frame budget
+        if (frameCount >= maxFramesPerChallenge) {
+            imageProxy.close()
+            recordChallengeResult(
+                challenge = challenge,
+                passed = false,
+                confidence = 0.0,
+                imageData = null
+            )
+            return
+        }
+        frameCount++
+
         val mediaImage = imageProxy.image ?: run {
             imageProxy.close()
             return
@@ -148,6 +166,21 @@ class LivenessManager {
                         // Capture the current frame as JPEG for backend submission
                         val capturedBytes = try {
                             val bitmap = imageProxy.toBitmap()
+
+                            // Run anti-spoof check on captured frame
+                            val spoofResult = antiSpoofCheck.analyze(bitmap)
+                            if (!spoofResult.isLikelyReal) {
+                                bitmap.recycle()
+                                recordChallengeResult(
+                                    challenge = challenge,
+                                    passed = false,
+                                    confidence = 0.0,
+                                    imageData = null
+                                )
+                                isProcessing = false
+                                return@addOnSuccessListener
+                            }
+
                             val stream = ByteArrayOutputStream()
                             bitmap.compress(Bitmap.CompressFormat.JPEG, 95, stream)
                             bitmap.recycle()
@@ -185,6 +218,7 @@ class LivenessManager {
         }
 
         challengeDetector.reset()
+        frameCount = 0
 
         // Start countdown 3 → 2 → 1 → begin detection
         isTransitioning = true
