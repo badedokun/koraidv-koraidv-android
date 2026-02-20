@@ -402,7 +402,7 @@ internal class SessionManager(
         )
     }
 
-    private fun parseDate(dateString: String): Date {
+    internal fun parseDate(dateString: String): Date {
         return try {
             dateFormatLocal.get()!!.parse(dateString) ?: Date()
         } catch (e: Exception) {
@@ -415,7 +415,7 @@ internal class SessionManager(
         }
     }
 
-    private fun mapHttpError(statusCode: Int, errorBody: String? = null): KoraException {
+    internal fun mapHttpError(statusCode: Int, errorBody: String? = null): KoraException {
         return when (statusCode) {
             401 -> KoraException.Unauthorized()
             403 -> KoraException.Forbidden()
@@ -436,7 +436,7 @@ internal class SessionManager(
      * Supports common formats: { "errors": [{ "field": "...", "message": "..." }] }
      * and { "error": "...", "details": { "field": "message" } }
      */
-    private fun parseValidationErrors(errorBody: String?): List<FieldError> {
+    internal fun parseValidationErrors(errorBody: String?): List<FieldError> {
         if (errorBody.isNullOrBlank()) return emptyList()
         return try {
             val response = gson.fromJson(errorBody, ValidationErrorBody::class.java)
@@ -456,7 +456,7 @@ internal class SessionManager(
         }
     }
 
-    private fun mapException(e: Exception): KoraException {
+    internal fun mapException(e: Exception): KoraException {
         return when (e) {
             is java.net.UnknownHostException -> KoraException.NoInternet()
             is java.net.SocketTimeoutException -> KoraException.Timeout()

@@ -42,7 +42,9 @@ enum class MrzFormat {
  */
 class MrzReader {
 
-    private val textRecognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
+    private val textRecognizer by lazy {
+        TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
+    }
 
     /**
      * Read MRZ from bitmap
@@ -80,7 +82,7 @@ class MrzReader {
     /**
      * Parse MRZ text
      */
-    private fun parseMrz(text: String): MrzData? {
+    internal fun parseMrz(text: String): MrzData? {
         // Only strip whitespace and non-MRZ characters — do NOT replace O→0 globally
         // as that corrupts country codes (GBR→GB0) and names (OLIVER→0LIVER).
         // OCR O/0 confusion is handled per-field in digit-only positions during parsing.
@@ -102,11 +104,11 @@ class MrzReader {
      * Fix OCR O/0 confusion in digit-only fields (document numbers, dates, check digits).
      * Only replaces O→0 in positions where digits are expected.
      */
-    private fun fixDigitField(field: String): String {
+    internal fun fixDigitField(field: String): String {
         return field.replace('O', '0').replace('o', '0')
     }
 
-    private fun detectFormat(text: String): MrzFormat? {
+    internal fun detectFormat(text: String): MrzFormat? {
         val length = text.length
         // TD3 (passports): 2 lines × 44 = 88 chars. Check first — TD1 range must not overlap.
         // TD1 (ID cards):  3 lines × 30 = 90 chars.
@@ -283,14 +285,14 @@ class MrzReader {
         )
     }
 
-    private fun parseName(nameField: String): Pair<String, String> {
+    internal fun parseName(nameField: String): Pair<String, String> {
         val parts = nameField.split("<<")
         val lastName = parts.getOrNull(0)?.replace("<", " ")?.trim() ?: ""
         val firstName = parts.getOrNull(1)?.replace("<", " ")?.trim() ?: ""
         return Pair(lastName, firstName)
     }
 
-    private fun validateCheckDigit(data: String, checkDigit: String): Boolean {
+    internal fun validateCheckDigit(data: String, checkDigit: String): Boolean {
         val weights = intArrayOf(7, 3, 1)
         var sum = 0
 
