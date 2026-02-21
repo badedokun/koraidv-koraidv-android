@@ -54,8 +54,16 @@ enum class VerificationStatus(val value: String) {
     EXPIRED("expired");
 
     companion object {
+        // Map server status values to SDK enum (server may use different names)
+        private val aliases = mapOf(
+            "manual_review" to REVIEW_REQUIRED,
+            "verified" to APPROVED
+        )
+
         fun fromValue(value: String): VerificationStatus {
-            return entries.find { it.value == value } ?: PENDING
+            return entries.find { it.value == value }
+                ?: aliases[value]
+                ?: PENDING
         }
     }
 }
@@ -128,5 +136,6 @@ data class VerificationScores(
     val liveness: Double,
     val nameMatch: Double,
     val dataConsistency: Double,
+    val screening: Double,
     val overall: Double
 ) : Parcelable

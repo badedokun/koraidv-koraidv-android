@@ -55,7 +55,8 @@ internal interface ApiService {
     // Complete verification
     @POST("verifications/{id}/complete")
     suspend fun completeVerification(
-        @Path("id") verificationId: String
+        @Path("id") verificationId: String,
+        @Body request: CompleteVerificationRequest? = null
     ): Response<VerificationResponse>
 
     // Document types
@@ -69,7 +70,9 @@ internal interface ApiService {
 
 data class CreateVerificationRequest(
     @SerializedName("externalId") val externalId: String,
-    val tier: String
+    val tier: String,
+    @SerializedName("expectedFirstName") val expectedFirstName: String? = null,
+    @SerializedName("expectedLastName") val expectedLastName: String? = null
 )
 
 data class UploadDocumentRequest(
@@ -88,6 +91,20 @@ data class UploadSelfieRequest(
 data class SubmitLivenessChallengeRequest(
     @SerializedName("challengeType") val challengeType: String,
     @SerializedName("imageBase64") val imageBase64: String
+)
+
+data class CompleteVerificationRequest(
+    @SerializedName("liveness") val liveness: InlineLivenessData? = null
+)
+
+data class InlineLivenessData(
+    @SerializedName("challenges") val challenges: List<InlineLivenessChallenge>
+)
+
+data class InlineLivenessChallenge(
+    @SerializedName("type") val type: String,
+    @SerializedName("passed") val passed: Boolean,
+    @SerializedName("imageBase64") val imageBase64: String?
 )
 
 // ===== Response models =====
@@ -116,6 +133,7 @@ data class VerificationScoresResponse(
     @SerializedName("liveness") val liveness: Double?,
     @SerializedName("nameMatch") val nameMatch: Double?,
     @SerializedName("dataConsistency") val dataConsistency: Double?,
+    @SerializedName("complianceScore") val complianceScore: Double?,
     @SerializedName("overall") val overall: Double?
 )
 

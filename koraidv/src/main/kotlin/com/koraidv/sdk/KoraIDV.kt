@@ -192,12 +192,16 @@ internal inline fun <reified T : Parcelable> Intent.getParcelableExtraCompat(key
  * @property externalId Your unique identifier for this user/verification
  * @property tier Verification tier level (default: standard)
  * @property documentTypes Allowed document types (default: all configured types)
+ * @property expectedFirstName Expected first name from registration (for name matching)
+ * @property expectedLastName Expected last name from registration (for name matching)
  */
 @Parcelize
 data class VerificationRequest(
     val externalId: String,
     val tier: VerificationTier = VerificationTier.STANDARD,
-    val documentTypes: List<DocumentType>? = null
+    val documentTypes: List<DocumentType>? = null,
+    val expectedFirstName: String? = null,
+    val expectedLastName: String? = null
 ) : Parcelable
 
 /**

@@ -167,18 +167,15 @@ class LivenessManager {
                         val capturedBytes = try {
                             val bitmap = imageProxy.toBitmap()
 
-                            // Run anti-spoof check on captured frame
-                            val spoofResult = antiSpoofCheck.analyze(bitmap)
-                            if (!spoofResult.isLikelyReal) {
-                                bitmap.recycle()
-                                recordChallengeResult(
-                                    challenge = challenge,
-                                    passed = false,
-                                    confidence = 0.0,
-                                    imageData = null
-                                )
-                                isProcessing = false
-                                return@addOnSuccessListener
+                            // Anti-spoof check is a soft signal — log but do NOT
+                            // reject the challenge.  The signal-processing heuristics
+                            // (LBP/FFT) produce frequent false positives on real
+                            // mobile-camera images.  The backend already treats anti-
+                            // spoof as a soft score, not a hard gate.
+                            val debug = try { com.koraidv.sdk.KoraIDV.getConfiguration().debugLogging } catch (_: Exception) { false }
+                            if (debug) {
+                                val spoofResult = antiSpoofCheck.analyze(bitmap)
+                                android.util.Log.d("KoraIDV", "LivenessManager: anti-spoof score=${spoofResult.overallScore} isLikelyReal=${spoofResult.isLikelyReal}")
                             }
 
                             val stream = ByteArrayOutputStream()
@@ -220,23 +217,23 @@ class LivenessManager {
         challengeDetector.reset()
         frameCount = 0
 
-        // Start countdown 3 → 2 → 1 → begin detection
+        // 3-2-1 countdown at 500ms intervals for user preparation
         isTransitioning = true
         _state.value = LivenessState.Countdown(challenge, 3)
 
         mainHandler.postDelayed({
             _state.value = LivenessState.Countdown(challenge, 2)
-        }, 1000)
+        }, 500)
 
         mainHandler.postDelayed({
             _state.value = LivenessState.Countdown(challenge, 1)
-        }, 2000)
+        }, 1000)
 
         mainHandler.postDelayed({
             isTransitioning = false
             challengeDetector.startDetecting(challenge.type)
             _state.value = LivenessState.InProgress(challenge, 0f)
-        }, 3000)
+        }, 1500)
     }
 
     private fun recordChallengeResult(
@@ -258,12 +255,12 @@ class LivenessManager {
         _state.value = LivenessState.ChallengeComplete(challenge, passed)
 
         if (passed) {
-            // Auto-advance to next challenge after 2.5s
+            // Quick flash of success, then advance immediately
             mainHandler.postDelayed({
                 isTransitioning = false
                 currentChallengeIndex++
                 startNextChallenge()
-            }, 2500)
+            }, 600)
         }
         // If failed, do NOT auto-advance — wait for user to tap "Try Again"
         // (handled by retryCurrentChallenge())

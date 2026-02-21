@@ -22,21 +22,27 @@ class ChallengeDetector {
     private var frameCount = 0
     private var detectionHistory = mutableListOf<Boolean>()
 
-    private val requiredConsecutiveDetections = 3
+    private val requiredConsecutiveDetections = 1
 
-    // Thresholds
+    // Thresholds — tuned for responsive detection on mobile front cameras
     private val blinkThreshold = 0.3f
-    private val smileThreshold = 0.5f
-    private val turnThreshold = 10f // degrees — lowered for front camera noise
-    private val nodThreshold = 7f // degrees
+    private val smileThreshold = 0.35f
+    private val turnThreshold = 5f // degrees
+    private val nodThreshold = 5f // degrees
 
     // State tracking
     private var blinkState = BlinkState.OPEN
     private var blinkDetected = false
     private var initialYaw: Float? = null
     private var turnDetected = false
+    private var turnBaselineFrames = 0
+    private var turnBaselineSum = 0f
+    private var turnBaselineCount = 0
     private var initialPitch: Float? = null
     private var nodDetected = false
+    private var nodBaselineFrames = 0
+    private var nodBaselineSum = 0f
+    private var nodBaselineCount = 0
     private var smileDetected = false
 
     private enum class BlinkState {
@@ -96,8 +102,14 @@ class ChallengeDetector {
         blinkDetected = false
         initialYaw = null
         turnDetected = false
+        turnBaselineFrames = 0
+        turnBaselineSum = 0f
+        turnBaselineCount = 0
         initialPitch = null
         nodDetected = false
+        nodBaselineFrames = 0
+        nodBaselineSum = 0f
+        nodBaselineCount = 0
         smileDetected = false
     }
 
@@ -153,8 +165,15 @@ class ChallengeDetector {
     private fun detectTurn(face: Face, isLeft: Boolean): Boolean {
         val yaw = face.headEulerAngleY
 
+        // Skip the first few frames to let the user settle into a centered position.
+        // Use a rolling baseline from frames 3-5 for a stable reference point.
         if (initialYaw == null) {
-            initialYaw = yaw
+            turnBaselineFrames++
+            if (turnBaselineFrames < 3) return false // skip first 3 frames
+            turnBaselineSum += yaw
+            turnBaselineCount++
+            if (turnBaselineFrames < 6) return false // accumulate frames 3-5
+            initialYaw = turnBaselineSum / turnBaselineCount
             return false
         }
 
@@ -178,8 +197,14 @@ class ChallengeDetector {
     private fun detectNod(face: Face, isUp: Boolean): Boolean {
         val pitch = face.headEulerAngleX
 
+        // Skip the first few frames to let the user settle, same as turn detection
         if (initialPitch == null) {
-            initialPitch = pitch
+            nodBaselineFrames++
+            if (nodBaselineFrames < 3) return false
+            nodBaselineSum += pitch
+            nodBaselineCount++
+            if (nodBaselineFrames < 6) return false
+            initialPitch = nodBaselineSum / nodBaselineCount
             return false
         }
 

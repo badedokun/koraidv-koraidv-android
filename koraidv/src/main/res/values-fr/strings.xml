@@ -184,6 +184,7 @@
     <string name="koraidv_score_name_match">Correspondance du nom</string>
     <string name="koraidv_score_document_quality">Qualité du document</string>
     <string name="koraidv_score_selfie_match">Correspondance du selfie</string>
+    <string name="koraidv_score_screening">Filtrage</string>
     <string name="koraidv_score_overall">Score global</string>
 
     <!-- Score error messages -->
@@ -191,6 +192,7 @@
     <string name="koraidv_score_error_name">Le nom ne correspond pas</string>
     <string name="koraidv_score_error_document">Qualité du document trop faible</string>
     <string name="koraidv_score_error_selfie">Le visage ne correspond pas à la photo d\'identité</string>
+    <string name="koraidv_score_error_screening">Le filtrage de conformité a signalé une correspondance potentielle</string>
     <string name="koraidv_score_error_selfie_review">En dessous du seuil d\'approbation automatique — nécessite un examen humain</string>
 
     <!-- Error screen -->

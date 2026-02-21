@@ -51,6 +51,7 @@ enum class ProcessingStep(val label: String) {
  */
 data class ScoreBreakdown(
     val liveness: Int,
+    val screening: Int,
     val nameMatch: Int,
     val documentQuality: Int,
     val selfieMatch: Int,
@@ -148,7 +149,12 @@ class VerificationViewModel : ViewModel() {
             val req = request ?: return@launch
             val manager = sessionManager ?: return@launch
 
-            val result = manager.createVerification(req.externalId, req.tier)
+            val result = manager.createVerification(
+                externalId = req.externalId,
+                tier = req.tier,
+                expectedFirstName = req.expectedFirstName,
+                expectedLastName = req.expectedLastName
+            )
 
             result.fold(
                 onSuccess = { verification ->
@@ -267,10 +273,9 @@ class VerificationViewModel : ViewModel() {
 
         /**
          * Compute score breakdown from verification results.
-         * Returns 4 metrics: Liveness, Name Match, Document Quality, Selfie Match.
+         * Returns 5 metrics: Liveness, Screening, Name Match, Document Quality, Selfie Match.
          * Uses backend `scores` object as primary source (0-100 scale).
-         * Overall is always computed as the average of the 4 displayed metrics
-         * so the math is visually consistent for the user.
+         * Overall uses the backend's weighted score directly.
          */
         fun computeScoreBreakdown(verification: Verification): ScoreBreakdown {
             val scores = verification.scores
@@ -281,6 +286,12 @@ class VerificationViewModel : ViewModel() {
                 verification.livenessVerification?.let {
                     it.livenessScore.toInt().coerceIn(0, 100)
                 } ?: 0
+            }
+
+            val screening = if (scores != null) {
+                scores.screening.toInt().coerceIn(0, 100)
+            } else {
+                0
             }
 
             val selfieMatch = if (scores != null) {
@@ -305,11 +316,16 @@ class VerificationViewModel : ViewModel() {
                 if (verification.documentVerification?.firstName != null) 100 else 0
             }
 
-            // Always compute overall as the average of the 4 displayed scores
-            val overall = (liveness + selfieMatch + documentQuality + nameMatch) / 4
+            // Use the backend's weighted overall score directly
+            val overall = if (scores != null) {
+                scores.overall.toInt().coerceIn(0, 100)
+            } else {
+                (liveness + selfieMatch + documentQuality + nameMatch + screening) / 5
+            }
 
             return ScoreBreakdown(
                 liveness = liveness,
+                screening = screening,
                 nameMatch = nameMatch,
                 documentQuality = documentQuality,
                 selfieMatch = selfieMatch,
@@ -454,9 +470,12 @@ class VerificationViewModel : ViewModel() {
         }
     }
 
+    private var pendingLivenessResult: LivenessResult? = null
+
     fun completeLiveness(result: LivenessResult) {
         viewModelScope.launch {
             if (result.passed) {
+                pendingLivenessResult = result
                 completeVerification()
             } else {
                 _state.value = VerificationState.Error(
@@ -485,7 +504,7 @@ class VerificationViewModel : ViewModel() {
         val verification = currentVerification ?: return
         val manager = sessionManager ?: return
 
-        val result = manager.completeVerification(verification.id)
+        val result = manager.completeVerification(verification.id, pendingLivenessResult)
 
         result.fold(
             onSuccess = { completedVerification ->

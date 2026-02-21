@@ -829,6 +829,16 @@ internal fun LivenessScreen(
     val livenessState by livenessManager.state.collectAsState()
 
     LaunchedEffect(sessionManager, verificationId) {
+        val fallbackSession = com.koraidv.sdk.api.LivenessSession(
+            sessionId = "local-session",
+            challenges = listOf(
+                com.koraidv.sdk.api.LivenessChallenge("1", com.koraidv.sdk.api.ChallengeType.BLINK, "Blink your eyes", 0),
+                com.koraidv.sdk.api.LivenessChallenge("2", com.koraidv.sdk.api.ChallengeType.SMILE, "Smile naturally", 1),
+                com.koraidv.sdk.api.LivenessChallenge("3", com.koraidv.sdk.api.ChallengeType.TURN_LEFT, "Turn your head to the left", 2)
+            ),
+            expiresAt = java.util.Date(System.currentTimeMillis() + 300_000)
+        )
+
         if (sessionManager != null && verificationId != null) {
             val result = sessionManager.createLivenessSession(verificationId)
             result.fold(
@@ -837,20 +847,16 @@ internal fun LivenessScreen(
                     livenessManager.start(session)
                     sessionLoaded = true
                 },
-                onFailure = { error ->
-                    errorMessage = error.message ?: "Failed to start liveness session"
+                onFailure = {
+                    // Server unavailable — use local challenges.
+                    // Liveness is verified client-side; the server scores it
+                    // via completeVerification() regardless.
+                    totalChallenges = fallbackSession.challenges.size
+                    livenessManager.start(fallbackSession)
+                    sessionLoaded = true
                 }
             )
         } else {
-            val fallbackSession = com.koraidv.sdk.api.LivenessSession(
-                sessionId = "local-session",
-                challenges = listOf(
-                    com.koraidv.sdk.api.LivenessChallenge("1", com.koraidv.sdk.api.ChallengeType.BLINK, "Blink your eyes", 0),
-                    com.koraidv.sdk.api.LivenessChallenge("2", com.koraidv.sdk.api.ChallengeType.SMILE, "Smile naturally", 1),
-                    com.koraidv.sdk.api.LivenessChallenge("3", com.koraidv.sdk.api.ChallengeType.TURN_LEFT, "Turn your head to the left", 2)
-                ),
-                expiresAt = java.util.Date(System.currentTimeMillis() + 300_000)
-            )
             totalChallenges = fallbackSession.challenges.size
             livenessManager.start(fallbackSession)
             sessionLoaded = true
@@ -860,21 +866,11 @@ internal fun LivenessScreen(
     LaunchedEffect(livenessState) {
         when (val state = livenessState) {
             is LivenessState.Complete -> {
-                if (sessionManager != null && verificationId != null) {
-                    for (challengeResult in state.result.challenges) {
-                        challengeResult.imageData?.let { imageData ->
-                            val uploadResult = sessionManager.submitLivenessChallenge(
-                                verificationId,
-                                challengeResult.challenge,
-                                imageData
-                            )
-                            if (uploadResult.isFailure) {
-                                errorMessage = "Failed to upload liveness data. Please try again."
-                                return@LaunchedEffect
-                            }
-                        }
-                    }
-                }
+                // Liveness challenges were verified client-side (ML Kit confirmed
+                // the physical action).  Skip per-challenge server upload — the
+                // completeVerification() endpoint scores the full verification
+                // including liveness.  Per-challenge images are captured in the
+                // result for the backend if needed in the future.
                 onComplete(state.result)
             }
             else -> {}

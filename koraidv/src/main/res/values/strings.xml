@@ -184,6 +184,7 @@
     <string name="koraidv_score_name_match">Name Match</string>
     <string name="koraidv_score_document_quality">Document Quality</string>
     <string name="koraidv_score_selfie_match">Selfie Match</string>
+    <string name="koraidv_score_screening">Screening</string>
     <string name="koraidv_score_overall">Overall Score</string>
 
     <!-- Score error messages -->
@@ -191,6 +192,7 @@
     <string name="koraidv_score_error_name">Name does not match</string>
     <string name="koraidv_score_error_document">Document quality too low</string>
     <string name="koraidv_score_error_selfie">Face does not match ID photo</string>
+    <string name="koraidv_score_error_screening">Compliance screening flagged potential match</string>
     <string name="koraidv_score_error_selfie_review">Below auto-approval threshold — requires human review</string>
 
     <!-- Error screen -->

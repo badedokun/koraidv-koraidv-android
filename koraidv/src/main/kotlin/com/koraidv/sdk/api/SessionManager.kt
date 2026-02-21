@@ -80,11 +80,18 @@ internal class SessionManager(
 
     suspend fun createVerification(
         externalId: String,
-        tier: VerificationTier
+        tier: VerificationTier,
+        expectedFirstName: String? = null,
+        expectedLastName: String? = null
     ): Result<Verification> = withContext(Dispatchers.IO) {
         try {
             sessionStartTime = Date()
-            val request = CreateVerificationRequest(externalId, tier.value)
+            val request = CreateVerificationRequest(
+                externalId = externalId,
+                tier = tier.value,
+                expectedFirstName = expectedFirstName,
+                expectedLastName = expectedLastName
+            )
             val response = executeWithRetry {
                 apiClient.apiService.createVerification(request)
             }
@@ -273,11 +280,30 @@ internal class SessionManager(
     }
 
     suspend fun completeVerification(
-        verificationId: String
+        verificationId: String,
+        livenessResult: com.koraidv.sdk.liveness.LivenessResult? = null
     ): Result<Verification> = withContext(Dispatchers.IO) {
         try {
+            // Build request with inline liveness data if available
+            val request = if (livenessResult != null && livenessResult.challenges.isNotEmpty()) {
+                val challenges = livenessResult.challenges.map { challenge ->
+                    InlineLivenessChallenge(
+                        type = challenge.challenge.type.value,
+                        passed = challenge.passed,
+                        imageBase64 = challenge.imageData?.let {
+                            Base64.encodeToString(it, Base64.NO_WRAP)
+                        }
+                    )
+                }
+                CompleteVerificationRequest(
+                    liveness = InlineLivenessData(challenges = challenges)
+                )
+            } else {
+                null
+            }
+
             val response = executeWithRetry {
-                apiClient.apiService.completeVerification(verificationId)
+                apiClient.apiService.completeVerification(verificationId, request)
             }
 
             if (response.isSuccessful && response.body() != null) {
@@ -410,6 +436,7 @@ internal class SessionManager(
                     liveness = it.liveness ?: 0.0,
                     nameMatch = it.nameMatch ?: 0.0,
                     dataConsistency = it.dataConsistency ?: 0.0,
+                    screening = it.complianceScore ?: 0.0,
                     overall = it.overall ?: 0.0
                 )
             },

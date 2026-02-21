@@ -331,6 +331,16 @@ fun SuccessScreen(
                 )
                 ScoreMetricRow(
                     metric = ScoreMetric(
+                        label = stringResource(R.string.koraidv_score_screening),
+                        score = scores.screening,
+                        icon = Icons.Default.Shield,
+                        status = if (scores.screening >= 70) MetricStatus.PASS
+                                else if (scores.screening >= 50) MetricStatus.BORDERLINE
+                                else MetricStatus.FAIL
+                    )
+                )
+                ScoreMetricRow(
+                    metric = ScoreMetric(
                         label = stringResource(R.string.koraidv_score_name_match),
                         score = scores.nameMatch,
                         icon = Icons.Default.Check,
@@ -446,6 +456,20 @@ fun RejectedScreen(
                         errorMessage = if (livenessStatus == MetricStatus.FAIL) stringResource(R.string.koraidv_score_error_liveness) else null
                     )
                 )
+                val screeningStatus = when {
+                    scores.screening >= 70 -> MetricStatus.PASS
+                    scores.screening >= 50 -> MetricStatus.BORDERLINE
+                    else -> MetricStatus.FAIL
+                }
+                ScoreMetricRow(
+                    metric = ScoreMetric(
+                        label = stringResource(R.string.koraidv_score_screening),
+                        score = scores.screening,
+                        icon = if (screeningStatus == MetricStatus.PASS) Icons.Default.Shield else Icons.Default.Close,
+                        status = screeningStatus,
+                        errorMessage = if (screeningStatus == MetricStatus.FAIL) stringResource(R.string.koraidv_score_error_screening) else null
+                    )
+                )
                 ScoreMetricRow(
                     metric = ScoreMetric(
                         label = stringResource(R.string.koraidv_score_name_match),
@@ -493,9 +517,9 @@ fun ExpiredDocumentScreen(
     verification: Verification,
     onRetry: () -> Unit
 ) {
-    val docType = verification.documentVerification?.documentType ?: "Document"
+    val docType = formatDocumentType(verification.documentVerification?.documentType ?: "Document")
     val country = verification.documentVerification?.issuingCountry ?: ""
-    val expirationDate = verification.documentVerification?.expirationDate ?: ""
+    val expirationDate = formatExpirationDate(verification.documentVerification?.expirationDate ?: "")
 
     Column(
         modifier = Modifier
@@ -776,6 +800,16 @@ fun ManualReviewScreen(
                 )
                 ScoreMetricRow(
                     metric = ScoreMetric(
+                        label = stringResource(R.string.koraidv_score_screening),
+                        score = scores.screening,
+                        icon = Icons.Default.Shield,
+                        status = if (scores.screening >= 70) MetricStatus.PASS
+                                else if (scores.screening >= 50) MetricStatus.BORDERLINE
+                                else MetricStatus.FAIL
+                    )
+                )
+                ScoreMetricRow(
+                    metric = ScoreMetric(
                         label = stringResource(R.string.koraidv_score_name_match),
                         score = scores.nameMatch,
                         icon = Icons.Default.Check,
@@ -938,5 +972,68 @@ private fun getErrorDetails(error: KoraException): Pair<String, String?> {
             null
         )
         else -> Pair("Something went wrong", null)
+    }
+}
+
+/**
+ * Format a raw document type code (e.g. "us_drivers_license") into
+ * a user-friendly display name (e.g. "US Driver's License").
+ */
+private fun formatDocumentType(raw: String): String {
+    val map = mapOf(
+        "us_drivers_license" to "US Driver's License",
+        "us_passport" to "US Passport",
+        "us_state_id" to "US State ID",
+        "us_permanent_resident" to "US Permanent Resident Card",
+        "us_green_card" to "US Green Card",
+        "us_military_id" to "US Military ID",
+        "ng_drivers_license" to "Nigerian Driver's License",
+        "ng_national_id" to "Nigerian National ID",
+        "ng_voters_card" to "Nigerian Voter's Card",
+        "ng_passport" to "Nigerian Passport",
+        "ng_nin_slip" to "Nigerian NIN Slip",
+        "gb_drivers_license" to "UK Driver's License",
+        "gb_passport" to "UK Passport",
+        "ca_drivers_license" to "Canadian Driver's License",
+        "ca_passport" to "Canadian Passport",
+        "international_passport" to "International Passport",
+        "national_id" to "National ID Card",
+        "drivers_license" to "Driver's License",
+        "state_id" to "State ID",
+        "passport" to "Passport",
+        "residence_permit" to "Residence Permit",
+        "permanent_resident_card" to "Permanent Resident Card",
+        "green_card" to "Green Card",
+        "work_permit" to "Work Permit",
+        "travel_document" to "Travel Document",
+        "military_id" to "Military ID",
+        "voter_id" to "Voter ID Card",
+    )
+    return map[raw] ?: raw.replace("_", " ")
+        .split(" ")
+        .joinToString(" ") { word ->
+            if (word.length <= 2) word.uppercase() else word.replaceFirstChar { it.uppercase() }
+        }
+}
+
+/**
+ * Format an expiration date string (e.g. "2022-02-28") into a
+ * human-readable form (e.g. "February 28, 2022").
+ */
+private fun formatExpirationDate(raw: String): String {
+    if (raw.isBlank()) return raw
+    return try {
+        val parts = raw.take(10).split("-")
+        if (parts.size != 3) return raw
+        val year = parts[0].toInt()
+        val month = parts[1].toInt()
+        val day = parts[2].toInt()
+        val monthNames = arrayOf(
+            "January", "February", "March", "April", "May", "June",
+            "July", "August", "September", "October", "November", "December"
+        )
+        "${monthNames[month - 1]} $day, $year"
+    } catch (_: Exception) {
+        raw
     }
 }
