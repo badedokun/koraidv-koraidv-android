@@ -370,10 +370,8 @@ class VerificationViewModel : ViewModel() {
                     )
                 }
             } else {
-                // Back side, or front of no-back documents: show processing as before
-                _state.value = VerificationState.Processing(ProcessingStep.ANALYZING)
-                _state.value = VerificationState.Processing(ProcessingStep.CHECKING_QUALITY)
-
+                // Back side, or front of no-back documents: upload without Processing screen.
+                // Processing screen only appears after liveness is completed.
                 val result = manager.uploadDocument(
                     verificationId = verification.id,
                     imageData = imageData,
