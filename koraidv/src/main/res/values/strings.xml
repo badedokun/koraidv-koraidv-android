@@ -172,8 +172,8 @@
     <string name="koraidv_result_review_title_v2">Under review</string>
     <string name="koraidv_result_review_subtitle_v2">Your submission needs manual review. This typically takes 1-2 business days.</string>
     <string name="koraidv_result_review_button">Got it</string>
-    <string name="koraidv_result_processing_title_v2">Verifying your identity</string>
-    <string name="koraidv_result_processing_subtitle_v2">This will only take a moment</string>
+    <string name="koraidv_result_processing_title_v2">Processing…</string>
+    <string name="koraidv_result_processing_subtitle_v2">Please wait a few seconds</string>
     <string name="koraidv_result_preparing">Preparing verification…</string>
 
     <!-- Score labels -->

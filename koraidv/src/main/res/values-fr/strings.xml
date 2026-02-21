@@ -172,8 +172,8 @@
     <string name="koraidv_result_review_title_v2">En cours d\'examen</string>
     <string name="koraidv_result_review_subtitle_v2">Votre soumission nécessite un examen manuel. Cela prend généralement 1 à 2 jours ouvrables.</string>
     <string name="koraidv_result_review_button">Compris</string>
-    <string name="koraidv_result_processing_title_v2">Vérification de votre identité</string>
-    <string name="koraidv_result_processing_subtitle_v2">Cela ne prendra qu\'un instant</string>
+    <string name="koraidv_result_processing_title_v2">Traitement…</string>
+    <string name="koraidv_result_processing_subtitle_v2">Veuillez patienter quelques secondes</string>
     <string name="koraidv_result_preparing">Préparation de la vérification…</string>
 
     <!-- Score labels -->

@@ -41,9 +41,9 @@ sealed class VerificationState {
 }
 
 enum class ProcessingStep(val label: String) {
-    ANALYZING("Document analyzed"),
-    CHECKING_QUALITY("Checking face match"),
-    FINALIZING("Finalizing results")
+    ANALYZING("Analyzing document"),
+    CHECKING_QUALITY("Matching identity"),
+    FINALIZING("Finalizing")
 }
 
 /**
