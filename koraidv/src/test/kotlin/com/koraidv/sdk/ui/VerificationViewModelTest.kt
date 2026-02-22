@@ -36,7 +36,7 @@ class VerificationViewModelTest {
     @Test
     fun `computeScoreBreakdown with perfect scores returns all 100`() {
         val verification = testVerification(
-            scores = VerificationScores(100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0)
+            scores = VerificationScores(100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0)
         )
         val breakdown = VerificationViewModel.computeScoreBreakdown(verification)
         assertThat(breakdown.liveness).isEqualTo(100)
@@ -49,7 +49,7 @@ class VerificationViewModelTest {
     @Test
     fun `computeScoreBreakdown with zero scores returns all 0`() {
         val verification = testVerification(
-            scores = VerificationScores(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+            scores = VerificationScores(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
         )
         val breakdown = VerificationViewModel.computeScoreBreakdown(verification)
         assertThat(breakdown.liveness).isEqualTo(0)
@@ -63,21 +63,21 @@ class VerificationViewModelTest {
     fun `computeScoreBreakdown with mixed scores computes correct average`() {
         // VerificationScores(documentQuality, documentAuth, faceMatch, liveness, nameMatch, dataConsistency, overall)
         val verification = testVerification(
-            scores = VerificationScores(80.0, 70.0, 90.0, 95.0, 85.0, 75.0, 88.0)
+            scores = VerificationScores(80.0, 70.0, 90.0, 95.0, 85.0, 75.0, 70.0, 88.0)
         )
         val breakdown = VerificationViewModel.computeScoreBreakdown(verification)
         assertThat(breakdown.liveness).isEqualTo(95)
         assertThat(breakdown.selfieMatch).isEqualTo(90)
         assertThat(breakdown.documentQuality).isEqualTo(80)
         assertThat(breakdown.nameMatch).isEqualTo(85)
-        // overall = (95 + 90 + 80 + 85) / 4 = 87
-        assertThat(breakdown.overallScore).isEqualTo(87)
+        // overall uses the backend's weighted score directly (88.0)
+        assertThat(breakdown.overallScore).isEqualTo(88)
     }
 
     @Test
     fun `computeScoreBreakdown coerces negative values to 0`() {
         val verification = testVerification(
-            scores = VerificationScores(-10.0, 0.0, -5.0, -100.0, -20.0, 0.0, 0.0)
+            scores = VerificationScores(-10.0, 0.0, -5.0, -100.0, -20.0, 0.0, 0.0, 0.0)
         )
         val breakdown = VerificationViewModel.computeScoreBreakdown(verification)
         assertThat(breakdown.liveness).isEqualTo(0)
@@ -90,7 +90,7 @@ class VerificationViewModelTest {
     @Test
     fun `computeScoreBreakdown coerces values over 100 to 100`() {
         val verification = testVerification(
-            scores = VerificationScores(150.0, 0.0, 200.0, 300.0, 999.0, 0.0, 0.0)
+            scores = VerificationScores(150.0, 0.0, 200.0, 300.0, 999.0, 0.0, 0.0, 150.0)
         )
         val breakdown = VerificationViewModel.computeScoreBreakdown(verification)
         assertThat(breakdown.liveness).isEqualTo(100)
@@ -103,7 +103,7 @@ class VerificationViewModelTest {
     @Test
     fun `computeScoreBreakdown truncates decimal values`() {
         val verification = testVerification(
-            scores = VerificationScores(87.9, 0.0, 92.1, 95.5, 88.7, 0.0, 0.0)
+            scores = VerificationScores(87.9, 0.0, 92.1, 95.5, 88.7, 0.0, 0.0, 0.0)
         )
         val breakdown = VerificationViewModel.computeScoreBreakdown(verification)
         assertThat(breakdown.liveness).isEqualTo(95)
@@ -113,24 +113,23 @@ class VerificationViewModelTest {
     }
 
     @Test
-    fun `computeScoreBreakdown overall is average of four metrics`() {
+    fun `computeScoreBreakdown overall uses backend weighted score`() {
         val verification = testVerification(
-            scores = VerificationScores(60.0, 0.0, 80.0, 40.0, 100.0, 0.0, 99.0)
+            scores = VerificationScores(60.0, 0.0, 80.0, 40.0, 100.0, 0.0, 0.0, 99.0)
         )
         val breakdown = VerificationViewModel.computeScoreBreakdown(verification)
-        // liveness=40, selfieMatch=80, docQuality=60, nameMatch=100
-        // overall = (40 + 80 + 60 + 100) / 4 = 70
-        assertThat(breakdown.overallScore).isEqualTo(70)
+        // overall uses the backend's weighted score directly (99.0)
+        assertThat(breakdown.overallScore).isEqualTo(99)
     }
 
     @Test
-    fun `computeScoreBreakdown overall ignores backend overall field`() {
+    fun `computeScoreBreakdown overall uses backend overall field`() {
         val verification = testVerification(
-            scores = VerificationScores(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 99.0)
+            scores = VerificationScores(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 99.0)
         )
         val breakdown = VerificationViewModel.computeScoreBreakdown(verification)
-        // All four metrics are 0, so overall = 0 regardless of backend 99
-        assertThat(breakdown.overallScore).isEqualTo(0)
+        // overall uses the backend's weighted score directly (99.0)
+        assertThat(breakdown.overallScore).isEqualTo(99)
     }
 
     // =====================================================================
@@ -279,17 +278,17 @@ class VerificationViewModelTest {
 
     @Test
     fun `ProcessingStep ANALYZING has correct label`() {
-        assertThat(ProcessingStep.ANALYZING.label).isEqualTo("Document analyzed")
+        assertThat(ProcessingStep.ANALYZING.label).isEqualTo("Analyzing document")
     }
 
     @Test
     fun `ProcessingStep CHECKING_QUALITY has correct label`() {
-        assertThat(ProcessingStep.CHECKING_QUALITY.label).isEqualTo("Checking face match")
+        assertThat(ProcessingStep.CHECKING_QUALITY.label).isEqualTo("Matching identity")
     }
 
     @Test
     fun `ProcessingStep FINALIZING has correct label`() {
-        assertThat(ProcessingStep.FINALIZING.label).isEqualTo("Finalizing results")
+        assertThat(ProcessingStep.FINALIZING.label).isEqualTo("Finalizing")
     }
 
     @Test
@@ -304,7 +303,7 @@ class VerificationViewModelTest {
     @Test
     fun `ScoreBreakdown stores all fields`() {
         val breakdown = ScoreBreakdown(
-            liveness = 95, nameMatch = 100, documentQuality = 88,
+            liveness = 95, screening = 90, nameMatch = 100, documentQuality = 88,
             selfieMatch = 92, overallScore = 93
         )
         assertThat(breakdown.liveness).isEqualTo(95)
@@ -316,8 +315,8 @@ class VerificationViewModelTest {
 
     @Test
     fun `ScoreBreakdown equality works`() {
-        val a = ScoreBreakdown(95, 100, 88, 92, 93)
-        val b = ScoreBreakdown(95, 100, 88, 92, 93)
+        val a = ScoreBreakdown(95, 90, 100, 88, 92, 93)
+        val b = ScoreBreakdown(95, 90, 100, 88, 92, 93)
         assertThat(a).isEqualTo(b)
     }
 

@@ -234,7 +234,7 @@ class ApiIntegrationTest {
                 .setHeader("Content-Type", "application/json")
         )
 
-        val response = apiService.completeVerification("ver-123")
+        val response = apiService.completeVerification("ver-123", CompleteVerificationRequest())
 
         assertThat(response.isSuccessful).isTrue()
         assertThat(response.body()?.status).isEqualTo("approved")

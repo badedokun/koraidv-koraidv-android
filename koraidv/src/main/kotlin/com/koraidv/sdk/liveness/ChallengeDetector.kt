@@ -27,7 +27,7 @@ class ChallengeDetector {
     // Thresholds — tuned for responsive detection on mobile front cameras
     private val blinkThreshold = 0.3f
     private val smileThreshold = 0.35f
-    private val turnThreshold = 5f // degrees
+    private val turnThreshold = 15f // degrees — deliberate head turn
     private val nodThreshold = 5f // degrees
 
     // State tracking
@@ -35,6 +35,7 @@ class ChallengeDetector {
     private var blinkDetected = false
     private var initialYaw: Float? = null
     private var turnDetected = false
+    private var maxTurnDelta = 0f
     private var turnBaselineFrames = 0
     private var turnBaselineSum = 0f
     private var turnBaselineCount = 0
@@ -50,11 +51,16 @@ class ChallengeDetector {
     }
 
     /**
-     * Start detecting a specific challenge type
+     * Start detecting a specific challenge type.
+     * @param baselineYaw optional pre-captured yaw angle (from before the countdown)
+     *                    to avoid baseline drift when the user starts turning early.
      */
-    fun startDetecting(challengeType: ChallengeType) {
+    fun startDetecting(challengeType: ChallengeType, baselineYaw: Float? = null) {
         currentChallengeType = challengeType
         reset()
+        if (baselineYaw != null) {
+            initialYaw = baselineYaw
+        }
     }
 
     /**
@@ -102,6 +108,7 @@ class ChallengeDetector {
         blinkDetected = false
         initialYaw = null
         turnDetected = false
+        maxTurnDelta = 0f
         turnBaselineFrames = 0
         turnBaselineSum = 0f
         turnBaselineCount = 0
@@ -160,13 +167,22 @@ class ChallengeDetector {
     }
 
     /**
-     * Detect head turn
+     * Detect head turn.
+     *
+     * When a pre-countdown baseline is available (initialYaw already set via
+     * startDetecting), we skip the frame-accumulation phase and immediately
+     * compare against the known-good baseline.  This avoids the baseline-drift
+     * problem where the user starts turning during the countdown.
+     *
+     * We track the maximum directional delta seen so far (maxTurnDelta) so that
+     * a momentary jitter in ML Kit's yaw estimate doesn't cause a false negative
+     * after the user has already turned far enough.
      */
     private fun detectTurn(face: Face, isLeft: Boolean): Boolean {
         val yaw = face.headEulerAngleY
 
-        // Skip the first few frames to let the user settle into a centered position.
-        // Use a rolling baseline from frames 3-5 for a stable reference point.
+        // Fallback baseline: if no pre-countdown baseline was provided, accumulate
+        // from frames 3-5 (original behaviour).
         if (initialYaw == null) {
             turnBaselineFrames++
             if (turnBaselineFrames < 3) return false // skip first 3 frames
@@ -182,12 +198,12 @@ class ChallengeDetector {
         // ML Kit headEulerAngleY: positive = face rotated left from CAMERA's perspective,
         // which is the USER's RIGHT on a front camera. So for the user to turn LEFT,
         // the delta is negative; for the user to turn RIGHT, the delta is positive.
-        turnDetected = if (isLeft) {
-            delta < -turnThreshold
-        } else {
-            delta > turnThreshold
+        val directionalDelta = if (isLeft) -delta else delta
+        if (directionalDelta > maxTurnDelta) {
+            maxTurnDelta = directionalDelta
         }
 
+        turnDetected = maxTurnDelta > turnThreshold
         return turnDetected
     }
 

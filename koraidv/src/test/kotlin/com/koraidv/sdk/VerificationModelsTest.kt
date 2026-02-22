@@ -162,6 +162,7 @@ class VerificationModelsTest {
             liveness = 92.0,
             nameMatch = 100.0,
             dataConsistency = 85.0,
+            screening = 80.0,
             overall = 91.0
         )
         assertThat(scores.documentQuality).isEqualTo(95.0)

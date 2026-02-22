@@ -76,7 +76,8 @@ class LivenessManager {
     private var challengeResults = mutableListOf<ChallengeResultItem>()
     private var isProcessing = false
     private var frameCount = 0
-    private val maxFramesPerChallenge = 150
+    private var lastDetectedYaw: Float? = null
+    private val maxFramesPerChallenge = 300
 
     val currentChallenge: LivenessChallenge?
         get() {
@@ -158,6 +159,7 @@ class LivenessManager {
             .addOnSuccessListener { faces ->
                 if (faces.isNotEmpty()) {
                     val face = faces.first()
+                    lastDetectedYaw = face.headEulerAngleY
                     val detectionResult = challengeDetector.process(face, challenge.type)
 
                     _state.value = LivenessState.InProgress(challenge, detectionResult.progress)
@@ -217,6 +219,12 @@ class LivenessManager {
         challengeDetector.reset()
         frameCount = 0
 
+        // Snapshot the yaw BEFORE the countdown starts.  At this point the user
+        // is still facing forward (from the previous challenge or initial pose).
+        // This avoids the baseline-drift problem where the user starts turning
+        // during the countdown.
+        val preCountdownYaw = lastDetectedYaw
+
         // 3-2-1 countdown at 500ms intervals for user preparation
         isTransitioning = true
         _state.value = LivenessState.Countdown(challenge, 3)
@@ -231,7 +239,7 @@ class LivenessManager {
 
         mainHandler.postDelayed({
             isTransitioning = false
-            challengeDetector.startDetecting(challenge.type)
+            challengeDetector.startDetecting(challenge.type, baselineYaw = preCountdownYaw)
             _state.value = LivenessState.InProgress(challenge, 0f)
         }, 1500)
     }
