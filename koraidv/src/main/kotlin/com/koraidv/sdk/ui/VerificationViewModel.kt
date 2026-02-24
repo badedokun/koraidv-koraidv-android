@@ -372,6 +372,29 @@ class VerificationViewModel : ViewModel() {
             } else {
                 // Back side, or front of no-back documents: upload without Processing screen.
                 // Processing screen only appears after liveness is completed.
+
+                // Await front upload BEFORE sending back — the server needs the
+                // front document record to exist so it can inherit document_type.
+                if (side == DocumentSide.BACK) {
+                    frontUploadJob?.join()
+                    val frontResult = frontUploadResult
+                    if (frontResult != null) {
+                        val frontResponse = frontResult.getOrElse { error ->
+                            _state.value = VerificationState.Error(
+                                error as? KoraException ?: KoraException.Unknown(error.message ?: "Front upload failed")
+                            )
+                            return@launch
+                        }
+                        if (!frontResponse.success) {
+                            val issues = frontResponse.warnings ?: listOf("Front document quality check failed")
+                            _state.value = VerificationState.Error(
+                                KoraException.QualityValidationFailed(issues)
+                            )
+                            return@launch
+                        }
+                    }
+                }
+
                 val result = manager.uploadDocument(
                     verificationId = verification.id,
                     imageData = imageData,
@@ -392,25 +415,6 @@ class VerificationViewModel : ViewModel() {
                         KoraException.QualityValidationFailed(issues)
                     )
                     return@launch
-                }
-
-                // Before moving to selfie: await front upload if pending
-                frontUploadJob?.join()
-                val frontResult = frontUploadResult
-                if (frontResult != null) {
-                    val frontResponse = frontResult.getOrElse { error ->
-                        _state.value = VerificationState.Error(
-                            error as? KoraException ?: KoraException.Unknown(error.message ?: "Front upload failed")
-                        )
-                        return@launch
-                    }
-                    if (!frontResponse.success) {
-                        val issues = frontResponse.warnings ?: listOf("Front document quality check failed")
-                        _state.value = VerificationState.Error(
-                            KoraException.QualityValidationFailed(issues)
-                        )
-                        return@launch
-                    }
                 }
 
                 _state.value = VerificationState.SelfieCapture

@@ -10,10 +10,13 @@ import android.os.Parcelable
 import com.koraidv.sdk.getParcelableExtraCompat
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.collectAsState
@@ -46,6 +49,7 @@ class VerificationActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        enableEdgeToEdge()
 
         // Pre-warm CameraProvider while user reads consent
         ProcessCameraProvider.getInstance(this)
@@ -83,7 +87,10 @@ class VerificationActivity : ComponentActivity() {
             }
             KoraIDVTheme(theme = config.theme) {
                 Surface(
-                    modifier = Modifier.fillMaxSize(),
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .statusBarsPadding()
+                        .navigationBarsPadding(),
                     color = MaterialTheme.colorScheme.background
                 ) {
                     val state by viewModel.state.collectAsState()

@@ -27,7 +27,7 @@ class ChallengeDetector {
     // Thresholds — tuned for responsive detection on mobile front cameras
     private val blinkThreshold = 0.3f
     private val smileThreshold = 0.35f
-    private val turnThreshold = 15f // degrees — deliberate head turn
+    private val turnThreshold = 10f // degrees — visible head turn, relaxed for front-camera jitter
     private val nodThreshold = 5f // degrees
 
     // State tracking

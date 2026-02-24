@@ -1,0 +1,2262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KoraIDV SDK — UI Redesign Mockups</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: #0a0a0a;
+    color: #fff;
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Inter', 'Segoe UI', sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 40px 20px;
+    min-height: 100vh;
+  }
+
+  h1 {
+    font-size: 28px;
+    font-weight: 700;
+    margin-bottom: 8px;
+    letter-spacing: -0.5px;
+  }
+
+  .subtitle {
+    color: #888;
+    font-size: 14px;
+    margin-bottom: 40px;
+  }
+
+  /* Navigation tabs */
+  .nav {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: center;
+    margin-bottom: 40px;
+    max-width: 900px;
+  }
+
+  .nav button {
+    background: #1a1a1a;
+    border: 1px solid #2a2a2a;
+    color: #aaa;
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-family: inherit;
+  }
+
+  .nav button:hover { background: #252525; color: #fff; }
+  .nav button.active { background: #0d9488; border-color: #0d9488; color: #fff; }
+
+  /* Phone frame */
+  .phone {
+    width: 390px;
+    height: 844px;
+    border-radius: 44px;
+    overflow: hidden;
+    position: relative;
+    border: 3px solid #333;
+    background: #000;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.8), 0 0 0 1px rgba(255,255,255,0.05);
+  }
+
+  .screen {
+    display: none;
+    width: 100%;
+    height: 100%;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .screen.active { display: flex; flex-direction: column; }
+
+  /* Status bar */
+  .status-bar {
+    height: 54px;
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    padding: 0 28px 8px;
+    font-size: 15px;
+    font-weight: 600;
+    flex-shrink: 0;
+    z-index: 10;
+  }
+
+  .status-bar.dark { color: #fff; }
+  .status-bar.light { color: #000; }
+
+  /* Home indicator */
+  .home-indicator {
+    position: absolute;
+    bottom: 8px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 134px;
+    height: 5px;
+    background: rgba(255,255,255,0.2);
+    border-radius: 3px;
+    z-index: 10;
+  }
+
+  .home-indicator.dark { background: rgba(0,0,0,0.2); }
+
+  /* ==========================================
+     STEP PROGRESS INDICATOR
+     ========================================== */
+  .progress-bar {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    padding: 0 24px;
+    margin: 8px 0 0;
+    flex-shrink: 0;
+  }
+
+  .progress-step {
+    flex: 1;
+    height: 3px;
+    background: #e0e0e0;
+    border-radius: 2px;
+    position: relative;
+    margin: 0 2px;
+  }
+
+  .progress-step.completed { background: #0d9488; }
+  .progress-step.current { background: linear-gradient(90deg, #0d9488 60%, #e0e0e0 60%); }
+
+  .progress-dark .progress-step { background: rgba(255,255,255,0.15); }
+  .progress-dark .progress-step.completed { background: #0d9488; }
+  .progress-dark .progress-step.current { background: linear-gradient(90deg, #0d9488 60%, rgba(255,255,255,0.15) 60%); }
+
+  /* ==========================================
+     SCREEN 1: CONSENT
+     ========================================== */
+  .consent-screen {
+    background: #ffffff;
+    color: #111;
+  }
+
+  .consent-header {
+    padding: 16px 24px 0;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .close-btn {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: #f3f4f6;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+
+  .close-btn svg { width: 18px; height: 18px; color: #666; }
+
+  .consent-body {
+    flex: 1;
+    padding: 32px 24px;
+    overflow-y: auto;
+  }
+
+  .consent-icon {
+    width: 72px;
+    height: 72px;
+    background: linear-gradient(135deg, #0d9488, #06b6d4);
+    border-radius: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 24px;
+  }
+
+  .consent-icon svg { width: 36px; height: 36px; color: #fff; }
+
+  .consent-body h2 {
+    font-size: 26px;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+    margin-bottom: 8px;
+    color: #111;
+  }
+
+  .consent-body .desc {
+    font-size: 15px;
+    color: #666;
+    line-height: 1.5;
+    margin-bottom: 28px;
+  }
+
+  .consent-items {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+
+  .consent-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    padding: 16px;
+    background: #f8fafb;
+    border-radius: 14px;
+  }
+
+  .consent-item-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .consent-item-icon.blue { background: #e0f2fe; }
+  .consent-item-icon.blue svg { color: #0284c7; }
+  .consent-item-icon.green { background: #dcfce7; }
+  .consent-item-icon.green svg { color: #16a34a; }
+  .consent-item-icon.purple { background: #f3e8ff; }
+  .consent-item-icon.purple svg { color: #9333ea; }
+
+  .consent-item-icon svg { width: 20px; height: 20px; }
+
+  .consent-item-text h4 {
+    font-size: 15px;
+    font-weight: 600;
+    margin-bottom: 2px;
+    color: #111;
+  }
+
+  .consent-item-text p {
+    font-size: 13px;
+    color: #888;
+    line-height: 1.4;
+  }
+
+  /* Bottom action area */
+  .bottom-action {
+    padding: 16px 24px 40px;
+    flex-shrink: 0;
+  }
+
+  .btn-primary {
+    width: 100%;
+    height: 56px;
+    border: none;
+    border-radius: 16px;
+    font-size: 17px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    transition: all 0.2s;
+    letter-spacing: -0.2px;
+  }
+
+  .btn-primary.teal {
+    background: linear-gradient(135deg, #0d9488, #0f766e);
+    color: #fff;
+    box-shadow: 0 4px 12px rgba(13, 148, 136, 0.3);
+  }
+
+  .btn-primary.teal:hover { transform: translateY(-1px); box-shadow: 0 6px 16px rgba(13, 148, 136, 0.4); }
+
+  .btn-secondary {
+    width: 100%;
+    height: 56px;
+    border: 2px solid #e5e7eb;
+    border-radius: 16px;
+    font-size: 17px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+    background: #fff;
+    color: #374151;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    transition: all 0.2s;
+    letter-spacing: -0.2px;
+  }
+
+  .btn-row {
+    display: flex;
+    gap: 12px;
+  }
+
+  .btn-row .btn-secondary, .btn-row .btn-dark { flex: 1; width: auto; }
+  .btn-row .btn-primary { flex: 1; width: auto; }
+
+  .legal-text {
+    font-size: 12px;
+    color: #999;
+    text-align: center;
+    margin-top: 12px;
+    line-height: 1.5;
+  }
+
+  .legal-text a { color: #0d9488; text-decoration: none; }
+
+  /* ==========================================
+     SCREEN 2: COUNTRY SELECTION
+     ========================================== */
+  .selection-screen {
+    background: #ffffff;
+    color: #111;
+  }
+
+  .selection-header {
+    padding: 12px 24px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .back-btn {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: #f3f4f6;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+
+  .back-btn svg { width: 18px; height: 18px; color: #666; }
+
+  .selection-header h3 {
+    font-size: 18px;
+    font-weight: 600;
+    letter-spacing: -0.3px;
+  }
+
+  .search-bar {
+    margin: 12px 24px;
+    position: relative;
+  }
+
+  .search-bar input {
+    width: 100%;
+    height: 48px;
+    border: 1.5px solid #e5e7eb;
+    border-radius: 14px;
+    padding: 0 16px 0 44px;
+    font-size: 15px;
+    font-family: inherit;
+    background: #f9fafb;
+    color: #111;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+
+  .search-bar input:focus { border-color: #0d9488; background: #fff; }
+  .search-bar input::placeholder { color: #aaa; }
+
+  .search-bar svg {
+    position: absolute;
+    left: 14px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 18px;
+    height: 18px;
+    color: #aaa;
+  }
+
+  .country-grid {
+    flex: 1;
+    padding: 8px 24px;
+    overflow-y: auto;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    align-content: start;
+  }
+
+  .country-card {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 16px;
+    background: #f8fafb;
+    border-radius: 14px;
+    cursor: pointer;
+    transition: all 0.15s;
+    border: 2px solid transparent;
+  }
+
+  .country-card:hover { background: #f0fdfa; border-color: #0d9488; }
+  .country-card.selected { background: #f0fdfa; border-color: #0d9488; }
+
+  .country-flag {
+    font-size: 28px;
+    line-height: 1;
+  }
+
+  .country-name {
+    font-size: 14px;
+    font-weight: 500;
+    color: #333;
+  }
+
+  /* ==========================================
+     SCREEN 3: DOCUMENT SELECTION
+     ========================================== */
+  .doc-list {
+    flex: 1;
+    padding: 8px 24px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .doc-card {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 18px 16px;
+    background: #f8fafb;
+    border-radius: 16px;
+    cursor: pointer;
+    transition: all 0.15s;
+    border: 2px solid transparent;
+  }
+
+  .doc-card:hover { background: #f0fdfa; border-color: #0d9488; }
+  .doc-card.selected { background: #f0fdfa; border-color: #0d9488; }
+
+  .doc-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 14px;
+    background: #e0f2fe;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .doc-icon svg { width: 24px; height: 24px; color: #0284c7; }
+
+  .doc-info h4 {
+    font-size: 16px;
+    font-weight: 600;
+    color: #111;
+    margin-bottom: 2px;
+  }
+
+  .doc-info p {
+    font-size: 13px;
+    color: #888;
+  }
+
+  .doc-arrow {
+    margin-left: auto;
+    color: #ccc;
+  }
+
+  .doc-arrow svg { width: 20px; height: 20px; }
+
+  .section-label {
+    font-size: 13px;
+    font-weight: 600;
+    color: #999;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: 12px 0 4px;
+  }
+
+  /* ==========================================
+     SCREEN 4/5: DOCUMENT CAPTURE (DARK)
+     ========================================== */
+  .capture-screen {
+    background: #111;
+    color: #fff;
+  }
+
+  .capture-top {
+    padding: 8px 24px 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+  }
+
+  .capture-close {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.12);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    backdrop-filter: blur(8px);
+  }
+
+  .capture-close svg { width: 20px; height: 20px; color: #fff; }
+
+  .capture-title {
+    text-align: center;
+    flex: 1;
+  }
+
+  .capture-title h3 {
+    font-size: 17px;
+    font-weight: 600;
+    color: #fff;
+  }
+
+  .capture-title span {
+    font-size: 13px;
+    color: rgba(255,255,255,0.5);
+  }
+
+  .capture-spacer { width: 40px; }
+
+  /* Camera viewfinder area */
+  .viewfinder-area {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    position: relative;
+  }
+
+  .doc-viewfinder {
+    width: 100%;
+    max-width: 342px;
+    aspect-ratio: 1.586;
+    border-radius: 20px;
+    position: relative;
+    overflow: hidden;
+    background: linear-gradient(145deg, #1a2332, #0f1720);
+  }
+
+  /* Animated scanning line */
+  .scan-line {
+    position: absolute;
+    top: 0;
+    left: 10%;
+    width: 80%;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, #0d9488, transparent);
+    animation: scanMove 2.5s ease-in-out infinite;
+    box-shadow: 0 0 12px rgba(13, 148, 136, 0.5);
+  }
+
+  @keyframes scanMove {
+    0%, 100% { top: 15%; opacity: 0; }
+    10% { opacity: 1; }
+    50% { top: 80%; opacity: 1; }
+    90% { opacity: 1; }
+  }
+
+  /* Corner brackets for viewfinder */
+  .corner {
+    position: absolute;
+    width: 28px;
+    height: 28px;
+  }
+
+  .corner.tl { top: 0; left: 0; border-top: 3px solid #0d9488; border-left: 3px solid #0d9488; border-radius: 8px 0 0 0; }
+  .corner.tr { top: 0; right: 0; border-top: 3px solid #0d9488; border-right: 3px solid #0d9488; border-radius: 0 8px 0 0; }
+  .corner.bl { bottom: 0; left: 0; border-bottom: 3px solid #0d9488; border-left: 3px solid #0d9488; border-radius: 0 0 0 8px; }
+  .corner.br { bottom: 0; right: 0; border-bottom: 3px solid #0d9488; border-right: 3px solid #0d9488; border-radius: 0 0 8px 0; }
+
+  /* Simulated document in viewfinder */
+  .sim-doc {
+    position: absolute;
+    top: 8%;
+    left: 6%;
+    right: 6%;
+    bottom: 8%;
+    border-radius: 10px;
+    background: linear-gradient(135deg, rgba(255,255,255,0.08), rgba(255,255,255,0.03));
+    backdrop-filter: blur(2px);
+    display: flex;
+    flex-direction: column;
+    padding: 16px;
+    gap: 8px;
+  }
+
+  .sim-doc .doc-photo {
+    width: 44px;
+    height: 56px;
+    background: rgba(255,255,255,0.1);
+    border-radius: 6px;
+  }
+
+  .sim-doc .doc-line {
+    height: 6px;
+    background: rgba(255,255,255,0.06);
+    border-radius: 3px;
+  }
+
+  .sim-doc .doc-line.w60 { width: 60%; }
+  .sim-doc .doc-line.w80 { width: 80%; }
+  .sim-doc .doc-line.w40 { width: 40%; }
+
+  /* Capture guidance */
+  .capture-guidance {
+    padding: 24px;
+    text-align: center;
+    flex-shrink: 0;
+  }
+
+  .guidance-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 20px;
+    border-radius: 24px;
+    font-size: 15px;
+    font-weight: 500;
+    margin-bottom: 12px;
+  }
+
+  .guidance-pill.scanning {
+    background: rgba(13, 148, 136, 0.15);
+    color: #2dd4bf;
+  }
+
+  .guidance-pill.ready {
+    background: rgba(16, 185, 129, 0.15);
+    color: #34d399;
+  }
+
+  .guidance-pill .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    animation: pulse 1.5s ease-in-out infinite;
+  }
+
+  .guidance-pill.scanning .dot { background: #2dd4bf; }
+  .guidance-pill.ready .dot { background: #34d399; }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.5; transform: scale(0.8); }
+  }
+
+  .capture-hint {
+    font-size: 13px;
+    color: rgba(255,255,255,0.4);
+    line-height: 1.4;
+  }
+
+  .step-pills {
+    display: flex;
+    gap: 6px;
+    justify-content: center;
+    margin-top: 16px;
+  }
+
+  .step-pill {
+    padding: 6px 14px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+  }
+
+  .step-pill.active { background: #0d9488; color: #fff; }
+  .step-pill.inactive { background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.4); }
+  .step-pill.done { background: rgba(13, 148, 136, 0.2); color: #2dd4bf; }
+
+  /* ==========================================
+     SCREEN 6: DOCUMENT REVIEW
+     ========================================== */
+  .review-screen {
+    background: #111;
+    color: #fff;
+  }
+
+  .review-image-area {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+  }
+
+  .review-card {
+    width: 100%;
+    max-width: 342px;
+    aspect-ratio: 1.586;
+    border-radius: 20px;
+    overflow: hidden;
+    background: linear-gradient(135deg, #1e3a5f, #0f2640);
+    position: relative;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+  }
+
+  .review-badge {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    padding: 6px 14px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .review-badge.good { background: rgba(16, 185, 129, 0.2); color: #34d399; }
+
+  .review-badge .badge-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #34d399;
+  }
+
+  .review-checks {
+    display: flex;
+    gap: 16px;
+    margin-top: 20px;
+  }
+
+  .review-check {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    color: rgba(255,255,255,0.6);
+  }
+
+  .review-check svg { width: 16px; height: 16px; color: #34d399; }
+
+  .review-bottom {
+    padding: 16px 24px 40px;
+    flex-shrink: 0;
+  }
+
+  .review-bottom .btn-row { margin-bottom: 0; }
+
+  .btn-dark {
+    width: 100%;
+    height: 56px;
+    border: 2px solid rgba(255,255,255,0.15);
+    border-radius: 16px;
+    font-size: 17px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+    background: transparent;
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    transition: all 0.2s;
+  }
+
+  .btn-dark:hover { background: rgba(255,255,255,0.05); }
+
+  /* ==========================================
+     SCREEN 7: SELFIE CAPTURE
+     ========================================== */
+  .selfie-viewfinder {
+    width: 240px;
+    height: 300px;
+    border-radius: 50% 50% 50% 50% / 45% 45% 55% 55%;
+    position: relative;
+    overflow: hidden;
+    background: linear-gradient(180deg, #1a2332, #0f1720);
+  }
+
+  .selfie-ring {
+    position: absolute;
+    inset: -3px;
+    border-radius: inherit;
+    border: 3px solid #0d9488;
+    z-index: 2;
+  }
+
+  .selfie-ring.animated {
+    border: 3px solid transparent;
+    background: conic-gradient(from 0deg, #0d9488, #06b6d4, #0d9488, transparent, #0d9488) border-box;
+    -webkit-mask: linear-gradient(#fff 0 0) padding-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: destination-out;
+    mask: linear-gradient(#fff 0 0) padding-box, linear-gradient(#fff 0 0);
+    mask-composite: exclude;
+    animation: rotateBorder 3s linear infinite;
+  }
+
+  @keyframes rotateBorder {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+  }
+
+  /* Simulated face */
+  .sim-face {
+    position: absolute;
+    top: 15%;
+    left: 20%;
+    right: 20%;
+    bottom: 10%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+  }
+
+  .sim-face .head {
+    width: 100px;
+    height: 120px;
+    background: rgba(255,255,255,0.06);
+    border-radius: 50%;
+  }
+
+  .sim-face .shoulders {
+    width: 160px;
+    height: 60px;
+    background: rgba(255,255,255,0.04);
+    border-radius: 50% 50% 0 0;
+  }
+
+  /* ==========================================
+     SCREEN 9: LIVENESS
+     ========================================== */
+  .liveness-camera {
+    width: 240px;
+    height: 300px;
+    border-radius: 50% 50% 50% 50% / 45% 45% 55% 55%;
+    position: relative;
+    overflow: hidden;
+    background: linear-gradient(180deg, #1a2332, #0f1720);
+  }
+
+  .liveness-ring {
+    position: absolute;
+    inset: -4px;
+    border-radius: inherit;
+    border: 4px solid transparent;
+    z-index: 2;
+  }
+
+  /* Progress ring via SVG */
+  .liveness-progress-ring {
+    position: absolute;
+    inset: -8px;
+    z-index: 3;
+  }
+
+  .countdown-badge {
+    position: absolute;
+    top: -12px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #ef4444;
+    color: #fff;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    font-weight: 700;
+    z-index: 4;
+    box-shadow: 0 4px 12px rgba(239, 68, 68, 0.4);
+  }
+
+  .challenge-card {
+    background: rgba(255,255,255,0.06);
+    border-radius: 20px;
+    padding: 20px 24px;
+    text-align: center;
+    margin: 0 24px;
+    backdrop-filter: blur(8px);
+  }
+
+  .challenge-icon {
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, rgba(13, 148, 136, 0.2), rgba(6, 182, 212, 0.2));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 12px;
+  }
+
+  .challenge-icon svg { width: 28px; height: 28px; color: #2dd4bf; }
+
+  .challenge-title {
+    font-size: 22px;
+    font-weight: 700;
+    margin-bottom: 4px;
+    letter-spacing: -0.3px;
+  }
+
+  .challenge-subtitle {
+    font-size: 14px;
+    color: rgba(255,255,255,0.5);
+  }
+
+  .challenge-progress {
+    display: flex;
+    gap: 8px;
+    justify-content: center;
+    margin-top: 16px;
+  }
+
+  .challenge-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+  }
+
+  .challenge-dot.done { background: #0d9488; }
+  .challenge-dot.current { background: #2dd4bf; box-shadow: 0 0 8px rgba(45, 212, 191, 0.5); }
+  .challenge-dot.pending { background: rgba(255,255,255,0.15); }
+
+  /* ==========================================
+     SCREEN 10: PROCESSING
+     ========================================== */
+  .processing-screen {
+    background: #111;
+    color: #fff;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .processing-animation {
+    width: 120px;
+    height: 120px;
+    position: relative;
+    margin-bottom: 32px;
+  }
+
+  .processing-ring {
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    border: 3px solid rgba(255,255,255,0.08);
+    border-top-color: #0d9488;
+    animation: spin 1s linear infinite;
+  }
+
+  .processing-ring.inner {
+    inset: 12px;
+    border-top-color: #06b6d4;
+    animation-duration: 1.5s;
+    animation-direction: reverse;
+  }
+
+  .processing-ring.core {
+    inset: 24px;
+    border-top-color: #2dd4bf;
+    animation-duration: 0.8s;
+  }
+
+  @keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+  }
+
+  .processing-check {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+  }
+
+  .processing-check svg { width: 36px; height: 36px; color: #0d9488; }
+
+  .processing-title {
+    font-size: 22px;
+    font-weight: 700;
+    margin-bottom: 8px;
+    letter-spacing: -0.3px;
+  }
+
+  .processing-subtitle {
+    font-size: 15px;
+    color: rgba(255,255,255,0.4);
+    margin-bottom: 32px;
+  }
+
+  .processing-steps {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    padding: 0 48px;
+    width: 100%;
+  }
+
+  .processing-step {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 14px;
+  }
+
+  .processing-step-icon {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .processing-step-icon.done { background: rgba(13, 148, 136, 0.2); }
+  .processing-step-icon.done svg { width: 16px; height: 16px; color: #2dd4bf; }
+  .processing-step-icon.active { background: rgba(13, 148, 136, 0.15); border: 2px solid #0d9488; }
+  .processing-step-icon.pending { background: rgba(255,255,255,0.06); }
+
+  .processing-step.done { color: rgba(255,255,255,0.5); }
+  .processing-step.active { color: #fff; font-weight: 500; }
+  .processing-step.pending { color: rgba(255,255,255,0.3); }
+
+  /* ==========================================
+     SCREEN 11: SUCCESS
+     ========================================== */
+  .success-screen {
+    background: #fff;
+    color: #111;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .success-icon-wrap {
+    width: 100px;
+    height: 100px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #dcfce7, #d1fae5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 24px;
+    position: relative;
+  }
+
+  .success-icon-wrap::after {
+    content: '';
+    position: absolute;
+    inset: -8px;
+    border-radius: 50%;
+    border: 2px solid #bbf7d0;
+  }
+
+  .success-icon-wrap svg { width: 48px; height: 48px; color: #16a34a; }
+
+  .success-title {
+    font-size: 26px;
+    font-weight: 700;
+    margin-bottom: 8px;
+    letter-spacing: -0.5px;
+  }
+
+  .success-subtitle {
+    font-size: 15px;
+    color: #888;
+    text-align: center;
+    max-width: 280px;
+    line-height: 1.5;
+    margin-bottom: 40px;
+  }
+
+  .success-bottom {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    padding: 16px 24px 40px;
+  }
+
+  .btn-success {
+    background: linear-gradient(135deg, #16a34a, #15803d);
+    box-shadow: 0 4px 12px rgba(22, 163, 74, 0.3);
+  }
+
+  /* ==========================================
+     SCREEN 12: ERROR
+     ========================================== */
+  .error-screen {
+    background: #fff;
+    color: #111;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .error-icon-wrap {
+    width: 100px;
+    height: 100px;
+    border-radius: 50%;
+    background: #fef2f2;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 24px;
+    position: relative;
+  }
+
+  .error-icon-wrap::after {
+    content: '';
+    position: absolute;
+    inset: -8px;
+    border-radius: 50%;
+    border: 2px solid #fecaca;
+  }
+
+  .error-icon-wrap svg { width: 48px; height: 48px; color: #dc2626; }
+
+  .error-bottom {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    padding: 16px 24px 40px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .btn-error {
+    background: linear-gradient(135deg, #dc2626, #b91c1c);
+    box-shadow: 0 4px 12px rgba(220, 38, 38, 0.3);
+  }
+
+  /* Screen label */
+  .screen-label {
+    text-align: center;
+    margin-top: 20px;
+    font-size: 13px;
+    color: #666;
+    font-weight: 500;
+  }
+</style>
+</head>
+<body>
+
+<h1>KoraIDV SDK — UI Redesign</h1>
+<p class="subtitle">Commercial-grade identity verification flow</p>
+
+<nav class="nav">
+  <button class="active" onclick="showScreen('consent')">1. Consent</button>
+  <button onclick="showScreen('country')">2. Country</button>
+  <button onclick="showScreen('doctype')">3. Document Type</button>
+  <button onclick="showScreen('capture-front')">4. Capture Front</button>
+  <button onclick="showScreen('capture-back')">5. Capture Back</button>
+  <button onclick="showScreen('review')">6. Review</button>
+  <button onclick="showScreen('selfie')">7. Selfie</button>
+  <button onclick="showScreen('selfie-review')">8. Selfie Review</button>
+  <button onclick="showScreen('liveness')">9. Liveness</button>
+  <button onclick="showScreen('processing')">10. Processing</button>
+  <button onclick="showScreen('success')">11. Success</button>
+  <button onclick="showScreen('error')">12. Rejected</button>
+  <button onclick="showScreen('expired')">13. Expired Doc</button>
+  <button onclick="showScreen('manual-review')">14. Manual Review</button>
+</nav>
+
+<!-- ============================================
+     PHONE FRAME
+     ============================================ -->
+<div class="phone">
+
+  <!-- ========== SCREEN 1: CONSENT ========== -->
+  <div id="consent" class="screen consent-screen active">
+    <div class="status-bar light">
+      <span>7:36</span>
+      <span>●●● ▪ ▪</span>
+    </div>
+
+    <div class="progress-bar">
+      <div class="progress-step current"></div>
+      <div class="progress-step"></div>
+      <div class="progress-step"></div>
+      <div class="progress-step"></div>
+      <div class="progress-step"></div>
+    </div>
+
+    <div class="consent-header">
+      <div class="close-btn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+      </div>
+    </div>
+
+    <div class="consent-body">
+      <div class="consent-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
+      </div>
+      <h2>Verify your identity</h2>
+      <p class="desc">We need to verify your identity to comply with regulations and keep your account secure.</p>
+
+      <div class="consent-items">
+        <div class="consent-item">
+          <div class="consent-item-icon blue">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="14" rx="2"/><path d="M3 10h18"/></svg>
+          </div>
+          <div class="consent-item-text">
+            <h4>Government-issued ID</h4>
+            <p>Photo of your passport or front & back of your ID</p>
+          </div>
+        </div>
+        <div class="consent-item">
+          <div class="consent-item-icon green">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 14c3.314 0 6-2 6-5s-2.686-5-6-5-6 2-6 5 2.686 5 6 5z"/><path d="M6 21v-1a6 6 0 0112 0v1"/></svg>
+          </div>
+          <div class="consent-item-text">
+            <h4>Selfie photo</h4>
+            <p>A quick selfie to match your ID</p>
+          </div>
+        </div>
+        <div class="consent-item">
+          <div class="consent-item-icon purple">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+          </div>
+          <div class="consent-item-text">
+            <h4>Liveness check</h4>
+            <p>Quick video to confirm it's really you</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="bottom-action">
+      <button class="btn-primary teal">
+        Get started
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+      </button>
+      <p class="legal-text">By continuing, you agree to our <a href="#">Privacy Policy</a> and consent to biometric processing.</p>
+    </div>
+
+    <div class="home-indicator dark"></div>
+  </div>
+
+  <!-- ========== SCREEN 2: COUNTRY SELECTION (Searchable Dropdown) ========== -->
+  <div id="country" class="screen selection-screen">
+    <div class="status-bar light">
+      <span>7:36</span>
+      <span>●●● ▪ ▪</span>
+    </div>
+
+    <div class="progress-bar">
+      <div class="progress-step completed"></div>
+      <div class="progress-step current"></div>
+      <div class="progress-step"></div>
+      <div class="progress-step"></div>
+      <div class="progress-step"></div>
+    </div>
+
+    <div class="selection-header">
+      <div class="back-btn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 19l-7-7 7-7"/></svg>
+      </div>
+      <h3>Select your country</h3>
+    </div>
+
+    <div style="padding: 8px 24px 0;">
+      <p style="font-size: 14px; color: #888; margin-bottom: 16px;">Where was your document issued?</p>
+    </div>
+
+    <!-- Searchable dropdown field -->
+    <div style="padding: 0 24px; margin-bottom: 16px;">
+      <div style="border: 2px solid #0d9488; border-radius: 14px; background: #f0fdfa; overflow: hidden;">
+        <div style="display:flex; align-items:center; padding: 14px 16px; gap: 12px;">
+          <span style="font-size: 28px; line-height:1;">🇺🇸</span>
+          <span style="font-size: 16px; font-weight: 600; color: #111; flex:1;">United States</span>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0d9488" stroke-width="2.5"><path d="M5 13l4 4L19 7"/></svg>
+        </div>
+      </div>
+    </div>
+
+    <!-- Search input -->
+    <div class="search-bar">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+      <input type="text" placeholder="Search countries..." />
+    </div>
+
+    <!-- Scrollable country list -->
+    <div style="flex:1; padding: 0 24px; overflow-y:auto;">
+      <div style="display:flex; flex-direction:column; gap:2px;">
+        <div style="display:flex; align-items:center; gap:14px; padding:13px 16px; border-radius:12px; background:#f0fdfa; border-left: 3px solid #0d9488;">
+          <span style="font-size:24px; line-height:1;">🇺🇸</span>
+          <span style="font-size:15px; font-weight:600; color:#0d9488;">United States</span>
+          <svg style="margin-left:auto;" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#0d9488" stroke-width="2.5"><path d="M5 13l4 4L19 7"/></svg>
+        </div>
+        <div style="display:flex; align-items:center; gap:14px; padding:13px 16px; border-radius:12px; cursor:pointer;">
+          <span style="font-size:24px; line-height:1;">🇬🇧</span>
+          <span style="font-size:15px; font-weight:500; color:#333;">United Kingdom</span>
+        </div>
+        <div style="display:flex; align-items:center; gap:14px; padding:13px 16px; border-radius:12px; cursor:pointer;">
+          <span style="font-size:24px; line-height:1;">🇩🇪</span>
+          <span style="font-size:15px; font-weight:500; color:#333;">Germany</span>
+        </div>
+        <div style="display:flex; align-items:center; gap:14px; padding:13px 16px; border-radius:12px; cursor:pointer;">
+          <span style="font-size:24px; line-height:1;">🇫🇷</span>
+          <span style="font-size:15px; font-weight:500; color:#333;">France</span>
+        </div>
+        <div style="display:flex; align-items:center; gap:14px; padding:13px 16px; border-radius:12px; cursor:pointer;">
+          <span style="font-size:24px; line-height:1;">🇪🇸</span>
+          <span style="font-size:15px; font-weight:500; color:#333;">Spain</span>
+        </div>
+        <div style="display:flex; align-items:center; gap:14px; padding:13px 16px; border-radius:12px; cursor:pointer;">
+          <span style="font-size:24px; line-height:1;">🇮🇹</span>
+          <span style="font-size:15px; font-weight:500; color:#333;">Italy</span>
+        </div>
+        <div style="display:flex; align-items:center; gap:14px; padding:13px 16px; border-radius:12px; cursor:pointer;">
+          <span style="font-size:24px; line-height:1;">🇳🇬</span>
+          <span style="font-size:15px; font-weight:500; color:#333;">Nigeria</span>
+        </div>
+        <div style="display:flex; align-items:center; gap:14px; padding:13px 16px; border-radius:12px; cursor:pointer;">
+          <span style="font-size:24px; line-height:1;">🇬🇭</span>
+          <span style="font-size:15px; font-weight:500; color:#333;">Ghana</span>
+        </div>
+        <div style="display:flex; align-items:center; gap:14px; padding:13px 16px; border-radius:12px; cursor:pointer;">
+          <span style="font-size:24px; line-height:1;">🇰🇪</span>
+          <span style="font-size:15px; font-weight:500; color:#333;">Kenya</span>
+        </div>
+        <div style="display:flex; align-items:center; gap:14px; padding:13px 16px; border-radius:12px; cursor:pointer;">
+          <span style="font-size:24px; line-height:1;">🇿🇦</span>
+          <span style="font-size:15px; font-weight:500; color:#333;">South Africa</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="bottom-action">
+      <button class="btn-primary teal">Continue</button>
+    </div>
+
+    <div class="home-indicator dark"></div>
+  </div>
+
+  <!-- ========== SCREEN 3: DOCUMENT TYPE ========== -->
+  <div id="doctype" class="screen selection-screen">
+    <div class="status-bar light">
+      <span>7:37</span>
+      <span>●●● ▪ ▪</span>
+    </div>
+
+    <div class="progress-bar">
+      <div class="progress-step completed"></div>
+      <div class="progress-step current"></div>
+      <div class="progress-step"></div>
+      <div class="progress-step"></div>
+      <div class="progress-step"></div>
+    </div>
+
+    <div class="selection-header">
+      <div class="back-btn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 19l-7-7 7-7"/></svg>
+      </div>
+      <h3>Choose your document</h3>
+    </div>
+
+    <div style="padding: 0 24px 8px;">
+      <p style="font-size: 14px; color: #888;">🇺🇸 United States</p>
+    </div>
+
+    <div class="doc-list">
+      <div class="doc-card selected">
+        <div class="doc-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><circle cx="8" cy="12" r="2"/><path d="M14 10h4M14 14h4"/></svg>
+        </div>
+        <div class="doc-info">
+          <h4>Driver's License</h4>
+          <p>Front & back required</p>
+        </div>
+        <div class="doc-arrow">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5l7 7-7 7"/></svg>
+        </div>
+      </div>
+
+      <div class="doc-card">
+        <div class="doc-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><circle cx="8" cy="12" r="2"/><path d="M14 10h4M14 14h4"/></svg>
+        </div>
+        <div class="doc-info">
+          <h4>State ID Card</h4>
+          <p>Front & back required</p>
+        </div>
+        <div class="doc-arrow">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5l7 7-7 7"/></svg>
+        </div>
+      </div>
+
+      <div class="doc-card">
+        <div class="doc-icon" style="background: #fef3c7;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#d97706" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="12" cy="12" r="3"/><path d="M3 8h18"/></svg>
+        </div>
+        <div class="doc-info">
+          <h4>Passport</h4>
+          <p>Photo page only</p>
+        </div>
+        <div class="doc-arrow">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5l7 7-7 7"/></svg>
+        </div>
+      </div>
+
+      <div class="doc-card">
+        <div class="doc-icon" style="background: #e0e7ff;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#4f46e5" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M6 9h4M6 13h8"/></svg>
+        </div>
+        <div class="doc-info">
+          <h4>Permanent Resident Card</h4>
+          <p>Front & back required</p>
+        </div>
+        <div class="doc-arrow">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5l7 7-7 7"/></svg>
+        </div>
+      </div>
+    </div>
+
+    <div class="home-indicator dark"></div>
+  </div>
+
+  <!-- ========== SCREEN 4: CAPTURE FRONT ========== -->
+  <div id="capture-front" class="screen capture-screen">
+    <div class="status-bar dark">
+      <span>7:37</span>
+      <span>●●● ▪ ▪</span>
+    </div>
+
+    <div class="progress-bar progress-dark">
+      <div class="progress-step completed"></div>
+      <div class="progress-step completed"></div>
+      <div class="progress-step current"></div>
+      <div class="progress-step"></div>
+      <div class="progress-step"></div>
+    </div>
+
+    <div class="capture-top">
+      <div class="capture-close">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+      </div>
+      <div class="capture-title">
+        <h3>Front of ID</h3>
+        <span>Driver's License</span>
+      </div>
+      <div class="capture-spacer"></div>
+    </div>
+
+    <div class="viewfinder-area">
+      <div class="doc-viewfinder">
+        <div class="corner tl"></div>
+        <div class="corner tr"></div>
+        <div class="corner bl"></div>
+        <div class="corner br"></div>
+        <div class="scan-line"></div>
+        <div class="sim-doc">
+          <div class="doc-photo"></div>
+          <div class="doc-line w80"></div>
+          <div class="doc-line w60"></div>
+          <div class="doc-line w40"></div>
+          <div class="doc-line w80"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="capture-guidance">
+      <div class="guidance-pill scanning">
+        <span class="dot"></span>
+        Scanning document...
+      </div>
+      <p class="capture-hint">Hold your ID flat in good lighting.<br>Auto-capture when ready.</p>
+
+      <div class="step-pills">
+        <div class="step-pill active">Front</div>
+        <div class="step-pill inactive">Back</div>
+      </div>
+    </div>
+
+    <div class="home-indicator"></div>
+  </div>
+
+  <!-- ========== SCREEN 5: CAPTURE BACK ========== -->
+  <div id="capture-back" class="screen capture-screen">
+    <div class="status-bar dark">
+      <span>7:37</span>
+      <span>●●● ▪ ▪</span>
+    </div>
+
+    <div class="progress-bar progress-dark">
+      <div class="progress-step completed"></div>
+      <div class="progress-step completed"></div>
+      <div class="progress-step current"></div>
+      <div class="progress-step"></div>
+      <div class="progress-step"></div>
+    </div>
+
+    <div class="capture-top">
+      <div class="capture-close">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+      </div>
+      <div class="capture-title">
+        <h3>Back of ID</h3>
+        <span>Driver's License</span>
+      </div>
+      <div class="capture-spacer"></div>
+    </div>
+
+    <div class="viewfinder-area">
+      <div class="doc-viewfinder">
+        <div class="corner tl"></div>
+        <div class="corner tr"></div>
+        <div class="corner bl"></div>
+        <div class="corner br"></div>
+        <div class="scan-line"></div>
+        <div class="sim-doc">
+          <div class="doc-line w80"></div>
+          <div class="doc-line w60"></div>
+          <div class="doc-line w80"></div>
+          <div class="doc-line w40"></div>
+          <div class="doc-line w80"></div>
+          <div class="doc-line w60"></div>
+          <div style="margin-top:auto; height:24px; width:80%; background:rgba(255,255,255,0.05); border-radius:4px;"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="capture-guidance">
+      <div class="guidance-pill scanning">
+        <span class="dot"></span>
+        Flip and scan the back...
+      </div>
+      <p class="capture-hint">Ensure the barcode is clearly visible.<br>Auto-capture when ready.</p>
+
+      <div class="step-pills">
+        <div class="step-pill done">✓ Front</div>
+        <div class="step-pill active">Back</div>
+      </div>
+    </div>
+
+    <div class="home-indicator"></div>
+  </div>
+
+  <!-- ========== SCREEN 6: DOCUMENT REVIEW ========== -->
+  <div id="review" class="screen review-screen">
+    <div class="status-bar dark">
+      <span>7:38</span>
+      <span>●●● ▪ ▪</span>
+    </div>
+
+    <div class="progress-bar progress-dark">
+      <div class="progress-step completed"></div>
+      <div class="progress-step completed"></div>
+      <div class="progress-step current"></div>
+      <div class="progress-step"></div>
+      <div class="progress-step"></div>
+    </div>
+
+    <div class="capture-top">
+      <div class="capture-close">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+      </div>
+      <div class="capture-title">
+        <h3>Review photo</h3>
+        <span>Front of Driver's License</span>
+      </div>
+      <div class="capture-spacer"></div>
+    </div>
+
+    <div class="review-image-area">
+      <div class="review-card">
+        <div class="review-badge good">
+          <span class="badge-dot"></span>
+          Good quality
+        </div>
+        <div class="sim-doc">
+          <div class="doc-photo"></div>
+          <div class="doc-line w80"></div>
+          <div class="doc-line w60"></div>
+          <div class="doc-line w40"></div>
+          <div class="doc-line w80"></div>
+        </div>
+      </div>
+
+      <div class="review-checks">
+        <div class="review-check">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 13l4 4L19 7"/></svg>
+          Sharp
+        </div>
+        <div class="review-check">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 13l4 4L19 7"/></svg>
+          Well-lit
+        </div>
+        <div class="review-check">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 13l4 4L19 7"/></svg>
+          No glare
+        </div>
+      </div>
+    </div>
+
+    <div class="review-bottom">
+      <p style="text-align:center; font-size:14px; color:rgba(255,255,255,0.5); margin-bottom:16px;">Is the document clearly readable?</p>
+      <div class="btn-row">
+        <button class="btn-dark">Retake</button>
+        <button class="btn-primary teal">Looks good</button>
+      </div>
+    </div>
+
+    <div class="home-indicator"></div>
+  </div>
+
+  <!-- ========== SCREEN 7: SELFIE CAPTURE ========== -->
+  <div id="selfie" class="screen capture-screen">
+    <div class="status-bar dark">
+      <span>7:38</span>
+      <span>●●● ▪ ▪</span>
+    </div>
+
+    <div class="progress-bar progress-dark">
+      <div class="progress-step completed"></div>
+      <div class="progress-step completed"></div>
+      <div class="progress-step completed"></div>
+      <div class="progress-step current"></div>
+      <div class="progress-step"></div>
+    </div>
+
+    <div class="capture-top">
+      <div class="capture-close">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+      </div>
+      <div class="capture-title">
+        <h3>Take a selfie</h3>
+      </div>
+      <div class="capture-spacer"></div>
+    </div>
+
+    <div style="display:flex; flex-direction:column; align-items:center; padding:16px 24px 0;">
+      <div style="font-size:24px; font-weight:700; color:#fff; letter-spacing:-0.5px;">Face the camera</div>
+      <div style="font-size:14px; color:rgba(255,255,255,0.5); margin-top:4px;">Keep a neutral expression</div>
+    </div>
+
+    <div style="flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; padding-bottom:140px;">
+      <div class="selfie-viewfinder">
+        <div class="selfie-ring animated"></div>
+        <div class="sim-face">
+          <div class="head"></div>
+          <div class="shoulders"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="capture-guidance">
+      <div class="guidance-pill scanning">
+        <span class="dot"></span>
+        Detecting face...
+      </div>
+      <p class="capture-hint">Position your face within the oval.<br>Keep a neutral expression. Auto-capture when ready.</p>
+    </div>
+
+    <div class="home-indicator"></div>
+  </div>
+
+  <!-- ========== SCREEN 8: SELFIE REVIEW ========== -->
+  <div id="selfie-review" class="screen review-screen">
+    <div class="status-bar dark">
+      <span>7:38</span>
+      <span>●●● ▪ ▪</span>
+    </div>
+
+    <div class="progress-bar progress-dark">
+      <div class="progress-step completed"></div>
+      <div class="progress-step completed"></div>
+      <div class="progress-step completed"></div>
+      <div class="progress-step current"></div>
+      <div class="progress-step"></div>
+    </div>
+
+    <div class="capture-top">
+      <div class="capture-close">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+      </div>
+      <div class="capture-title">
+        <h3>Review selfie</h3>
+      </div>
+      <div class="capture-spacer"></div>
+    </div>
+
+    <div style="display:flex; flex-direction:column; align-items:center; padding:16px 24px 0;">
+      <div style="font-size:24px; font-weight:700; color:#fff; letter-spacing:-0.5px;">Does this look like you?</div>
+      <div style="font-size:14px; color:rgba(255,255,255,0.5); margin-top:4px;">Check clarity and lighting</div>
+    </div>
+
+    <div style="flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; padding-bottom:140px;">
+      <div style="width:240px; height:300px; border-radius:50% 50% 50% 50% / 45% 45% 55% 55%; overflow:hidden; background:linear-gradient(180deg, #1e3a5f, #0f2640); position:relative; box-shadow: 0 8px 32px rgba(0,0,0,0.4);">
+        <div class="review-badge good" style="top:12px; right:12px;">
+          <span class="badge-dot"></span>
+          Face detected
+        </div>
+        <div class="sim-face">
+          <div class="head"></div>
+          <div class="shoulders"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="review-bottom">
+      <div class="review-checks" style="justify-content:center; margin-bottom:16px;">
+        <div class="review-check">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 13l4 4L19 7"/></svg>
+          Clear
+        </div>
+        <div class="review-check">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 13l4 4L19 7"/></svg>
+          Centered
+        </div>
+        <div class="review-check">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 13l4 4L19 7"/></svg>
+          Well-lit
+        </div>
+      </div>
+      <div class="btn-row">
+        <button class="btn-dark">Retake</button>
+        <button class="btn-primary teal">Use this</button>
+      </div>
+    </div>
+
+    <div class="home-indicator"></div>
+  </div>
+
+  <!-- ========== SCREEN 9: LIVENESS ========== -->
+  <div id="liveness" class="screen capture-screen">
+    <div class="status-bar dark">
+      <span>7:39</span>
+      <span>●●● ▪ ▪</span>
+    </div>
+
+    <div class="progress-bar progress-dark">
+      <div class="progress-step completed"></div>
+      <div class="progress-step completed"></div>
+      <div class="progress-step completed"></div>
+      <div class="progress-step completed"></div>
+      <div class="progress-step current"></div>
+    </div>
+
+    <div class="capture-top">
+      <div class="capture-close">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+      </div>
+      <div class="capture-title">
+        <h3>Liveness check</h3>
+      </div>
+      <div class="capture-spacer"></div>
+    </div>
+
+    <div style="display:flex; flex-direction:column; align-items:center; padding:16px 24px 0;">
+      <div style="font-size:24px; font-weight:700; color:#fff; letter-spacing:-0.5px;">Blink your eyes</div>
+      <div style="font-size:14px; color:rgba(255,255,255,0.5); margin-top:4px;">Blink naturally when ready</div>
+    </div>
+
+    <div style="flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; padding-bottom:140px;">
+      <div style="position:relative;">
+        <div class="liveness-camera">
+          <div class="sim-face">
+            <div class="head"></div>
+            <div class="shoulders"></div>
+          </div>
+        </div>
+        <div class="countdown-badge">3</div>
+        <!-- Progress ring border -->
+        <svg style="position:absolute; inset:-6px; width:calc(100% + 12px); height:calc(100% + 12px);" viewBox="0 0 252 312">
+          <ellipse cx="126" cy="156" rx="120" ry="148" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="4"/>
+          <ellipse cx="126" cy="156" rx="120" ry="148" fill="none" stroke="#0d9488" stroke-width="4" stroke-dasharray="840" stroke-dashoffset="560" stroke-linecap="round" transform="rotate(-90, 126, 156)"/>
+        </svg>
+      </div>
+    </div>
+
+    <div style="display:flex; flex-direction:column; align-items:center; gap:8px; padding:16px 0 40px;">
+      <div class="challenge-progress">
+        <div class="challenge-dot current"></div>
+        <div class="challenge-dot pending"></div>
+        <div class="challenge-dot pending"></div>
+      </div>
+      <div style="font-size:13px; color:rgba(255,255,255,0.5);">Challenge 1 of 3 &middot; Next in 2s</div>
+    </div>
+
+    <div class="home-indicator"></div>
+  </div>
+
+  <!-- ========== SCREEN 10: PROCESSING ========== -->
+  <div id="processing" class="screen processing-screen">
+    <div class="status-bar dark">
+      <span>7:39</span>
+      <span>●●● ▪ ▪</span>
+    </div>
+
+    <div class="processing-animation">
+      <div class="processing-ring"></div>
+      <div class="processing-ring inner"></div>
+      <div class="processing-ring core"></div>
+      <div class="processing-check">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
+      </div>
+    </div>
+
+    <div class="processing-title">Verifying your identity</div>
+    <div class="processing-subtitle">This will only take a moment</div>
+
+    <div class="processing-steps">
+      <div class="processing-step done">
+        <div class="processing-step-icon done">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 13l4 4L19 7"/></svg>
+        </div>
+        Document analyzed
+      </div>
+      <div class="processing-step active">
+        <div class="processing-step-icon active"></div>
+        Checking face match
+      </div>
+      <div class="processing-step pending">
+        <div class="processing-step-icon pending"></div>
+        Finalizing results
+      </div>
+    </div>
+
+    <div class="home-indicator"></div>
+  </div>
+
+  <!-- ========== SCREEN 11: SUCCESS (with scores) ========== -->
+  <div id="success" class="screen" style="background:#fff; color:#111; justify-content:flex-start; flex-direction:column;">
+    <div class="status-bar light">
+      <span>7:40</span>
+      <span>●●● ▪ ▪</span>
+    </div>
+
+    <div style="display:flex; flex-direction:column; align-items:center; padding: 12px 24px 0;">
+      <div class="success-icon-wrap" style="width:56px; height:56px; margin-bottom:10px;">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width:36px; height:36px;"><path d="M5 13l4 4L19 7"/></svg>
+      </div>
+      <div class="success-title" style="font-size:22px; margin-bottom:4px;">Verification approved</div>
+      <p style="font-size:14px; color:#888; text-align:center; margin-bottom:12px;">Your identity has been verified successfully.</p>
+    </div>
+
+    <!-- Overall score card -->
+    <div style="margin: 0 24px 10px; background: linear-gradient(135deg, #0d9488, #0f766e); border-radius:20px; padding:16px; color:#fff;">
+      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;">
+        <span style="font-size:14px; font-weight:500; opacity:0.8;">Overall Score</span>
+        <span style="font-size:13px; font-weight:600; background:rgba(255,255,255,0.2); padding:4px 12px; border-radius:12px;">PASSED</span>
+      </div>
+      <div style="display:flex; align-items:baseline; gap:4px; margin-bottom:8px;">
+        <span style="font-size:36px; font-weight:800; letter-spacing:-1px;">84%</span>
+      </div>
+      <div style="height:6px; background:rgba(255,255,255,0.2); border-radius:3px; overflow:hidden;">
+        <div style="height:100%; width:84%; background:#fff; border-radius:3px;"></div>
+      </div>
+    </div>
+
+    <!-- Individual score breakdown -->
+    <div style="padding: 0 24px; display:flex; flex-direction:column; gap:8px; flex:1;">
+      <!-- Liveness -->
+      <div style="display:flex; align-items:center; gap:14px; padding:10px 14px; background:#f8fafb; border-radius:14px;">
+        <div style="width:34px; height:34px; border-radius:10px; background:#dcfce7; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2"><path d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+        </div>
+        <div style="flex:1;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+            <span style="font-size:14px; font-weight:600; color:#111;">Liveness</span>
+            <span style="font-size:16px; font-weight:700; color:#16a34a;">93%</span>
+          </div>
+          <div style="height:4px; background:#e5e7eb; border-radius:2px; overflow:hidden;">
+            <div style="height:100%; width:93%; background:#16a34a; border-radius:2px;"></div>
+          </div>
+        </div>
+      </div>
+      <!-- Name match -->
+      <div style="display:flex; align-items:center; gap:14px; padding:10px 14px; background:#f8fafb; border-radius:14px;">
+        <div style="width:34px; height:34px; border-radius:10px; background:#dcfce7; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2"><path d="M5 13l4 4L19 7"/></svg>
+        </div>
+        <div style="flex:1;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+            <span style="font-size:14px; font-weight:600; color:#111;">Name Match</span>
+            <span style="font-size:16px; font-weight:700; color:#16a34a;">100%</span>
+          </div>
+          <div style="height:4px; background:#e5e7eb; border-radius:2px; overflow:hidden;">
+            <div style="height:100%; width:100%; background:#16a34a; border-radius:2px;"></div>
+          </div>
+        </div>
+      </div>
+      <!-- Document quality -->
+      <div style="display:flex; align-items:center; gap:14px; padding:10px 14px; background:#f8fafb; border-radius:14px;">
+        <div style="width:34px; height:34px; border-radius:10px; background:#dcfce7; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2"><rect x="3" y="4" width="18" height="14" rx="2"/><path d="M3 10h18"/></svg>
+        </div>
+        <div style="flex:1;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+            <span style="font-size:14px; font-weight:600; color:#111;">Document Quality</span>
+            <span style="font-size:16px; font-weight:700; color:#16a34a;">85%</span>
+          </div>
+          <div style="height:4px; background:#e5e7eb; border-radius:2px; overflow:hidden;">
+            <div style="height:100%; width:85%; background:#16a34a; border-radius:2px;"></div>
+          </div>
+        </div>
+      </div>
+      <!-- Selfie match -->
+      <div style="display:flex; align-items:center; gap:14px; padding:10px 14px; background:#f8fafb; border-radius:14px;">
+        <div style="width:34px; height:34px; border-radius:10px; background:#fef9c3; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ca8a04" stroke-width="2"><path d="M12 14c3.314 0 6-2 6-5s-2.686-5-6-5-6 2-6 5 2.686 5 6 5z"/><path d="M6 21v-1a6 6 0 0112 0v1"/></svg>
+        </div>
+        <div style="flex:1;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+            <span style="font-size:14px; font-weight:600; color:#111;">Selfie Match</span>
+            <span style="font-size:16px; font-weight:700; color:#ca8a04;">80%</span>
+          </div>
+          <div style="height:4px; background:#e5e7eb; border-radius:2px; overflow:hidden;">
+            <div style="height:100%; width:80%; background:#ca8a04; border-radius:2px;"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="bottom-action" style="flex-shrink:0;">
+      <button class="btn-primary teal">Done</button>
+    </div>
+
+    <div class="home-indicator dark"></div>
+  </div>
+
+  <!-- ========== SCREEN 12: REJECTED (with scores) ========== -->
+  <div id="error" class="screen" style="background:#fff; color:#111; flex-direction:column;">
+    <div class="status-bar light">
+      <span>7:40</span>
+      <span>●●● ▪ ▪</span>
+    </div>
+
+    <div style="display:flex; flex-direction:column; align-items:center; padding: 12px 24px 0;">
+      <div class="error-icon-wrap" style="width:56px; height:56px; margin-bottom:10px;">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:36px; height:36px;"><path d="M18 6L6 18M6 6l12 12"/></svg>
+      </div>
+      <div class="success-title" style="font-size:22px; margin-bottom:4px;">Verification rejected</div>
+      <p style="font-size:14px; color:#888; text-align:center; margin-bottom:12px;">Some checks didn't meet the required threshold.</p>
+    </div>
+
+    <!-- Overall score card - FAILED -->
+    <div style="margin: 0 24px 10px; background: linear-gradient(135deg, #dc2626, #b91c1c); border-radius:20px; padding:16px; color:#fff;">
+      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;">
+        <span style="font-size:14px; font-weight:500; opacity:0.8;">Overall Score</span>
+        <span style="font-size:13px; font-weight:600; background:rgba(255,255,255,0.2); padding:4px 12px; border-radius:12px;">REJECTED</span>
+      </div>
+      <div style="display:flex; align-items:baseline; gap:4px; margin-bottom:8px;">
+        <span style="font-size:36px; font-weight:800; letter-spacing:-1px;">42%</span>
+      </div>
+      <div style="height:6px; background:rgba(255,255,255,0.2); border-radius:3px; overflow:hidden;">
+        <div style="height:100%; width:42%; background:#fff; border-radius:3px;"></div>
+      </div>
+    </div>
+
+    <!-- Score breakdown with failures highlighted -->
+    <div style="padding: 0 24px; display:flex; flex-direction:column; gap:8px; flex:1;">
+      <!-- Liveness - FAILED -->
+      <div style="display:flex; align-items:center; gap:14px; padding:10px 14px; background:#fef2f2; border-radius:14px; border-left: 3px solid #dc2626;">
+        <div style="width:34px; height:34px; border-radius:10px; background:#fecaca; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#dc2626" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+        </div>
+        <div style="flex:1;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+            <span style="font-size:14px; font-weight:600; color:#111;">Liveness</span>
+            <span style="font-size:16px; font-weight:700; color:#dc2626;">28%</span>
+          </div>
+          <div style="height:4px; background:#fecaca; border-radius:2px; overflow:hidden;">
+            <div style="height:100%; width:28%; background:#dc2626; border-radius:2px;"></div>
+          </div>
+          <p style="font-size:12px; color:#dc2626; margin-top:4px;">Failed — possible spoof detected</p>
+        </div>
+      </div>
+      <!-- Name match - OK -->
+      <div style="display:flex; align-items:center; gap:14px; padding:10px 14px; background:#f8fafb; border-radius:14px;">
+        <div style="width:34px; height:34px; border-radius:10px; background:#dcfce7; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2"><path d="M5 13l4 4L19 7"/></svg>
+        </div>
+        <div style="flex:1;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+            <span style="font-size:14px; font-weight:600; color:#111;">Name Match</span>
+            <span style="font-size:16px; font-weight:700; color:#16a34a;">100%</span>
+          </div>
+          <div style="height:4px; background:#e5e7eb; border-radius:2px; overflow:hidden;">
+            <div style="height:100%; width:100%; background:#16a34a; border-radius:2px;"></div>
+          </div>
+        </div>
+      </div>
+      <!-- Document quality - OK -->
+      <div style="display:flex; align-items:center; gap:14px; padding:10px 14px; background:#f8fafb; border-radius:14px;">
+        <div style="width:34px; height:34px; border-radius:10px; background:#dcfce7; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2"><path d="M5 13l4 4L19 7"/></svg>
+        </div>
+        <div style="flex:1;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+            <span style="font-size:14px; font-weight:600; color:#111;">Document Quality</span>
+            <span style="font-size:16px; font-weight:700; color:#16a34a;">72%</span>
+          </div>
+          <div style="height:4px; background:#e5e7eb; border-radius:2px; overflow:hidden;">
+            <div style="height:100%; width:72%; background:#16a34a; border-radius:2px;"></div>
+          </div>
+        </div>
+      </div>
+      <!-- Selfie match - FAILED -->
+      <div style="display:flex; align-items:center; gap:14px; padding:10px 14px; background:#fef2f2; border-radius:14px; border-left: 3px solid #dc2626;">
+        <div style="width:34px; height:34px; border-radius:10px; background:#fecaca; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#dc2626" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+        </div>
+        <div style="flex:1;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+            <span style="font-size:14px; font-weight:600; color:#111;">Selfie Match</span>
+            <span style="font-size:16px; font-weight:700; color:#dc2626;">35%</span>
+          </div>
+          <div style="height:4px; background:#fecaca; border-radius:2px; overflow:hidden;">
+            <div style="height:100%; width:35%; background:#dc2626; border-radius:2px;"></div>
+          </div>
+          <p style="font-size:12px; color:#dc2626; margin-top:4px;">Face does not match ID photo</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="bottom-action" style="flex-shrink:0;">
+      <button class="btn-primary teal">Try again</button>
+    </div>
+
+    <div class="home-indicator dark"></div>
+  </div>
+
+  <!-- ========== SCREEN 13: EXPIRED DOCUMENT ========== -->
+  <div id="expired" class="screen" style="background:#fff; color:#111; flex-direction:column;">
+    <div class="status-bar light">
+      <span>7:40</span>
+      <span>●●● ▪ ▪</span>
+    </div>
+
+    <div style="display:flex; flex-direction:column; align-items:center; padding: 24px 24px 0;">
+      <!-- Warning icon -->
+      <div style="width:56px; height:56px; border-radius:50%; background:#fef3c7; display:flex; align-items:center; justify-content:center; margin-bottom:16px; position:relative;">
+        <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#d97706" stroke-width="2"><path d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        <div style="position:absolute; inset:-8px; border-radius:50%; border:2px solid #fde68a;"></div>
+      </div>
+      <div style="font-size:22px; font-weight:700; letter-spacing:-0.5px; margin-bottom:4px;">Document expired</div>
+      <p style="font-size:14px; color:#888; text-align:center; margin-bottom:20px; line-height:1.5;">The document you submitted has expired and cannot be used for verification.</p>
+    </div>
+
+    <!-- Expiration details card -->
+    <div style="margin: 0 24px 16px; background:#fef3c7; border-radius:16px; padding:20px; border: 1px solid #fde68a;">
+      <div style="display:flex; align-items:center; gap:12px; margin-bottom:14px;">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#92400e" stroke-width="2"><rect x="3" y="4" width="18" height="14" rx="2"/><path d="M3 10h18"/></svg>
+        <div>
+          <div style="font-size:15px; font-weight:600; color:#92400e;">Driver's License</div>
+          <div style="font-size:13px; color:#a16207;">United States</div>
+        </div>
+      </div>
+      <div style="display:flex; justify-content:space-between; padding-top:12px; border-top:1px solid #fde68a;">
+        <div>
+          <div style="font-size:12px; color:#a16207; font-weight:500;">EXPIRED ON</div>
+          <div style="font-size:18px; font-weight:700; color:#92400e; margin-top:2px;">March 15, 2025</div>
+        </div>
+        <div style="display:flex; align-items:center; gap:6px; padding: 6px 14px; background:#fecaca; border-radius:12px; height:fit-content; align-self:center;">
+          <div style="width:6px; height:6px; border-radius:50%; background:#dc2626;"></div>
+          <span style="font-size:12px; font-weight:600; color:#dc2626;">11 months ago</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Guidance tips -->
+    <div style="padding: 0 24px; flex:1; overflow-y:auto;">
+      <div style="font-size:14px; font-weight:600; color:#111; margin-bottom:12px;">What you can do:</div>
+
+      <div style="display:flex; flex-direction:column; gap:10px;">
+        <div style="display:flex; align-items:flex-start; gap:12px; padding:14px; background:#f8fafb; border-radius:14px;">
+          <div style="width:28px; height:28px; border-radius:50%; background:#e0f2fe; display:flex; align-items:center; justify-content:center; flex-shrink:0; margin-top:1px;">
+            <span style="font-size:14px;">1</span>
+          </div>
+          <div>
+            <div style="font-size:14px; font-weight:600; color:#111;">Check your document's expiration date</div>
+            <div style="font-size:13px; color:#888; margin-top:2px;">Look for the expiry date printed on your ID card or license.</div>
+          </div>
+        </div>
+
+        <div style="display:flex; align-items:flex-start; gap:12px; padding:14px; background:#f8fafb; border-radius:14px;">
+          <div style="width:28px; height:28px; border-radius:50%; background:#e0f2fe; display:flex; align-items:center; justify-content:center; flex-shrink:0; margin-top:1px;">
+            <span style="font-size:14px;">2</span>
+          </div>
+          <div>
+            <div style="font-size:14px; font-weight:600; color:#111;">Use a different valid document</div>
+            <div style="font-size:13px; color:#888; margin-top:2px;">Try a passport, state ID, or any other unexpired government-issued ID.</div>
+          </div>
+        </div>
+
+        <div style="display:flex; align-items:flex-start; gap:12px; padding:14px; background:#f8fafb; border-radius:14px;">
+          <div style="width:28px; height:28px; border-radius:50%; background:#e0f2fe; display:flex; align-items:center; justify-content:center; flex-shrink:0; margin-top:1px;">
+            <span style="font-size:14px;">3</span>
+          </div>
+          <div>
+            <div style="font-size:14px; font-weight:600; color:#111;">Renew your document first</div>
+            <div style="font-size:13px; color:#888; margin-top:2px;">Visit your local DMV or government office to renew, then try again.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="bottom-action" style="flex-shrink:0;">
+      <button class="btn-primary teal">Try with a valid document</button>
+    </div>
+
+    <div class="home-indicator dark"></div>
+  </div>
+
+  <!-- ========== SCREEN 14: MANUAL REVIEW (with scores) ========== -->
+  <div id="manual-review" class="screen" style="background:#fff; color:#111; flex-direction:column;">
+    <div class="status-bar light">
+      <span>7:40</span>
+      <span>●●● ▪ ▪</span>
+    </div>
+
+    <div style="display:flex; flex-direction:column; align-items:center; padding: 12px 24px 0;">
+      <div style="width:56px; height:56px; border-radius:50%; background:#e0f2fe; display:flex; align-items:center; justify-content:center; margin-bottom:16px; position:relative;">
+        <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#0284c7" stroke-width="2"><path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        <div style="position:absolute; inset:-8px; border-radius:50%; border:2px solid #bae6fd;"></div>
+      </div>
+      <div style="font-size:22px; font-weight:700; letter-spacing:-0.5px; margin-bottom:4px;">Under review</div>
+      <p style="font-size:14px; color:#888; text-align:center; margin-bottom:12px; line-height:1.5;">Your submission needs manual review. This typically takes 1-2 business days.</p>
+    </div>
+
+    <!-- Score card - REVIEW -->
+    <div style="margin: 0 24px 10px; background: linear-gradient(135deg, #0284c7, #0369a1); border-radius:20px; padding:16px; color:#fff;">
+      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;">
+        <span style="font-size:14px; font-weight:500; opacity:0.8;">Overall Score</span>
+        <span style="font-size:13px; font-weight:600; background:rgba(255,255,255,0.2); padding:4px 12px; border-radius:12px;">REVIEW</span>
+      </div>
+      <div style="display:flex; align-items:baseline; gap:4px; margin-bottom:8px;">
+        <span style="font-size:36px; font-weight:800; letter-spacing:-1px;">68%</span>
+      </div>
+      <div style="height:6px; background:rgba(255,255,255,0.2); border-radius:3px; overflow:hidden;">
+        <div style="height:100%; width:68%; background:#fff; border-radius:3px;"></div>
+      </div>
+    </div>
+
+    <!-- Scores with borderline highlighted -->
+    <div style="padding: 0 24px; display:flex; flex-direction:column; gap:8px; flex:1;">
+      <!-- Liveness - OK -->
+      <div style="display:flex; align-items:center; gap:14px; padding:10px 14px; background:#f8fafb; border-radius:14px;">
+        <div style="width:34px; height:34px; border-radius:10px; background:#dcfce7; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2"><path d="M5 13l4 4L19 7"/></svg>
+        </div>
+        <div style="flex:1;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+            <span style="font-size:14px; font-weight:600; color:#111;">Liveness</span>
+            <span style="font-size:16px; font-weight:700; color:#16a34a;">88%</span>
+          </div>
+          <div style="height:4px; background:#e5e7eb; border-radius:2px; overflow:hidden;">
+            <div style="height:100%; width:88%; background:#16a34a; border-radius:2px;"></div>
+          </div>
+        </div>
+      </div>
+      <!-- Name Match - OK -->
+      <div style="display:flex; align-items:center; gap:14px; padding:10px 14px; background:#f8fafb; border-radius:14px;">
+        <div style="width:34px; height:34px; border-radius:10px; background:#dcfce7; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2"><path d="M5 13l4 4L19 7"/></svg>
+        </div>
+        <div style="flex:1;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+            <span style="font-size:14px; font-weight:600; color:#111;">Name Match</span>
+            <span style="font-size:16px; font-weight:700; color:#16a34a;">100%</span>
+          </div>
+          <div style="height:4px; background:#e5e7eb; border-radius:2px; overflow:hidden;">
+            <div style="height:100%; width:100%; background:#16a34a; border-radius:2px;"></div>
+          </div>
+        </div>
+      </div>
+      <!-- Document Quality - OK -->
+      <div style="display:flex; align-items:center; gap:14px; padding:10px 14px; background:#f8fafb; border-radius:14px;">
+        <div style="width:34px; height:34px; border-radius:10px; background:#dcfce7; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2"><path d="M5 13l4 4L19 7"/></svg>
+        </div>
+        <div style="flex:1;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+            <span style="font-size:14px; font-weight:600; color:#111;">Document Quality</span>
+            <span style="font-size:16px; font-weight:700; color:#16a34a;">78%</span>
+          </div>
+          <div style="height:4px; background:#e5e7eb; border-radius:2px; overflow:hidden;">
+            <div style="height:100%; width:78%; background:#16a34a; border-radius:2px;"></div>
+          </div>
+        </div>
+      </div>
+      <!-- Selfie Match - BORDERLINE -->
+      <div style="display:flex; align-items:center; gap:14px; padding:10px 14px; background:#fffbeb; border-radius:14px; border-left: 3px solid #d97706;">
+        <div style="width:34px; height:34px; border-radius:10px; background:#fef3c7; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#d97706" stroke-width="2"><path d="M12 9v2m0 4h.01"/></svg>
+        </div>
+        <div style="flex:1;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+            <span style="font-size:14px; font-weight:600; color:#111;">Selfie Match</span>
+            <span style="font-size:16px; font-weight:700; color:#d97706;">62%</span>
+          </div>
+          <div style="height:4px; background:#fde68a; border-radius:2px; overflow:hidden;">
+            <div style="height:100%; width:62%; background:#d97706; border-radius:2px;"></div>
+          </div>
+          <p style="font-size:12px; color:#d97706; margin-top:4px;">Below auto-approval threshold — requires human review</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="bottom-action" style="flex-shrink:0;">
+      <button class="btn-primary teal">Got it</button>
+    </div>
+
+    <div class="home-indicator dark"></div>
+  </div>
+
+</div>
+
+<p class="screen-label" id="screen-label">Screen 1 of 14 — Consent</p>
+
+<script>
+const screens = [
+  { id: 'consent', label: 'Consent' },
+  { id: 'country', label: 'Country Selection' },
+  { id: 'doctype', label: 'Document Type' },
+  { id: 'capture-front', label: 'Document Capture (Front)' },
+  { id: 'capture-back', label: 'Document Capture (Back)' },
+  { id: 'review', label: 'Document Review' },
+  { id: 'selfie', label: 'Selfie Capture' },
+  { id: 'selfie-review', label: 'Selfie Review' },
+  { id: 'liveness', label: 'Liveness Challenge' },
+  { id: 'processing', label: 'Processing' },
+  { id: 'success', label: 'Success' },
+  { id: 'error', label: 'Rejected' },
+  { id: 'expired', label: 'Expired Document' },
+  { id: 'manual-review', label: 'Manual Review' },
+];
+
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  document.querySelectorAll('.nav button').forEach(b => b.classList.remove('active'));
+  const idx = screens.findIndex(s => s.id === id);
+  document.querySelectorAll('.nav button')[idx].classList.add('active');
+  document.getElementById('screen-label').textContent = `Screen ${idx + 1} of ${screens.length} — ${screens[idx].label}`;
+}
+</script>
+
+</body>
+</html>
