@@ -1,7 +1,6 @@
 package com.koraidv.sdk.api
 
-import okhttp3.MultipartBody
-import okhttp3.RequestBody
+import com.google.gson.annotations.SerializedName
 import retrofit2.Response
 import retrofit2.http.*
 
@@ -21,30 +20,24 @@ internal interface ApiService {
         @Path("id") id: String
     ): Response<VerificationResponse>
 
-    // Document endpoints
-    @Multipart
+    // Document endpoints (JSON with base64 image)
     @POST("verifications/{id}/document")
     suspend fun uploadDocument(
         @Path("id") verificationId: String,
-        @Part image: MultipartBody.Part,
-        @Part("document_type") documentType: RequestBody,
-        @Part("side") side: RequestBody
+        @Body request: UploadDocumentRequest
     ): Response<DocumentUploadResponse>
 
-    @Multipart
     @POST("verifications/{id}/document/back")
     suspend fun uploadDocumentBack(
         @Path("id") verificationId: String,
-        @Part image: MultipartBody.Part,
-        @Part("document_type") documentType: RequestBody
+        @Body request: UploadDocumentBackRequest
     ): Response<DocumentUploadResponse>
 
-    // Selfie endpoint
-    @Multipart
+    // Selfie endpoint (JSON with base64 image)
     @POST("verifications/{id}/selfie")
     suspend fun uploadSelfie(
         @Path("id") verificationId: String,
-        @Part image: MultipartBody.Part
+        @Body request: UploadSelfieRequest
     ): Response<SelfieUploadResponse>
 
     // Liveness endpoints
@@ -53,67 +46,120 @@ internal interface ApiService {
         @Path("id") verificationId: String
     ): Response<LivenessSessionResponse>
 
-    @Multipart
     @POST("verifications/{id}/liveness/challenge")
     suspend fun submitLivenessChallenge(
         @Path("id") verificationId: String,
-        @Part image: MultipartBody.Part,
-        @Part("challenge_type") challengeType: RequestBody,
-        @Part("challenge_id") challengeId: RequestBody
+        @Body request: SubmitLivenessChallengeRequest
     ): Response<LivenessChallengeResponse>
 
     // Complete verification
     @POST("verifications/{id}/complete")
     suspend fun completeVerification(
-        @Path("id") verificationId: String
+        @Path("id") verificationId: String,
+        @Body request: CompleteVerificationRequest? = null
     ): Response<VerificationResponse>
+
+    // Document types
+    @GET("document-types")
+    suspend fun getDocumentTypes(
+        @Query("country") country: String? = null
+    ): Response<DocumentTypesResponse>
 }
 
-// Request/Response models
+// ===== Request models =====
+
 data class CreateVerificationRequest(
-    val external_id: String,
-    val tier: String
+    @SerializedName("externalId") val externalId: String,
+    val tier: String,
+    @SerializedName("expectedFirstName") val expectedFirstName: String? = null,
+    @SerializedName("expectedLastName") val expectedLastName: String? = null
 )
+
+data class UploadDocumentRequest(
+    @SerializedName("documentType") val documentType: String,
+    @SerializedName("imageBase64") val imageBase64: String
+)
+
+data class UploadDocumentBackRequest(
+    @SerializedName("imageBase64") val imageBase64: String
+)
+
+data class UploadSelfieRequest(
+    @SerializedName("imageBase64") val imageBase64: String
+)
+
+data class SubmitLivenessChallengeRequest(
+    @SerializedName("challengeType") val challengeType: String,
+    @SerializedName("imageBase64") val imageBase64: String
+)
+
+data class CompleteVerificationRequest(
+    @SerializedName("liveness") val liveness: InlineLivenessData? = null
+)
+
+data class InlineLivenessData(
+    @SerializedName("challenges") val challenges: List<InlineLivenessChallenge>
+)
+
+data class InlineLivenessChallenge(
+    @SerializedName("type") val type: String,
+    @SerializedName("passed") val passed: Boolean,
+    @SerializedName("imageBase64") val imageBase64: String?
+)
+
+// ===== Response models =====
 
 data class VerificationResponse(
     val id: String,
-    val external_id: String,
-    val tenant_id: String,
+    @SerializedName("externalId") val externalId: String?,
+    @SerializedName("tenantId") val tenantId: String?,
     val tier: String,
     val status: String,
-    val document_verification: DocumentVerificationResponse?,
-    val face_verification: FaceVerificationResponse?,
-    val liveness_verification: LivenessVerificationResponse?,
-    val risk_signals: List<RiskSignalResponse>?,
-    val risk_score: Int?,
-    val created_at: String,
-    val updated_at: String,
-    val completed_at: String?
+    @SerializedName("documentVerification") val documentVerification: DocumentVerificationResponse?,
+    @SerializedName("faceVerification") val faceVerification: FaceVerificationResponse?,
+    @SerializedName("livenessVerification") val livenessVerification: LivenessVerificationResponse?,
+    @SerializedName("scores") val scores: VerificationScoresResponse?,
+    @SerializedName("riskSignals") val riskSignals: List<RiskSignalResponse>?,
+    @SerializedName("riskScore") val riskScore: Int?,
+    @SerializedName("createdAt") val createdAt: String,
+    @SerializedName("updatedAt") val updatedAt: String,
+    @SerializedName("completedAt") val completedAt: String?
+)
+
+data class VerificationScoresResponse(
+    @SerializedName("documentQuality") val documentQuality: Double?,
+    @SerializedName("documentAuth") val documentAuth: Double?,
+    @SerializedName("faceMatch") val faceMatch: Double?,
+    @SerializedName("liveness") val liveness: Double?,
+    @SerializedName("nameMatch") val nameMatch: Double?,
+    @SerializedName("dataConsistency") val dataConsistency: Double?,
+    @SerializedName("complianceScore") val complianceScore: Double?,
+    @SerializedName("overall") val overall: Double?
 )
 
 data class DocumentVerificationResponse(
-    val document_type: String,
-    val document_number: String?,
-    val first_name: String?,
-    val last_name: String?,
-    val date_of_birth: String?,
-    val expiration_date: String?,
-    val issuing_country: String?,
-    val mrz_valid: Boolean?,
-    val authenticity_score: Double?,
-    val extracted_fields: Map<String, String>?
+    @SerializedName("documentType") val documentType: String,
+    @SerializedName("documentNumber") val documentNumber: String?,
+    @SerializedName("firstName") val firstName: String?,
+    @SerializedName("lastName") val lastName: String?,
+    @SerializedName("dateOfBirth") val dateOfBirth: String?,
+    @SerializedName("expirationDate") val expirationDate: String?,
+    @SerializedName("issuingCountry") val issuingCountry: String?,
+    @SerializedName("mrzValid") val mrzValid: Boolean?,
+    @SerializedName("authenticityScore") val authenticityScore: Double?,
+    @SerializedName("extractedFields") val extractedFields: Map<String, String>?
 )
 
 data class FaceVerificationResponse(
-    val match_score: Double,
-    val match_result: String,
+    @SerializedName("matchScore") val matchScore: Double,
+    @SerializedName("matchResult") val matchResult: String,
     val confidence: Double
 )
 
 data class LivenessVerificationResponse(
-    val liveness_score: Double,
-    val is_live: Boolean,
-    val challenge_results: List<ChallengeResultResponse>?
+    @SerializedName("livenessScore") val livenessScore: Double,
+    @SerializedName("isLive") val isLive: Boolean,
+    @SerializedName("challengeResults") val challengeResults: List<ChallengeResultResponse>?
 )
 
 data class ChallengeResultResponse(
@@ -128,44 +174,91 @@ data class RiskSignalResponse(
     val message: String
 )
 
+// Document upload response - matches server's ProcessDocumentResult
 data class DocumentUploadResponse(
-    val success: Boolean,
-    val document_id: String?,
-    val quality_score: Double?,
-    val quality_issues: List<QualityIssueResponse>?,
-    val extracted_data: DocumentVerificationResponse?
+    @SerializedName("documentId") val documentId: String?,
+    @SerializedName("documentType") val documentType: String?,
+    @SerializedName("qualityScore") val qualityScore: Double?,
+    @SerializedName("ocrResult") val ocrResult: OcrResultResponse?,
+    @SerializedName("extractedData") val extractedData: Map<String, Any>?,
+    @SerializedName("warnings") val warnings: List<String>?,
+    @SerializedName("imagePersisted") val imagePersisted: Boolean?
 )
 
-data class QualityIssueResponse(
-    val type: String,
-    val message: String,
-    val severity: String
+data class OcrResultResponse(
+    @SerializedName("fullText") val fullText: String?,
+    @SerializedName("fields") val fields: Map<String, String>?,
+    @SerializedName("mrzData") val mrzData: Map<String, String>?
 )
 
+// Selfie upload response - matches server's ProcessSelfieResult
 data class SelfieUploadResponse(
-    val success: Boolean,
-    val selfie_id: String?,
-    val face_detected: Boolean,
-    val quality_score: Double?,
-    val quality_issues: List<QualityIssueResponse>?
+    @SerializedName("faceDetected") val faceDetected: Boolean,
+    @SerializedName("faceCount") val faceCount: Int?,
+    @SerializedName("qualityScore") val qualityScore: Double?,
+    @SerializedName("qualityIssues") val qualityIssues: List<String>?,
+    @SerializedName("faceMatch") val faceMatch: FaceMatchResponse?,
+    @SerializedName("warnings") val warnings: List<String>?,
+    @SerializedName("imagePersisted") val imagePersisted: Boolean?
 )
 
+data class FaceMatchResponse(
+    @SerializedName("matched") val matched: Boolean,
+    @SerializedName("score") val score: Double?,
+    @SerializedName("confidence") val confidence: String?
+)
+
+// Liveness session response - matches server's LivenessSession
 data class LivenessSessionResponse(
-    val session_id: String,
-    val challenges: List<LivenessChallengeDto>,
-    val expires_at: String
-)
-
-data class LivenessChallengeDto(
     val id: String,
-    val type: String,
-    val instruction: String,
-    val order: Int
+    @SerializedName("verificationId") val verificationId: String?,
+    val challenges: List<LivenessChallengeDto>,
+    @SerializedName("overallScore") val overallScore: Double?,
+    val passed: Boolean?,
+    @SerializedName("createdAt") val createdAt: String?
 )
 
+// Liveness challenge DTO - matches server's LivenessChallenge
+data class LivenessChallengeDto(
+    val type: String,
+    val completed: Boolean,
+    val score: Double?,
+    @SerializedName("attemptedAt") val attemptedAt: String?
+)
+
+// Liveness challenge response - matches server's SubmitLivenessChallenge result
 data class LivenessChallengeResponse(
-    val success: Boolean,
-    val challenge_passed: Boolean,
-    val confidence: Double,
-    val remaining_challenges: Int
+    val type: String?,
+    val completed: Boolean?,
+    val score: Double?,
+    @SerializedName("overallScore") val overallScore: Double?,
+    val passed: Boolean?,
+    @SerializedName("remainingChallenges") val remainingChallenges: Int?,
+    @SerializedName("imagePersisted") val imagePersisted: Boolean?
+)
+
+// Document types response
+data class DocumentTypesResponse(
+    val success: Boolean?,
+    @SerializedName("documentTypes") val documentTypes: List<DocumentTypeInfoResponse>?,
+    val countries: List<CountryResponse>?,
+    val total: Int?
+)
+
+data class DocumentTypeInfoResponse(
+    val id: String?,
+    @SerializedName("type") val code: String,
+    @SerializedName("name") val displayName: String,
+    val description: String?,
+    val country: String?,
+    @SerializedName("countryName") val countryName: String?,
+    @SerializedName("requiresBack") val requiresBack: Boolean,
+    val category: String?,
+    val active: Boolean?
+)
+
+data class CountryResponse(
+    val code: String,
+    val name: String,
+    @SerializedName("flagEmoji") val flagEmoji: String?
 )

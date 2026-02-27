@@ -30,7 +30,7 @@ dependencyResolutionManagement {
 
 ```kotlin
 dependencies {
-    implementation("com.github.badedokun:koraidv-koraidv-android:v1.0.2")
+    implementation("com.github.badedokun:koraidv-koraidv-android:v1.1.0")
 }
 ```
 
@@ -47,7 +47,7 @@ If using version catalogs, add to `libs.versions.toml`:
 
 ```toml
 [versions]
-koraidv = "v1.0.2"
+koraidv = "v1.1.0"
 
 [libraries]
 koraidv = { group = "com.github.badedokun", name = "koraidv-koraidv-android", version.ref = "koraidv" }
@@ -142,6 +142,7 @@ verificationLauncher.launch(
 | `apiKey` | String | Your Kora IDV API key (required, starts with `kora_`) |
 | `tenantId` | String | Your tenant UUID (required) |
 | `environment` | Environment | `PRODUCTION` or `SANDBOX` |
+| `baseUrl` | String? | Custom base URL override (e.g., for self-hosted deployments) |
 | `documentTypes` | List<DocumentType> | Allowed document types |
 | `livenessMode` | LivenessMode | `PASSIVE` or `ACTIVE` |
 | `theme` | KoraTheme | UI customization |
@@ -329,6 +330,16 @@ class MainActivity : FlutterActivity() {
 ```
 
 ## Changelog
+
+### v1.1.0
+- Added `imagePersisted` field to `DocumentUploadResponse`, `SelfieUploadResponse`, and `LivenessChallengeResponse`
+- Confirms whether captured images were durably stored server-side for regulatory compliance
+- Aligned version numbering with iOS SDK
+
+### v1.0.3
+- Added `baseUrl` configuration option for custom API endpoint override
+- Added `kora_sandbox_` API key prefix detection for automatic sandbox environment
+- Fixed API connectivity when using self-hosted or Cloud Run deployments
 
 ### v1.0.2
 - Fixed deprecated `Icons.Default.KeyboardArrowLeft` (use AutoMirrored version)

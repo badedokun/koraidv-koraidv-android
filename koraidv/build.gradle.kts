@@ -8,7 +8,7 @@ plugins {
 
 android {
     namespace = "com.koraidv.sdk"
-    compileSdk = 34
+    compileSdk = 35
 
     defaultConfig {
         minSdk = 24
@@ -19,14 +19,12 @@ android {
     buildTypes {
         release {
             isMinifyEnabled = false
-            proguardFiles(
-                getDefaultProguardFile("proguard-android-optimize.txt"),
-                "proguard-rules.pro"
-            )
+            consumerProguardFiles("consumer-rules.pro")
         }
     }
 
     compileOptions {
+        isCoreLibraryDesugaringEnabled = true
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
@@ -37,6 +35,13 @@ android {
 
     buildFeatures {
         compose = true
+    }
+
+    testOptions {
+        unitTests {
+            isIncludeAndroidResources = true
+            isReturnDefaultValues = true
+        }
     }
 }
 
@@ -76,8 +81,18 @@ dependencies {
     implementation(libs.coroutines.core)
     implementation(libs.coroutines.android)
 
+    // Java 8+ API desugaring (java.time on API < 26)
+    coreLibraryDesugaring(libs.desugar.jdk.libs)
+
     // Testing
     testImplementation(libs.junit)
+    testImplementation(libs.mockk)
+    testImplementation(libs.robolectric)
+    testImplementation(libs.mockwebserver)
+    testImplementation(libs.truth)
+    testImplementation(libs.coroutines.test)
+    testImplementation(libs.retrofit)
+    testImplementation(libs.retrofit.gson)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso)
     debugImplementation(libs.androidx.compose.ui.tooling)
@@ -88,7 +103,7 @@ publishing {
         register<MavenPublication>("release") {
             groupId = "com.koraidv"
             artifactId = "sdk"
-            version = "1.0.0"
+            version = "1.1.0"
 
             afterEvaluate {
                 from(components["release"])
