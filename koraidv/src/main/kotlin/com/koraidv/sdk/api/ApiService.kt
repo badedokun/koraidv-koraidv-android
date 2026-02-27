@@ -181,7 +181,8 @@ data class DocumentUploadResponse(
     @SerializedName("qualityScore") val qualityScore: Double?,
     @SerializedName("ocrResult") val ocrResult: OcrResultResponse?,
     @SerializedName("extractedData") val extractedData: Map<String, Any>?,
-    @SerializedName("warnings") val warnings: List<String>?
+    @SerializedName("warnings") val warnings: List<String>?,
+    @SerializedName("imagePersisted") val imagePersisted: Boolean?
 )
 
 data class OcrResultResponse(
@@ -197,7 +198,8 @@ data class SelfieUploadResponse(
     @SerializedName("qualityScore") val qualityScore: Double?,
     @SerializedName("qualityIssues") val qualityIssues: List<String>?,
     @SerializedName("faceMatch") val faceMatch: FaceMatchResponse?,
-    @SerializedName("warnings") val warnings: List<String>?
+    @SerializedName("warnings") val warnings: List<String>?,
+    @SerializedName("imagePersisted") val imagePersisted: Boolean?
 )
 
 data class FaceMatchResponse(
@@ -231,7 +233,8 @@ data class LivenessChallengeResponse(
     val score: Double?,
     @SerializedName("overallScore") val overallScore: Double?,
     val passed: Boolean?,
-    @SerializedName("remainingChallenges") val remainingChallenges: Int?
+    @SerializedName("remainingChallenges") val remainingChallenges: Int?,
+    @SerializedName("imagePersisted") val imagePersisted: Boolean?
 )
 
 // Document types response
