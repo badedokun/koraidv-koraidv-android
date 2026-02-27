@@ -30,7 +30,7 @@ dependencyResolutionManagement {
 
 ```kotlin
 dependencies {
-    implementation("com.github.badedokun:koraidv-koraidv-android:v1.0.3")
+    implementation("com.github.badedokun:koraidv-koraidv-android:v1.1.0")
 }
 ```
 
@@ -47,7 +47,7 @@ If using version catalogs, add to `libs.versions.toml`:
 
 ```toml
 [versions]
-koraidv = "v1.0.3"
+koraidv = "v1.1.0"
 
 [libraries]
 koraidv = { group = "com.github.badedokun", name = "koraidv-koraidv-android", version.ref = "koraidv" }
@@ -330,6 +330,11 @@ class MainActivity : FlutterActivity() {
 ```
 
 ## Changelog
+
+### v1.1.0
+- Added `imagePersisted` field to `DocumentUploadResponse`, `SelfieUploadResponse`, and `LivenessChallengeResponse`
+- Confirms whether captured images were durably stored server-side for regulatory compliance
+- Aligned version numbering with iOS SDK
 
 ### v1.0.3
 - Added `baseUrl` configuration option for custom API endpoint override
