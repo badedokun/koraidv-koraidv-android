@@ -90,6 +90,11 @@
     <string name="koraidv_capture_retake">Retake</string>
     <string name="koraidv_capture_looks_good">Looks good</string>
 
+    <!-- Flip Document -->
+    <string name="koraidv_flip_title">Flip your document</string>
+    <string name="koraidv_flip_heading">Now capture the back</string>
+    <string name="koraidv_flip_description">Turn your document over to the back side, then tap continue to take a photo.</string>
+
     <!-- Selfie Capture -->
     <string name="koraidv_selfie_capture_title">Take a Selfie</string>
     <string name="koraidv_selfie_capture_instruction">Position your face in the oval</string>

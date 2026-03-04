@@ -74,6 +74,7 @@ fun DocumentCaptureScreen(
 
     // Manage side internally so FRONT→BACK never goes through AnimatedContent
     var currentSide by remember { mutableStateOf(side) }
+    var showFlipInstruction by remember { mutableStateOf(false) }
 
     var cameraReady by remember { mutableStateOf(false) }
     var isCapturing by remember { mutableStateOf(false) }
@@ -142,21 +143,33 @@ fun DocumentCaptureScreen(
                 if (currentSide == DocumentSide.FRONT && requiresBack) {
                     // Submit front image to ViewModel (background upload)
                     onCaptured(reviewBytes)
-                    // Transition to back capture internally — camera stays alive
-                    currentSide = DocumentSide.BACK
+                    // Show flip instruction before transitioning to back capture
                     capturedImageBytes = null
                     capturedBitmap = null
-                    isCapturing = false
-                    documentDetected = false
-                    documentReady = false
-                    qualityGuidance = null
-                    autoCapturePending = false
-                    firstDetectedTime = null
-                    documentScanner.resetStability()
+                    showFlipInstruction = true
                 } else {
                     // Back side or no-back document — hand off to ViewModel
                     onCaptured(reviewBytes)
                 }
+            },
+            onCancel = onCancel
+        )
+        return
+    }
+
+    // ── Flip document instruction ─────────────────────────────────────────────
+    if (showFlipInstruction) {
+        FlipDocumentScreen(
+            onContinue = {
+                showFlipInstruction = false
+                currentSide = DocumentSide.BACK
+                isCapturing = false
+                documentDetected = false
+                documentReady = false
+                qualityGuidance = null
+                autoCapturePending = false
+                firstDetectedTime = null
+                documentScanner.resetStability()
             },
             onCancel = onCancel
         )
@@ -447,6 +460,95 @@ private fun DocumentReviewScreen(
                     modifier = Modifier.weight(1f)
                 )
             }
+        }
+    }
+}
+
+/**
+ * Flip document instruction screen — shown between front and back capture
+ */
+@Composable
+private fun FlipDocumentScreen(
+    onContinue: () -> Unit,
+    onCancel: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(KoraColors.DarkBg)
+    ) {
+        StepProgressBar(total = 5, current = 3, isDark = true)
+
+        DarkScreenHeader(
+            title = stringResource(R.string.koraidv_flip_title),
+            onClose = onCancel
+        )
+
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth()
+                .padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            // Flip icon
+            Box(
+                modifier = Modifier
+                    .size(120.dp)
+                    .clip(CircleShape)
+                    .background(KoraColors.Teal.copy(alpha = 0.15f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Refresh,
+                    contentDescription = null,
+                    tint = KoraColors.Teal,
+                    modifier = Modifier.size(56.dp)
+                )
+            }
+
+            Spacer(modifier = Modifier.height(32.dp))
+
+            Text(
+                text = stringResource(R.string.koraidv_flip_heading),
+                fontSize = 22.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.White,
+                textAlign = TextAlign.Center
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Text(
+                text = stringResource(R.string.koraidv_flip_description),
+                fontSize = 15.sp,
+                color = KoraColors.WhiteAlpha60,
+                textAlign = TextAlign.Center,
+                lineHeight = 22.sp,
+                modifier = Modifier.widthIn(max = 280.dp)
+            )
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // Step pills
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                StepPill(stringResource(R.string.koraidv_capture_step_front), StepPillState.Done)
+                StepPill(stringResource(R.string.koraidv_capture_step_back), StepPillState.Active)
+            }
+        }
+
+        // Continue button
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(24.dp)
+        ) {
+            KoraButton(
+                text = stringResource(R.string.koraidv_continue),
+                onClick = onContinue,
+                modifier = Modifier.fillMaxWidth()
+            )
         }
     }
 }
