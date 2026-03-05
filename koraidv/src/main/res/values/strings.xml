@@ -60,6 +60,13 @@
     <string name="koraidv_document_ng_nin">NIN Slip</string>
     <string name="koraidv_document_ke_id">National ID</string>
     <string name="koraidv_document_za_id">Smart ID Card</string>
+    <string name="koraidv_document_ng_drivers_license">Driver\'s License</string>
+    <string name="koraidv_document_gh_drivers_license">Driver\'s License</string>
+    <string name="koraidv_document_ke_drivers_license">Driver\'s License</string>
+    <string name="koraidv_document_za_drivers_license">Driver\'s License</string>
+    <string name="koraidv_document_uk_drivers_license">Driver\'s License</string>
+    <string name="koraidv_document_ca_drivers_license">Driver\'s License</string>
+    <string name="koraidv_document_in_drivers_license">Driver\'s License</string>
 
     <!-- Document Capture -->
     <string name="koraidv_document_capture_title_front">Document Front</string>

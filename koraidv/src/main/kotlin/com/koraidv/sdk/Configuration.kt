@@ -97,9 +97,22 @@ enum class DocumentType(
 
     // Africa
     GHANA_CARD("ghana_card", "Ghana Card", false, true, "GH"),
+    GHANA_DRIVERS_LICENSE("gh_drivers_license", "Driver's License", false, true, "GH"),
     NIGERIA_NIN("ng_nin", "NIN Slip", false, false, "NG"),
+    NIGERIA_DRIVERS_LICENSE("ng_drivers_license", "Driver's License", false, true, "NG"),
     KENYA_ID("ke_id", "National ID", false, true, "KE"),
-    SOUTH_AFRICA_ID("za_id", "Smart ID Card", false, true, "ZA");
+    KENYA_DRIVERS_LICENSE("ke_drivers_license", "Driver's License", false, true, "KE"),
+    SOUTH_AFRICA_ID("za_id", "Smart ID Card", false, true, "ZA"),
+    SOUTH_AFRICA_DRIVERS_LICENSE("za_drivers_license", "Driver's License", false, true, "ZA"),
+
+    // UK
+    UK_DRIVERS_LICENSE("uk_drivers_license", "Driver's License", false, true, "GB"),
+
+    // Canada
+    CANADA_DRIVERS_LICENSE("ca_drivers_license", "Driver's License", false, true, "CA"),
+
+    // India
+    INDIA_DRIVERS_LICENSE("in_drivers_license", "Driver's License", false, true, "IN");
 
     companion object {
         fun fromCode(code: String): DocumentType? {

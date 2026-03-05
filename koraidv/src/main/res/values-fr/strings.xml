@@ -60,6 +60,13 @@
     <string name="koraidv_document_ng_nin">Fiche NIN</string>
     <string name="koraidv_document_ke_id">Carte d\'identité nationale</string>
     <string name="koraidv_document_za_id">Carte d\'identité intelligente</string>
+    <string name="koraidv_document_ng_drivers_license">Permis de conduire</string>
+    <string name="koraidv_document_gh_drivers_license">Permis de conduire</string>
+    <string name="koraidv_document_ke_drivers_license">Permis de conduire</string>
+    <string name="koraidv_document_za_drivers_license">Permis de conduire</string>
+    <string name="koraidv_document_uk_drivers_license">Permis de conduire</string>
+    <string name="koraidv_document_ca_drivers_license">Permis de conduire</string>
+    <string name="koraidv_document_in_drivers_license">Permis de conduire</string>
 
     <!-- Document Capture -->
     <string name="koraidv_document_capture_title_front">Recto du document</string>
