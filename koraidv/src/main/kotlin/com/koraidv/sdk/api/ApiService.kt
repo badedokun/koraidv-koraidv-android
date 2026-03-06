@@ -59,6 +59,12 @@ internal interface ApiService {
         @Body request: CompleteVerificationRequest? = null
     ): Response<VerificationResponse>
 
+    // Document quality check (pre-upload)
+    @POST("kyc/document-quality")
+    suspend fun checkDocumentQuality(
+        @Body request: CheckDocumentQualityRequest
+    ): Response<CheckDocumentQualityResponse>
+
     // Document types
     @GET("document-types")
     suspend fun getDocumentTypes(
@@ -105,6 +111,24 @@ data class InlineLivenessChallenge(
     @SerializedName("type") val type: String,
     @SerializedName("passed") val passed: Boolean,
     @SerializedName("imageBase64") val imageBase64: String?
+)
+
+data class CheckDocumentQualityRequest(
+    @SerializedName("document_front_base64") val documentFrontBase64: String,
+    @SerializedName("document_type") val documentType: String
+)
+
+data class CheckDocumentQualityResponse(
+    val success: Boolean,
+    @SerializedName("quality_score") val qualityScore: Double,
+    @SerializedName("quality_issues") val qualityIssues: List<String>,
+    val details: QualityDetailsResponse?
+)
+
+data class QualityDetailsResponse(
+    @SerializedName("text_readability") val textReadability: Double?,
+    @SerializedName("face_quality") val faceQuality: Double?,
+    @SerializedName("image_clarity") val imageClarity: Double?
 )
 
 // ===== Response models =====

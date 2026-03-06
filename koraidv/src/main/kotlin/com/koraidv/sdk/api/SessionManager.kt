@@ -318,6 +318,49 @@ internal class SessionManager(
         }
     }
 
+    /**
+     * Check document quality before uploading (no active verification required).
+     *
+     * @param imageData Raw JPEG image bytes
+     * @param documentTypeCode The document type code string (e.g. "us_drivers_license")
+     */
+    suspend fun checkDocumentQuality(
+        imageData: ByteArray,
+        documentTypeCode: String
+    ): Result<DocumentQualityResult> = withContext(Dispatchers.IO) {
+        try {
+            val base64Image = Base64.encodeToString(imageData, Base64.NO_WRAP)
+
+            val response = executeWithRetry {
+                apiClient.apiService.checkDocumentQuality(
+                    CheckDocumentQualityRequest(
+                        documentFrontBase64 = base64Image,
+                        documentType = documentTypeCode
+                    )
+                )
+            }
+
+            if (response.isSuccessful && response.body() != null) {
+                val body = response.body()!!
+                Result.success(
+                    DocumentQualityResult(
+                        qualityScore = body.qualityScore,
+                        qualityIssues = body.qualityIssues,
+                        details = DocumentQualityDetails(
+                            textReadability = body.details?.textReadability ?: 0.0,
+                            faceQuality = body.details?.faceQuality ?: 0.0,
+                            imageClarity = body.details?.imageClarity ?: 0.0
+                        )
+                    )
+                )
+            } else {
+                Result.failure(mapHttpError(response.code(), response.errorBody()?.string()))
+            }
+        } catch (e: Exception) {
+            Result.failure(mapException(e))
+        }
+    }
+
     suspend fun getDocumentTypes(
         country: String? = null
     ): Result<DocumentTypesResult> = withContext(Dispatchers.IO) {
@@ -591,6 +634,18 @@ data class CountryInfo(
     val code: String,
     val name: String,
     val flagEmoji: String?
+)
+
+data class DocumentQualityResult(
+    val qualityScore: Double,
+    val qualityIssues: List<String>,
+    val details: DocumentQualityDetails
+)
+
+data class DocumentQualityDetails(
+    val textReadability: Double,
+    val faceQuality: Double,
+    val imageClarity: Double
 )
 
 // Internal model for parsing 422 validation error response bodies
