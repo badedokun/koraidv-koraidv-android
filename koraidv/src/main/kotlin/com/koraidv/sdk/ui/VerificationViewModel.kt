@@ -8,6 +8,8 @@ import androidx.lifecycle.viewModelScope
 import com.koraidv.sdk.*
 import com.koraidv.sdk.api.*
 import com.koraidv.sdk.liveness.LivenessResult
+import com.koraidv.sdk.nfc.NfcPassportActivity
+import com.koraidv.sdk.nfc.NfcPassportData
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -31,6 +33,18 @@ sealed class VerificationState {
         val requiresBack: Boolean,
         val side: DocumentSide
     ) : VerificationState()
+    /**
+     * NFC chip reading step (Enhanced tier, documents with MRZ).
+     * @property documentNumber MRZ document number for BAC key
+     * @property dateOfBirth MRZ date of birth (YYMMDD) for BAC key
+     * @property dateOfExpiry MRZ date of expiry (YYMMDD) for BAC key
+     */
+    data class NfcReading(
+        val documentNumber: String,
+        val dateOfBirth: String,
+        val dateOfExpiry: String
+    ) : VerificationState()
+
     data object SelfieCapture : VerificationState()
     data object LivenessCheck : VerificationState()
     data class Processing(val step: ProcessingStep = ProcessingStep.ANALYZING) : VerificationState()
@@ -77,6 +91,7 @@ class VerificationViewModel : ViewModel() {
     private var selectedDocumentTypeCode: String? = null
     private var selectedDocumentDisplayName: String? = null
     private var selectedDocumentRequiresBack: Boolean = false
+    private var selectedDocumentHasMrz: Boolean = false
     private var selectedCountry: CountryInfo? = null
     private var documentFrontCaptured = false
     private var frontUploadJob: Job? = null
@@ -189,25 +204,11 @@ class VerificationViewModel : ViewModel() {
             },
             onFailure = { error ->
                 if (debugLogging) Log.e("KoraIDV", "loadCountries: FAILED - ${error.message}", error)
-                val countryMap = buildFallbackCountryMap()
-                if (countryMap.size > 1) {
-                    val countries = countryMap.keys.map { code ->
-                        CountryInfo(
-                            code = code,
-                            name = countryCodeToName(code),
-                            flagEmoji = null
-                        )
-                    }
-                    _state.value = VerificationState.CountrySelection(countries)
-                } else {
-                    val allTypes = KoraIDV.getConfiguration().documentTypes.map { it.toDocumentTypeInfo() }
-                    _state.value = VerificationState.DocumentSelection(
-                        documentTypes = allTypes,
-                        selectedCountry = countryMap.keys.firstOrNull()?.let {
-                            CountryInfo(it, countryCodeToName(it), null)
-                        }
+                _state.value = VerificationState.Error(
+                    error as? KoraException ?: KoraException.NetworkError(
+                        "Could not load supported countries. Please check your connection and try again."
                     )
-                }
+                )
             }
         )
     }
@@ -228,34 +229,14 @@ class VerificationViewModel : ViewModel() {
                 },
                 onFailure = { error ->
                     if (debugLogging) Log.e("KoraIDV", "selectCountry: FAILED - ${error.message}", error)
-                    val filtered = KoraIDV.getConfiguration().documentTypes
-                        .filter { it.country == country.code || it.country == "INTL" }
-                        .map { it.toDocumentTypeInfo() }
-                    _state.value = VerificationState.DocumentSelection(
-                        documentTypes = filtered,
-                        selectedCountry = country
+                    _state.value = VerificationState.Error(
+                        error as? KoraException ?: KoraException.NetworkError(
+                            "Could not load document types. Please check your connection and try again."
+                        )
                     )
                 }
             )
         }
-    }
-
-    private fun buildFallbackCountryMap(): Map<String, List<DocumentType>> {
-        return KoraIDV.getConfiguration().documentTypes
-            .filter { it.country != "INTL" }
-            .groupBy { it.country }
-    }
-
-    private fun DocumentType.toDocumentTypeInfo(): DocumentTypeInfo {
-        return DocumentTypeInfo(
-            code = code,
-            displayName = displayName,
-            description = null,
-            country = country,
-            countryName = countryCodeToName(country),
-            requiresBack = requiresBack,
-            category = null
-        )
     }
 
     companion object {
@@ -338,6 +319,7 @@ class VerificationViewModel : ViewModel() {
         selectedDocumentTypeCode = docType.code
         selectedDocumentDisplayName = docType.displayName
         selectedDocumentRequiresBack = docType.requiresBack
+        selectedDocumentHasMrz = docType.hasMrz
         documentFrontCaptured = false
         _state.value = VerificationState.DocumentCapture(
             documentTypeCode = docType.code,
@@ -417,9 +399,110 @@ class VerificationViewModel : ViewModel() {
                     return@launch
                 }
 
-                _state.value = VerificationState.SelfieCapture
+                // Check if NFC reading should be offered (Enhanced tier + MRZ document)
+                val nextState = determinePostDocumentState()
+                _state.value = nextState
             }
         }
+    }
+
+    /**
+     * Determine the next state after document upload completes.
+     *
+     * Routes to NFC reading when:
+     * - Verification tier is ENHANCED
+     * - The selected document type has MRZ (passport, EU ID)
+     *
+     * The NFC activity itself checks device NFC capability.
+     */
+    private fun determinePostDocumentState(): VerificationState {
+        val req = request
+        val docTypeCode = selectedDocumentTypeCode
+
+        // Check if Enhanced tier
+        val isEnhanced = req?.tier == VerificationTier.ENHANCED
+
+        // Check if document type has MRZ
+        val hasMrz = selectedDocumentHasMrz
+
+        if (isEnhanced && hasMrz) {
+            // Get MRZ data from the document verification result (if available from OCR)
+            val docVerification = currentVerification?.documentVerification
+            val docNumber = docVerification?.documentNumber
+            val dob = docVerification?.dateOfBirth
+            val expiry = docVerification?.expirationDate
+
+            if (docNumber != null && dob != null && expiry != null) {
+                // Convert dates to YYMMDD format if they are in YYYY-MM-DD
+                val dobYymmdd = convertToYymmdd(dob)
+                val expiryYymmdd = convertToYymmdd(expiry)
+
+                return VerificationState.NfcReading(
+                    documentNumber = docNumber,
+                    dateOfBirth = dobYymmdd,
+                    dateOfExpiry = expiryYymmdd
+                )
+            }
+        }
+
+        return VerificationState.SelfieCapture
+    }
+
+    /**
+     * Convert a date string to YYMMDD format.
+     * Handles both YYMMDD (passthrough) and YYYY-MM-DD formats.
+     */
+    private fun convertToYymmdd(date: String): String {
+        // Already in YYMMDD format
+        if (date.length == 6 && date.all { it.isDigit() }) return date
+
+        // YYYY-MM-DD format
+        val parts = date.split("-")
+        if (parts.size == 3) {
+            val year = parts[0].takeLast(2)
+            val month = parts[1].padStart(2, '0')
+            val day = parts[2].padStart(2, '0')
+            return "$year$month$day"
+        }
+
+        return date
+    }
+
+    /**
+     * Handle NFC data received from [NfcPassportActivity].
+     * Uploads the chip data to the server, then proceeds to selfie capture.
+     */
+    fun submitNfcData(nfcData: NfcPassportData) {
+        viewModelScope.launch {
+            val verification = currentVerification ?: return@launch
+            val manager = sessionManager ?: return@launch
+
+            _state.value = VerificationState.Processing(ProcessingStep.ANALYZING)
+
+            val result = manager.uploadNfcData(
+                verificationId = verification.id,
+                nfcData = nfcData
+            )
+
+            result.fold(
+                onSuccess = {
+                    if (debugLogging) Log.d("KoraIDV", "NFC data uploaded successfully")
+                    _state.value = VerificationState.SelfieCapture
+                },
+                onFailure = { error ->
+                    if (debugLogging) Log.w("KoraIDV", "NFC upload failed: ${error.message}")
+                    // NFC is optional, proceed to selfie even if upload fails
+                    _state.value = VerificationState.SelfieCapture
+                }
+            )
+        }
+    }
+
+    /**
+     * Skip NFC reading and proceed directly to selfie capture.
+     */
+    fun skipNfc() {
+        _state.value = VerificationState.SelfieCapture
     }
 
     private var selfieUploadJob: Job? = null

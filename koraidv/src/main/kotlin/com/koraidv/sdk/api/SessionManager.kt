@@ -279,6 +279,55 @@ internal class SessionManager(
         }
     }
 
+    /**
+     * Upload NFC chip data extracted from an ePassport.
+     *
+     * @param verificationId The verification session ID
+     * @param nfcData The passport data read from the NFC chip
+     */
+    suspend fun uploadNfcData(
+        verificationId: String,
+        nfcData: com.koraidv.sdk.nfc.NfcPassportData
+    ): Result<NfcUploadResult> = withContext(Dispatchers.IO) {
+        try {
+            val faceImageBase64 = nfcData.faceImageData?.let {
+                Base64.encodeToString(it, Base64.NO_WRAP)
+            }
+
+            val request = UploadNfcDataRequest(
+                documentNumber = nfcData.documentNumber,
+                firstName = nfcData.firstName,
+                lastName = nfcData.lastName,
+                dateOfBirth = nfcData.dateOfBirth,
+                expirationDate = nfcData.expirationDate,
+                nationality = nfcData.nationality,
+                faceImageBase64 = faceImageBase64,
+                passiveAuthPassed = nfcData.passiveAuthPassed,
+                activeAuthPassed = nfcData.activeAuthPassed
+            )
+
+            val response = executeWithRetry {
+                apiClient.apiService.uploadNfcData(verificationId, request)
+            }
+
+            if (response.isSuccessful && response.body() != null) {
+                val body = response.body()!!
+                Result.success(
+                    NfcUploadResult(
+                        success = body.success,
+                        chipVerified = body.chipVerified,
+                        dataConsistency = body.dataConsistency,
+                        warnings = body.warnings
+                    )
+                )
+            } else {
+                Result.failure(mapHttpError(response.code(), response.errorBody()?.string()))
+            }
+        } catch (e: Exception) {
+            Result.failure(mapException(e))
+        }
+    }
+
     suspend fun completeVerification(
         verificationId: String,
         livenessResult: com.koraidv.sdk.liveness.LivenessResult? = null
@@ -384,6 +433,7 @@ internal class SessionManager(
                                 country = dto.country,
                                 countryName = dto.countryName,
                                 requiresBack = dto.requiresBack,
+                                hasMrz = dto.hasMrz ?: false,
                                 category = dto.category
                             )
                         } ?: emptyList(),
@@ -627,6 +677,7 @@ data class DocumentTypeInfo(
     val country: String?,
     val countryName: String?,
     val requiresBack: Boolean,
+    val hasMrz: Boolean,
     val category: String?
 )
 
@@ -634,6 +685,13 @@ data class CountryInfo(
     val code: String,
     val name: String,
     val flagEmoji: String?
+)
+
+data class NfcUploadResult(
+    val success: Boolean,
+    val chipVerified: Boolean?,
+    val dataConsistency: Double?,
+    val warnings: List<String>?
 )
 
 data class DocumentQualityResult(

@@ -52,6 +52,13 @@ internal interface ApiService {
         @Body request: SubmitLivenessChallengeRequest
     ): Response<LivenessChallengeResponse>
 
+    // NFC chip data
+    @POST("verifications/{id}/nfc")
+    suspend fun uploadNfcData(
+        @Path("id") verificationId: String,
+        @Body request: UploadNfcDataRequest
+    ): Response<NfcUploadResponse>
+
     // Complete verification
     @POST("verifications/{id}/complete")
     suspend fun completeVerification(
@@ -111,6 +118,25 @@ data class InlineLivenessChallenge(
     @SerializedName("type") val type: String,
     @SerializedName("passed") val passed: Boolean,
     @SerializedName("imageBase64") val imageBase64: String?
+)
+
+data class UploadNfcDataRequest(
+    @SerializedName("documentNumber") val documentNumber: String,
+    @SerializedName("firstName") val firstName: String,
+    @SerializedName("lastName") val lastName: String,
+    @SerializedName("dateOfBirth") val dateOfBirth: String,
+    @SerializedName("expirationDate") val expirationDate: String,
+    @SerializedName("nationality") val nationality: String,
+    @SerializedName("faceImageBase64") val faceImageBase64: String? = null,
+    @SerializedName("passiveAuthPassed") val passiveAuthPassed: Boolean,
+    @SerializedName("activeAuthPassed") val activeAuthPassed: Boolean? = null
+)
+
+data class NfcUploadResponse(
+    val success: Boolean,
+    @SerializedName("chipVerified") val chipVerified: Boolean?,
+    @SerializedName("dataConsistency") val dataConsistency: Double?,
+    @SerializedName("warnings") val warnings: List<String>?
 )
 
 data class CheckDocumentQualityRequest(
@@ -277,6 +303,7 @@ data class DocumentTypeInfoResponse(
     val country: String?,
     @SerializedName("countryName") val countryName: String?,
     @SerializedName("requiresBack") val requiresBack: Boolean,
+    @SerializedName("hasMrz") val hasMrz: Boolean?,
     val category: String?,
     val active: Boolean?
 )

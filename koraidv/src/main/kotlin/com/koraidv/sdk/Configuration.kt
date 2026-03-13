@@ -53,7 +53,7 @@ data class Configuration(
  */
 enum class Environment(val baseUrl: String) {
     PRODUCTION("https://koraidv-identity-kendyplisq-uc.a.run.app/api/v1"),
-    SANDBOX("https://koraidv-identity-kendyplisq-uc.a.run.app/api/v1")
+    SANDBOX("https://koraidv-identity-sandbox-14203293608.us-central1.run.app/api/v1")
 }
 
 /**
@@ -73,6 +73,10 @@ enum class LivenessMode {
 
 /**
  * Supported document types.
+ *
+ * Note: This enum is maintained for backward compatibility. The SDK now fetches
+ * the full list of supported countries and document types dynamically from the API.
+ * New document types added to the backend are automatically available without SDK updates.
  */
 enum class DocumentType(
     val code: String,
