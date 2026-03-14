@@ -145,6 +145,13 @@ sealed class KoraException(
         errorCode = "MRZ_READ_FAILED"
     )
 
+    @Parcelize
+    data class NfcChipReadFailed(val reason: String) : KoraException(
+        message = "NFC chip read failed: $reason",
+        errorCode = "NFC_CHIP_READ_FAILED",
+        recoverySuggestion = "Hold your device against the passport and keep it still."
+    )
+
     // Face Errors
     @Parcelize
     class FaceNotDetected : KoraException(

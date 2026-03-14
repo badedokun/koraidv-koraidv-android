@@ -4,6 +4,12 @@
     <!-- Permissions -->
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.NFC" />
+
+    <!-- NFC feature (not required - NFC reading is optional) -->
+    <uses-feature
+        android:name="android.hardware.nfc"
+        android:required="false" />
 
     <!-- Camera features -->
     <uses-feature
@@ -23,6 +29,12 @@
             android:exported="false"
             android:screenOrientation="portrait"
             android:theme="@style/Theme.KoraIDV" />
+        <activity
+            android:name=".nfc.NfcPassportActivity"
+            android:exported="false"
+            android:screenOrientation="portrait"
+            android:theme="@style/Theme.KoraIDV"
+            android:launchMode="singleTop" />
     </application>
 
 </manifest>

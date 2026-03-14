@@ -28,6 +28,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.koraidv.sdk.KoraException
 import com.koraidv.sdk.Verification
+import com.koraidv.sdk.nfc.NfcPassportData
 import com.koraidv.sdk.VerificationStatus
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
@@ -1035,5 +1036,57 @@ private fun formatExpirationDate(raw: String): String {
         "${monthNames[month - 1]} $day, $year"
     } catch (_: Exception) {
         raw
+    }
+}
+
+/**
+ * Placeholder screen shown when the NFC reading state is active.
+ *
+ * This composable triggers the NFC activity launch from the hosting Activity.
+ * It uses a LaunchedEffect to immediately invoke the callback, which the
+ * VerificationActivity handles by launching [NfcPassportActivity].
+ *
+ * While waiting for the NFC activity to return, a loading indicator is shown.
+ */
+@Composable
+internal fun NfcReadingPlaceholder(
+    documentNumber: String,
+    dateOfBirth: String,
+    dateOfExpiry: String,
+    onNfcDataReceived: (NfcPassportData) -> Unit,
+    onSkip: () -> Unit
+) {
+    // The VerificationActivity observes NfcReading state and launches
+    // NfcPassportActivity. This composable just shows a loading state.
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        CircularProgressIndicator(
+            modifier = Modifier.size(48.dp),
+            color = MaterialTheme.colorScheme.primary,
+            strokeWidth = 4.dp
+        )
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        Text(
+            text = "Preparing NFC Reader",
+            style = MaterialTheme.typography.titleLarge,
+            color = MaterialTheme.colorScheme.onBackground,
+            textAlign = TextAlign.Center
+        )
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Text(
+            text = "The NFC passport reader is launching...",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center
+        )
     }
 }

@@ -10,6 +10,7 @@ import com.koraidv.sdk.api.CountryInfo
 import com.koraidv.sdk.api.DocumentTypeInfo
 import com.koraidv.sdk.api.SessionManager
 import com.koraidv.sdk.liveness.LivenessResult
+import com.koraidv.sdk.nfc.NfcPassportData
 import com.koraidv.sdk.ui.VerificationState
 
 /**
@@ -23,6 +24,8 @@ internal fun VerificationFlow(
     onCountrySelected: (CountryInfo) -> Unit,
     onDocumentTypeSelected: (DocumentTypeInfo) -> Unit,
     onDocumentCaptured: (ByteArray) -> Unit,
+    onNfcDataReceived: (NfcPassportData) -> Unit,
+    onNfcSkipped: () -> Unit,
     onSelfieCaptured: (ByteArray) -> Unit,
     onLivenessComplete: (LivenessResult) -> Unit,
     onComplete: (Verification) -> Unit,
@@ -72,6 +75,15 @@ internal fun VerificationFlow(
                     side = currentState.side,
                     onCaptured = onDocumentCaptured,
                     onCancel = onCancel
+                )
+            }
+            is VerificationState.NfcReading -> {
+                NfcReadingPlaceholder(
+                    documentNumber = currentState.documentNumber,
+                    dateOfBirth = currentState.dateOfBirth,
+                    dateOfExpiry = currentState.dateOfExpiry,
+                    onNfcDataReceived = onNfcDataReceived,
+                    onSkip = onNfcSkipped
                 )
             }
             is VerificationState.SelfieCapture -> {

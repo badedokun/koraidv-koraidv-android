@@ -11,6 +11,7 @@ import com.koraidv.sdk.getParcelableExtraCompat
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.camera.lifecycle.ProcessCameraProvider
@@ -19,6 +20,7 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
@@ -27,6 +29,7 @@ import com.koraidv.sdk.KoraException
 import com.koraidv.sdk.KoraIDV
 import com.koraidv.sdk.Verification
 import com.koraidv.sdk.VerificationRequest
+import com.koraidv.sdk.nfc.NfcPassportActivity
 import com.koraidv.sdk.ui.compose.VerificationFlow
 import com.koraidv.sdk.ui.theme.KoraIDVTheme
 
@@ -36,6 +39,32 @@ import com.koraidv.sdk.ui.theme.KoraIDVTheme
 class VerificationActivity : ComponentActivity() {
 
     private val viewModel: VerificationViewModel by viewModels()
+
+    /** Tracks whether the NFC activity has been launched for the current NfcReading state */
+    private var nfcActivityLaunched = false
+
+    private val nfcActivityLauncher: ActivityResultLauncher<Intent> = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        nfcActivityLaunched = false
+        when (result.resultCode) {
+            Activity.RESULT_OK -> {
+                val nfcData = NfcPassportActivity.parseResult(result.resultCode, result.data)
+                if (nfcData != null) {
+                    viewModel.submitNfcData(nfcData)
+                } else {
+                    viewModel.skipNfc()
+                }
+            }
+            NfcPassportActivity.RESULT_SKIPPED -> {
+                viewModel.skipNfc()
+            }
+            else -> {
+                // Cancelled or error - skip NFC
+                viewModel.skipNfc()
+            }
+        }
+    }
 
     private val cameraPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -95,6 +124,26 @@ class VerificationActivity : ComponentActivity() {
                 ) {
                     val state by viewModel.state.collectAsState()
 
+                    // Launch NfcPassportActivity when state transitions to NfcReading
+                    if (state is VerificationState.NfcReading && !nfcActivityLaunched) {
+                        val nfcState = state as VerificationState.NfcReading
+                        LaunchedEffect(nfcState) {
+                            nfcActivityLaunched = true
+                            if (NfcPassportActivity.isNfcAvailable(this@VerificationActivity)) {
+                                val nfcIntent = NfcPassportActivity.createIntent(
+                                    context = this@VerificationActivity,
+                                    documentNumber = nfcState.documentNumber,
+                                    dateOfBirth = nfcState.dateOfBirth,
+                                    dateOfExpiry = nfcState.dateOfExpiry
+                                )
+                                nfcActivityLauncher.launch(nfcIntent)
+                            } else {
+                                // No NFC hardware, skip
+                                viewModel.skipNfc()
+                            }
+                        }
+                    }
+
                     VerificationFlow(
                         state = state,
                         onConsentAccepted = { viewModel.acceptConsent() },
@@ -102,6 +151,8 @@ class VerificationActivity : ComponentActivity() {
                         onCountrySelected = { viewModel.selectCountry(it) },
                         onDocumentTypeSelected = { viewModel.selectDocumentType(it) },
                         onDocumentCaptured = { viewModel.submitDocument(it) },
+                        onNfcDataReceived = { viewModel.submitNfcData(it) },
+                        onNfcSkipped = { viewModel.skipNfc() },
                         onSelfieCaptured = { viewModel.submitSelfie(it) },
                         onLivenessComplete = { viewModel.completeLiveness(it) },
                         onComplete = { finishWithSuccess(it) },
