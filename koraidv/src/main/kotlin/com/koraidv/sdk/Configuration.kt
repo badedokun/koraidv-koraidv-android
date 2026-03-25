@@ -52,7 +52,7 @@ data class Configuration(
  * API Environment.
  */
 enum class Environment(val baseUrl: String) {
-    PRODUCTION("https://koraidv-identity-kendyplisq-uc.a.run.app/api/v1"),
+    PRODUCTION("https://koraidv-identity-14203293608.us-central1.run.app/api/v1"),
     SANDBOX("https://koraidv-identity-sandbox-14203293608.us-central1.run.app/api/v1")
 }
 
