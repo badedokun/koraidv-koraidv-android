@@ -30,7 +30,7 @@ internal class ApiClient(private val configuration: Configuration) {
     private fun buildOkHttpClient(): OkHttpClient {
         val builder = OkHttpClient.Builder()
             .connectTimeout(30, TimeUnit.SECONDS)
-            .readTimeout(30, TimeUnit.SECONDS)
+            .readTimeout(120, TimeUnit.SECONDS) // Selfie processing can take 10-30s on cold starts
             .writeTimeout(60, TimeUnit.SECONDS)
             .addInterceptor(authInterceptor())
 

@@ -39,7 +39,7 @@ data class Configuration(
 
     companion object {
         private fun detectEnvironment(apiKey: String): Environment {
-            return if (apiKey.startsWith("ck_sandbox_") || apiKey.startsWith("kora_sandbox_")) {
+            return if (apiKey.startsWith("ck_sandbox_") || apiKey.startsWith("kora_sandbox_") || apiKey.startsWith("test_") || apiKey.startsWith("sk_sandbox_")) {
                 Environment.SANDBOX
             } else {
                 Environment.PRODUCTION
@@ -52,8 +52,8 @@ data class Configuration(
  * API Environment.
  */
 enum class Environment(val baseUrl: String) {
-    PRODUCTION("https://koraidv-identity-14203293608.us-central1.run.app/api/v1"),
-    SANDBOX("https://koraidv-identity-sandbox-14203293608.us-central1.run.app/api/v1")
+    PRODUCTION("https://api.korastratum.com/api/v1/idv"),
+    SANDBOX("https://koraidv-identity-sandbox-626704085312.us-central1.run.app/api/v1")
 }
 
 /**
@@ -111,12 +111,45 @@ enum class DocumentType(
 
     // UK
     UK_DRIVERS_LICENSE("uk_drivers_license", "Driver's License", false, true, "GB"),
+    UK_BRP("uk_brp", "Biometric Residence Permit", true, true, "GB"),
 
     // Canada
     CANADA_DRIVERS_LICENSE("ca_drivers_license", "Driver's License", false, true, "CA"),
+    CANADA_PR_CARD("ca_pr_card", "Permanent Resident Card", true, true, "CA"),
+    CANADA_NATIONAL_ID("ca_national_id", "National Identity Card", true, false, "CA"),
 
     // India
-    INDIA_DRIVERS_LICENSE("in_drivers_license", "Driver's License", false, true, "IN");
+    INDIA_DRIVERS_LICENSE("in_drivers_license", "Driver's License", false, true, "IN"),
+
+    // Liberia
+    LR_ID("lr_id", "National ID", false, true, "LR"),
+    LR_DRIVERS_LICENSE("lr_drivers_license", "Driver's License", false, true, "LR"),
+    LR_VOTERS_CARD("lr_voters_card", "Voter Registration Card", false, false, "LR"),
+
+    // Sierra Leone
+    SL_ID("sl_id", "National ID", false, true, "SL"),
+    SL_DRIVERS_LICENSE("sl_drivers_license", "Driver's License", false, true, "SL"),
+    SL_VOTERS_CARD("sl_voters_card", "Voter ID Card", false, false, "SL"),
+
+    // Gambia
+    GM_ID("gm_id", "National ID", false, true, "GM"),
+    GM_DRIVERS_LICENSE("gm_drivers_license", "Driver's License", false, true, "GM"),
+
+    // Nigeria (additional)
+    NG_VOTERS_CARD("ng_voters_card", "Permanent Voter's Card (PVC)", false, false, "NG"),
+
+    // EU/EEA Residence Permits
+    DE_RP("de_rp", "Residence Permit", true, true, "DE"),
+    FR_RP("fr_rp", "Residence Permit", true, true, "FR"),
+    IT_RP("it_rp", "Residence Permit", true, true, "IT"),
+    ES_RP("es_rp", "Residence Permit", true, true, "ES"),
+    IE_RP("ie_rp", "Residence Permit", true, true, "IE"),
+    PT_RP("pt_rp", "Residence Permit", true, true, "PT"),
+    SE_RP("se_rp", "Residence Permit", true, true, "SE"),
+    DK_RP("dk_rp", "Residence Permit", true, true, "DK"),
+    NO_RP("no_rp", "Residence Permit", true, true, "NO"),
+    FI_RP("fi_rp", "Residence Permit", true, true, "FI"),
+    PL_RP("pl_rp", "Residence Permit", true, true, "PL");
 
     companion object {
         fun fromCode(code: String): DocumentType? {
