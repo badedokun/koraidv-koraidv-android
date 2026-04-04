@@ -86,16 +86,12 @@ enum class DocumentType(
     val country: String
 ) {
     // US Documents
-    US_PASSPORT("us_passport", "Passport", true, false, "US"),
     US_DRIVERS_LICENSE("us_drivers_license", "Driver's License", false, true, "US"),
     US_STATE_ID("us_state_id", "State ID Card", false, true, "US"),
     US_GREEN_CARD("us_green_card", "Permanent Resident Card", true, true, "US"),
 
-    // Passport (all countries)
+    // Passport (covers all 197 ICAO-compliant countries)
     INTERNATIONAL_PASSPORT("international_passport", "Passport", true, false, "INTL"),
-
-    // UK Passport
-    UK_PASSPORT("uk_passport", "Passport", true, false, "GB"),
 
     // EU ID Cards
     EU_ID_GERMANY("eu_id_de", "National ID Card (Germany)", true, true, "DE"),
