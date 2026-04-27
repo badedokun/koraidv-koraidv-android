@@ -28,6 +28,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.layout.ContentScale
@@ -65,7 +66,8 @@ fun DocumentCaptureScreen(
     requiresBack: Boolean,
     side: DocumentSide,
     onCaptured: (ByteArray) -> Unit,
-    onCancel: () -> Unit
+    onCancel: () -> Unit,
+    showVisualGuides: Boolean = false
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -91,17 +93,19 @@ fun DocumentCaptureScreen(
             isCapturing = true
             cameraManager.capturePhotoOnMain { bytes ->
                 if (bytes != null) {
-                    val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
-                    if (bitmap != null) {
-                        // Skip client-side quality validation — always show review screen.
-                        // User can retake if quality is poor; server-side Vision API
-                        // performs the real quality assessment.
+                    val raw = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+                    if (raw != null) {
+                        // FR-003.4 · Detect document quad and warp to ID-1 aspect so the
+                        // review frame is always edge-to-edge regardless of how the user
+                        // held the camera. Falls back to the raw bitmap when no quad is
+                        // found (rare — handheld + glare can defeat edge detection).
+                        val finalBitmap = com.koraidv.sdk.capture.DocumentDewarper.dewarp(raw) ?: raw
+                        if (finalBitmap !== raw) raw.recycle()
                         val stream = ByteArrayOutputStream()
-                        bitmap.compress(Bitmap.CompressFormat.JPEG, 90, stream)
+                        finalBitmap.compress(Bitmap.CompressFormat.JPEG, 90, stream)
                         capturedImageBytes = stream.toByteArray()
-                        capturedBitmap = bitmap
+                        capturedBitmap = finalBitmap
                     } else {
-                        // Corrupt JPEG — show guidance and let auto-capture retry
                         qualityGuidance = "Capture failed, retrying..."
                     }
                 }
@@ -243,9 +247,17 @@ fun DocumentCaptureScreen(
                                                         detection.qualityGuidance == null
                                                 documentReady = ready
 
-                                                // Force capture after 3s deadline if document is detected
+                                                // FR-003.4 · The 3-second force-capture was previously
+                                                // unconditional, which let us fire on a tiny, far-away
+                                                // card even though the "Move closer" guidance was
+                                                // showing. Now we only force-capture when the coverage
+                                                // is acceptable (qualityGuidance == null) and the card
+                                                // has been detected — the force is just a fallback for
+                                                // flaky stability checks, not a bypass of framing.
                                                 val deadline = firstDetectedTime
-                                                val forceCapture = detected && deadline != null &&
+                                                val forceCapture = detected &&
+                                                        detection.qualityGuidance == null &&
+                                                        deadline != null &&
                                                         (System.currentTimeMillis() - deadline) >= 3000L
 
                                                 if ((ready || forceCapture) && !isCapturing && capturedImageBytes == null) {
@@ -327,6 +339,18 @@ fun DocumentCaptureScreen(
                 .padding(bottom = 40.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
+            // REQ-003 · Rich visual guide above the guidance pill. Sized to
+            // ~40% of screen width so it sits above the camera-preview
+            // chrome without crowding the capture frame.
+            if (showVisualGuides) {
+                VisualGuide(
+                    kind = if (side == DocumentSide.FRONT) VisualGuideKind.DOC_FRONT else VisualGuideKind.DOC_BACK,
+                    modifier = Modifier
+                        .fillMaxWidth(0.55f)
+                        .padding(bottom = 12.dp),
+                )
+            }
+
             val pillVariant = if (documentReady) GuidancePillVariant.Ready else GuidancePillVariant.Scanning
             val pillText = when {
                 documentReady -> stringResource(R.string.koraidv_capture_ready)
@@ -559,7 +583,8 @@ private fun FlipDocumentScreen(
 @Composable
 fun SelfieCaptureScreen(
     onCaptured: (ByteArray) -> Unit,
-    onCancel: () -> Unit
+    onCancel: () -> Unit,
+    showVisualGuides: Boolean = false
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -781,6 +806,16 @@ fun SelfieCaptureScreen(
                 .padding(bottom = 40.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
+            // REQ-003 · Selfie visual guide
+            if (showVisualGuides) {
+                VisualGuide(
+                    kind = VisualGuideKind.SELFIE,
+                    modifier = Modifier
+                        .fillMaxWidth(0.55f)
+                        .padding(bottom = 12.dp),
+                )
+            }
+
             val pillText = when {
                 faceReady -> stringResource(R.string.koraidv_capture_ready)
                 guidanceMessage != null -> guidanceMessage!!
@@ -916,7 +951,8 @@ internal fun LivenessScreen(
     sessionManager: SessionManager?,
     verificationId: String?,
     onComplete: (LivenessResult) -> Unit,
-    onCancel: () -> Unit
+    onCancel: () -> Unit,
+    showVisualGuides: Boolean = false
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -1049,7 +1085,20 @@ internal fun LivenessScreen(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             if (isCountdown && challengeType != null) {
-                // Countdown before challenge starts
+                // Countdown before challenge starts.
+                // REQ-003 · Show the rich VisualGuide DURING the countdown so the
+                // user sees the motion to mimic before "Go" appears. Without
+                // this the guide only rendered during InProgress, which for
+                // fast actions (blink, smile) ended in a few frames — the
+                // animation effectively flashed *after* the user had already
+                // performed the action.
+                if (showVisualGuides) {
+                    VisualGuide(
+                        kind = challengeToGuide(challengeType),
+                        modifier = Modifier.fillMaxWidth(0.55f),
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                }
                 Text(
                     text = "$countdownValue",
                     fontSize = 64.sp,
@@ -1119,11 +1168,19 @@ internal fun LivenessScreen(
                     )
                 }
             } else if (challengeType != null) {
-                // Active challenge — show icon + instruction
-                LivenessChallengeIcon(
-                    challengeType = challengeType,
-                    modifier = Modifier.size(40.dp)
-                )
+                // REQ-003 · Active challenge — swap the single-icon pulse
+                // for the rich VisualGuide when showVisualGuides is on.
+                if (showVisualGuides) {
+                    VisualGuide(
+                        kind = challengeToGuide(challengeType),
+                        modifier = Modifier.fillMaxWidth(0.55f),
+                    )
+                } else {
+                    LivenessChallengeIcon(
+                        challengeType = challengeType,
+                        modifier = Modifier.size(40.dp)
+                    )
+                }
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
                     text = when (challengeType) {

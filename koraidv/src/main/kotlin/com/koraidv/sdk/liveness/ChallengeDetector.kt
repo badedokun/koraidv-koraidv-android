@@ -52,14 +52,30 @@ class ChallengeDetector {
 
     /**
      * Start detecting a specific challenge type.
-     * @param baselineYaw optional pre-captured yaw angle (from before the countdown)
-     *                    to avoid baseline drift when the user starts turning early.
+     *
+     * @param baselineYaw   optional pre-captured yaw angle (degrees) — supplied
+     *                      by [LivenessManager] right at the end of the countdown
+     *                      so subsequent yaw deltas reflect movement *from the
+     *                      moment "Go" appears*, not from the user's pose at
+     *                      the previous challenge's end.
+     * @param baselinePitch optional pre-captured pitch angle (degrees) — same
+     *                      treatment for NOD_UP / NOD_DOWN. Without this, the
+     *                      detector accumulated frames 3–5 to derive a baseline,
+     *                      which biased the "look up" check when the user had
+     *                      already started moving during the countdown.
      */
-    fun startDetecting(challengeType: ChallengeType, baselineYaw: Float? = null) {
+    fun startDetecting(
+        challengeType: ChallengeType,
+        baselineYaw: Float? = null,
+        baselinePitch: Float? = null,
+    ) {
         currentChallengeType = challengeType
         reset()
         if (baselineYaw != null) {
             initialYaw = baselineYaw
+        }
+        if (baselinePitch != null) {
+            initialPitch = baselinePitch
         }
     }
 

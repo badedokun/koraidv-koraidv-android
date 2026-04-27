@@ -11,6 +11,7 @@ camerax = "1.4.1"
 mlkitFaceDetection = "16.1.7"
 mlkitTextRecognition = "16.0.1"
 mlkitDocumentScanner = "16.0.0-beta1"
+mlkitBarcodeScanning = "17.3.0"
 coroutines = "1.8.1"
 junit = "4.13.2"
 junitExt = "1.2.1"
@@ -21,6 +22,7 @@ mockwebserver = "4.12.0"
 truth = "1.4.2"
 coroutinesTest = "1.8.1"
 desugarJdkLibs = "2.0.4"
+opencv = "4.10.0"
 
 [libraries]
 # AndroidX
@@ -54,6 +56,7 @@ camerax-view = { group = "androidx.camera", name = "camera-view", version.ref = 
 mlkit-face-detection = { group = "com.google.mlkit", name = "face-detection", version.ref = "mlkitFaceDetection" }
 mlkit-text-recognition = { group = "com.google.mlkit", name = "text-recognition", version.ref = "mlkitTextRecognition" }
 mlkit-document-scanner = { group = "com.google.android.gms", name = "play-services-mlkit-document-scanner", version.ref = "mlkitDocumentScanner" }
+mlkit-barcode-scanning = { group = "com.google.mlkit", name = "barcode-scanning", version.ref = "mlkitBarcodeScanning" }
 
 # Coroutines
 coroutines-core = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-core", version.ref = "coroutines" }
@@ -69,6 +72,9 @@ mockwebserver = { group = "com.squareup.okhttp3", name = "mockwebserver", versio
 truth = { group = "com.google.truth", name = "truth", version.ref = "truth" }
 coroutines-test = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-test", version.ref = "coroutinesTest" }
 desugar-jdk-libs = { group = "com.android.tools", name = "desugar_jdk_libs", version.ref = "desugarJdkLibs" }
+
+# OpenCV — used for document corner detection + perspective warp (REQ-003 FR-003.4)
+opencv = { group = "org.opencv", name = "opencv", version.ref = "opencv" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

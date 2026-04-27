@@ -94,7 +94,16 @@ data class UploadDocumentRequest(
 )
 
 data class UploadDocumentBackRequest(
-    @SerializedName("imageBase64") val imageBase64: String
+    @SerializedName("imageBase64") val imageBase64: String,
+    /**
+     * Optional pre-decoded PDF417 / QR / DataMatrix payload from the
+     * on-device ML Kit barcode scanner. When present, the server skips
+     * image-based barcode decoding entirely and parses the payload directly.
+     * Empty when on-device decode failed — server falls back to its
+     * zxing-cpp + pdf417decoder cascade. See
+     * docs/architecture/idv-decode-roadmap.md (Phase 2).
+     */
+    @SerializedName("decodedBarcodePayload") val decodedBarcodePayload: String? = null
 )
 
 data class UploadSelfieRequest(

@@ -134,12 +134,18 @@ internal class SessionManager(
      * @param imageData Raw JPEG image bytes
      * @param side Front or back of the document
      * @param documentTypeCode The document type code string (e.g. "us_drivers_license")
+     * @param decodedBarcodePayload Optional pre-decoded PDF417 / QR / DataMatrix
+     *   payload from the on-device ML Kit barcode scanner. Only meaningful for
+     *   back-side uploads on documents that carry a barcode (US/CA DLs, voter
+     *   cards, etc.). When non-null the server skips its own barcode decode.
+     *   Empty/null = server falls back to its zxing-cpp + pdf417decoder cascade.
      */
     suspend fun uploadDocument(
         verificationId: String,
         imageData: ByteArray,
         side: DocumentSide,
-        documentTypeCode: String
+        documentTypeCode: String,
+        decodedBarcodePayload: String? = null
     ): Result<DocumentUploadResult> = withContext(Dispatchers.IO) {
         try {
             val base64Image = Base64.encodeToString(imageData, Base64.NO_WRAP)
@@ -156,7 +162,10 @@ internal class SessionManager(
                 } else {
                     apiClient.apiService.uploadDocumentBack(
                         verificationId,
-                        UploadDocumentBackRequest(imageBase64 = base64Image)
+                        UploadDocumentBackRequest(
+                            imageBase64 = base64Image,
+                            decodedBarcodePayload = decodedBarcodePayload
+                        )
                     )
                 }
             }

@@ -77,6 +77,7 @@ class LivenessManager {
     private var isProcessing = false
     private var frameCount = 0
     private var lastDetectedYaw: Float? = null
+    private var lastDetectedPitch: Float? = null
     private val maxFramesPerChallenge = 300
 
     val currentChallenge: LivenessChallenge?
@@ -116,12 +117,26 @@ class LivenessManager {
     }
 
     /**
-     * Process a camera frame
+     * Process a camera frame.
+     *
+     * REQ-003 FR-003.5 — even while transitioning (countdown / success hold)
+     * we still run face detection so [lastDetectedYaw] / [lastDetectedPitch]
+     * track the user's pose in real time. That way [startNextChallenge] can
+     * snapshot a fresh baseline at the *end* of the countdown rather than
+     * inheriting the pose from the previous challenge's last frame.
+     * Challenge scoring is still gated on `!isTransitioning`.
      */
     @androidx.camera.core.ExperimentalGetImage
     fun processFrame(imageProxy: ImageProxy) {
-        if (isProcessing || isTransitioning) {
+        if (isProcessing) {
             imageProxy.close()
+            return
+        }
+
+        if (isTransitioning) {
+            // Pose-only path: update the baseline pose without scoring or
+            // advancing state. Lightweight enough to run on every frame.
+            updatePoseOnly(imageProxy)
             return
         }
 
@@ -160,6 +175,7 @@ class LivenessManager {
                 if (faces.isNotEmpty()) {
                     val face = faces.first()
                     lastDetectedYaw = face.headEulerAngleY
+                    lastDetectedPitch = face.headEulerAngleX
                     val detectionResult = challengeDetector.process(face, challenge.type)
 
                     _state.value = LivenessState.InProgress(challenge, detectionResult.progress)
@@ -210,6 +226,36 @@ class LivenessManager {
             }
     }
 
+    /**
+     * Run face detection on the frame just to refresh [lastDetectedYaw] and
+     * [lastDetectedPitch]. Used during transitions (countdown / success hold)
+     * so the next challenge can baseline against a fresh pose.
+     */
+    @androidx.camera.core.ExperimentalGetImage
+    private fun updatePoseOnly(imageProxy: ImageProxy) {
+        val mediaImage = imageProxy.image ?: run {
+            imageProxy.close()
+            return
+        }
+        isProcessing = true
+        val inputImage = InputImage.fromMediaImage(
+            mediaImage,
+            imageProxy.imageInfo.rotationDegrees
+        )
+        faceDetector.process(inputImage)
+            .addOnSuccessListener { faces ->
+                if (faces.isNotEmpty()) {
+                    val face = faces.first()
+                    lastDetectedYaw = face.headEulerAngleY
+                    lastDetectedPitch = face.headEulerAngleX
+                }
+            }
+            .addOnCompleteListener {
+                isProcessing = false
+                imageProxy.close()
+            }
+    }
+
     private fun startNextChallenge() {
         val challenge = currentChallenge ?: run {
             completeSession()
@@ -219,29 +265,37 @@ class LivenessManager {
         challengeDetector.reset()
         frameCount = 0
 
-        // Snapshot the yaw BEFORE the countdown starts.  At this point the user
-        // is still facing forward (from the previous challenge or initial pose).
-        // This avoids the baseline-drift problem where the user starts turning
-        // during the countdown.
-        val preCountdownYaw = lastDetectedYaw
-
-        // 3-2-1 countdown at 500ms intervals for user preparation
+        // REQ-003 FR-003.5 · Pacing. Previous 500ms-per-beat countdown (1500ms
+        // total) was too fast to read the instruction and prepare. Industry
+        // norm for liveness countdowns is 1s per beat — matches a classic
+        // "3, 2, 1" cadence and gives users time to absorb what's next.
         isTransitioning = true
         _state.value = LivenessState.Countdown(challenge, 3)
 
         mainHandler.postDelayed({
             _state.value = LivenessState.Countdown(challenge, 2)
-        }, 500)
-
-        mainHandler.postDelayed({
-            _state.value = LivenessState.Countdown(challenge, 1)
         }, 1000)
 
         mainHandler.postDelayed({
+            _state.value = LivenessState.Countdown(challenge, 1)
+        }, 2000)
+
+        mainHandler.postDelayed({
+            // Snapshot the baseline pose at the *end* of the countdown, after
+            // the user has had 3s to recover to neutral. updatePoseOnly()
+            // refreshes lastDetectedYaw/Pitch on every frame during the
+            // countdown, so these are current — not inherited from the last
+            // frame of the previous challenge.
+            val baselineYaw = lastDetectedYaw
+            val baselinePitch = lastDetectedPitch
             isTransitioning = false
-            challengeDetector.startDetecting(challenge.type, baselineYaw = preCountdownYaw)
+            challengeDetector.startDetecting(
+                challenge.type,
+                baselineYaw = baselineYaw,
+                baselinePitch = baselinePitch,
+            )
             _state.value = LivenessState.InProgress(challenge, 0f)
-        }, 1500)
+        }, 3000)
     }
 
     private fun recordChallengeResult(
@@ -263,12 +317,15 @@ class LivenessManager {
         _state.value = LivenessState.ChallengeComplete(challenge, passed)
 
         if (passed) {
-            // Quick flash of success, then advance immediately
+            // REQ-003 FR-003.5 · Pacing. 600ms wasn't long enough to notice the
+            // ✓ before the next countdown started; users felt rushed and
+            // occasionally missed that the challenge had succeeded. 1.4s gives
+            // a visible success celebration without feeling sluggish.
             mainHandler.postDelayed({
                 isTransitioning = false
                 currentChallengeIndex++
                 startNextChallenge()
-            }, 600)
+            }, 1400)
         }
         // If failed, do NOT auto-advance — wait for user to tap "Try Again"
         // (handled by retryCurrentChallenge())

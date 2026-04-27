@@ -24,7 +24,29 @@ data class Configuration(
     val theme: KoraTheme = KoraTheme(),
     val locale: java.util.Locale = java.util.Locale.getDefault(),
     val timeout: Long = 600,
-    val debugLogging: Boolean = false
+    val debugLogging: Boolean = false,
+    /**
+     * Result page mode (REQ-005). In [ResultPageMode.SIMPLIFIED] the SDK
+     * shows only Success / Failed / Review with no scores or per-check
+     * metrics. Overrides the tenant-level `result_page_mode` setting.
+     */
+    val resultPageMode: ResultPageMode = ResultPageMode.DETAILED,
+    /**
+     * Optional per-outcome copy overrides for the simplified result page.
+     * Any null field falls back to the SDK's built-in default text.
+     */
+    val customMessages: ResultPageMessages? = null,
+    /**
+     * REQ-003 · Render rich visual onboarding guides on the document-capture,
+     * selfie, NFC, and liveness screens. Default OFF so production SDK
+     * consumers opt in explicitly. The koraidv-demo app flips this to true
+     * for end-to-end review before the production rollout.
+     *
+     * When false, the SDK falls back to the existing minimal icon + arrow
+     * UI already in place on the liveness screen. No behavioural change
+     * for existing integrations.
+     */
+    val showVisualGuides: Boolean = false
 ) {
     init {
         require(apiKey.isNotBlank()) { "apiKey must not be blank" }
@@ -55,6 +77,30 @@ enum class Environment(val baseUrl: String) {
     PRODUCTION("https://api.korastratum.com/api/v1/idv"),
     SANDBOX("https://koraidv-identity-sandbox-626704085312.us-central1.run.app/api/v1")
 }
+
+/**
+ * Controls how the end-user-facing result page is rendered (REQ-005).
+ */
+enum class ResultPageMode {
+    /** Full breakdown with scores, per-check metrics, and risk band. */
+    DETAILED,
+
+    /** Only Success / Failed / Review with no scores or metrics. */
+    SIMPLIFIED
+}
+
+/**
+ * Optional per-outcome copy overrides for the simplified result page.
+ * Any null field falls back to the SDK's built-in default text.
+ */
+data class ResultPageMessages(
+    val successTitle: String? = null,
+    val successMessage: String? = null,
+    val failedTitle: String? = null,
+    val failedMessage: String? = null,
+    val reviewTitle: String? = null,
+    val reviewMessage: String? = null
+)
 
 /**
  * Liveness detection mode.

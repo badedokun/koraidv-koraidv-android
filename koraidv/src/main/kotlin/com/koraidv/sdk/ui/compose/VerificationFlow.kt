@@ -33,7 +33,13 @@ internal fun VerificationFlow(
     onCancel: () -> Unit,
     onRetry: () -> Unit,
     sessionManager: SessionManager? = null,
-    verificationId: String? = null
+    verificationId: String? = null,
+    // REQ-005 — result-page presentation.
+    resultPageMode: ResultPageMode = ResultPageMode.DETAILED,
+    customMessages: ResultPageMessages? = null,
+    // REQ-003 — rich visual onboarding guides (demo-gated until production
+    // sign-off). When false, the existing minimal-icon UI is used.
+    showVisualGuides: Boolean = false
 ) {
     AnimatedContent(
         targetState = state,
@@ -74,7 +80,8 @@ internal fun VerificationFlow(
                     requiresBack = currentState.requiresBack,
                     side = currentState.side,
                     onCaptured = onDocumentCaptured,
-                    onCancel = onCancel
+                    onCancel = onCancel,
+                    showVisualGuides = showVisualGuides
                 )
             }
             is VerificationState.NfcReading -> {
@@ -83,13 +90,15 @@ internal fun VerificationFlow(
                     dateOfBirth = currentState.dateOfBirth,
                     dateOfExpiry = currentState.dateOfExpiry,
                     onNfcDataReceived = onNfcDataReceived,
-                    onSkip = onNfcSkipped
+                    onSkip = onNfcSkipped,
+                    showVisualGuides = showVisualGuides
                 )
             }
             is VerificationState.SelfieCapture -> {
                 SelfieCaptureScreen(
                     onCaptured = onSelfieCaptured,
-                    onCancel = onCancel
+                    onCancel = onCancel,
+                    showVisualGuides = showVisualGuides
                 )
             }
             is VerificationState.LivenessCheck -> {
@@ -97,7 +106,8 @@ internal fun VerificationFlow(
                     sessionManager = sessionManager,
                     verificationId = verificationId,
                     onComplete = onLivenessComplete,
-                    onCancel = onCancel
+                    onCancel = onCancel,
+                    showVisualGuides = showVisualGuides
                 )
             }
             is VerificationState.Processing -> {
@@ -105,32 +115,79 @@ internal fun VerificationFlow(
             }
             is VerificationState.Complete -> {
                 val verification = currentState.verification
+                val simplified = resultPageMode == ResultPageMode.SIMPLIFIED
                 when (verification.status) {
-                    VerificationStatus.APPROVED -> SuccessScreen(
-                        verification = verification,
-                        onDone = { onComplete(verification) }
-                    )
-                    VerificationStatus.REJECTED -> RejectedScreen(
-                        verification = verification,
-                        onRetry = onRetry
-                    )
-                    else -> SuccessScreen(
-                        verification = verification,
-                        onDone = { onComplete(verification) }
-                    )
+                    VerificationStatus.APPROVED ->
+                        if (simplified) {
+                            SimplifiedSuccessScreen(
+                                messages = customMessages,
+                                onDone = { onComplete(verification) }
+                            )
+                        } else {
+                            SuccessScreen(
+                                verification = verification,
+                                onDone = { onComplete(verification) }
+                            )
+                        }
+                    VerificationStatus.REJECTED ->
+                        if (simplified) {
+                            SimplifiedFailedScreen(
+                                messages = customMessages,
+                                onRetry = onRetry
+                            )
+                        } else {
+                            RejectedScreen(
+                                verification = verification,
+                                onRetry = onRetry
+                            )
+                        }
+                    else ->
+                        if (simplified) {
+                            SimplifiedSuccessScreen(
+                                messages = customMessages,
+                                onDone = { onComplete(verification) }
+                            )
+                        } else {
+                            SuccessScreen(
+                                verification = verification,
+                                onDone = { onComplete(verification) }
+                            )
+                        }
                 }
             }
             is VerificationState.ExpiredDocument -> {
-                ExpiredDocumentScreen(
-                    verification = currentState.verification,
-                    onRetry = onRetry
-                )
+                if (resultPageMode == ResultPageMode.SIMPLIFIED) {
+                    SimplifiedFailedScreen(
+                        messages = customMessages?.copy(
+                            failedTitle = customMessages.failedTitle ?: "Document Expired",
+                            failedMessage = customMessages.failedMessage
+                                ?: "The document you submitted has expired. Please use a valid document."
+                        ) ?: ResultPageMessages(
+                            failedTitle = "Document Expired",
+                            failedMessage = "The document you submitted has expired. Please use a valid document."
+                        ),
+                        onRetry = onRetry
+                    )
+                } else {
+                    ExpiredDocumentScreen(
+                        verification = currentState.verification,
+                        onRetry = onRetry
+                    )
+                }
             }
             is VerificationState.ManualReview -> {
-                ManualReviewScreen(
-                    verification = currentState.verification,
-                    onDone = { onComplete(currentState.verification) }
-                )
+                if (resultPageMode == ResultPageMode.SIMPLIFIED) {
+                    SimplifiedReviewScreen(
+                        verification = currentState.verification,
+                        messages = customMessages,
+                        onDone = { onComplete(currentState.verification) }
+                    )
+                } else {
+                    ManualReviewScreen(
+                        verification = currentState.verification,
+                        onDone = { onComplete(currentState.verification) }
+                    )
+                }
             }
             is VerificationState.Error -> {
                 ErrorScreen(

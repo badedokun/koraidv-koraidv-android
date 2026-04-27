@@ -76,6 +76,10 @@ dependencies {
     implementation(libs.mlkit.face.detection)
     implementation(libs.mlkit.text.recognition)
     implementation(libs.mlkit.document.scanner)
+    implementation(libs.mlkit.barcode.scanning)
+
+    // OpenCV — REQ-003 FR-003.4 document corner detection + perspective warp
+    implementation(libs.opencv)
 
     // Coroutines
     implementation(libs.coroutines.core)
@@ -103,7 +107,7 @@ publishing {
         register<MavenPublication>("release") {
             groupId = "com.koraidv"
             artifactId = "sdk"
-            version = "1.2.0"
+            version = "1.3.0"
 
             afterEvaluate {
                 from(components["release"])

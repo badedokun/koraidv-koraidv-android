@@ -1,12 +1,14 @@
 package com.koraidv.sdk.ui
 
 import android.content.Context
+import android.graphics.BitmapFactory
 import android.util.Log
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.koraidv.sdk.*
 import com.koraidv.sdk.api.*
+import com.koraidv.sdk.capture.BarcodeScanner
 import com.koraidv.sdk.liveness.LivenessResult
 import com.koraidv.sdk.nfc.NfcPassportActivity
 import com.koraidv.sdk.nfc.NfcPassportData
@@ -377,11 +379,26 @@ class VerificationViewModel : ViewModel() {
                     }
                 }
 
+                // On-device barcode decode (Phase 2 of the multi-channel
+                // decode roadmap). For back-side captures we run ML Kit's
+                // PDF417 scanner on the bitmap before upload — when it
+                // succeeds the server skips its own image-decoding cascade
+                // entirely, saving ~1-3 s of round-trip latency. Cost on
+                // documents without a barcode (passports, foreign DLs) is
+                // bounded: ML Kit returns null in ~50 ms.
+                // docs/architecture/idv-decode-roadmap.md (Phase 2).
+                val decodedPayload = if (side == DocumentSide.BACK) {
+                    decodeBarcodeOrNull(imageData)
+                } else {
+                    null
+                }
+
                 val result = manager.uploadDocument(
                     verificationId = verification.id,
                     imageData = imageData,
                     side = side,
-                    documentTypeCode = docTypeCode
+                    documentTypeCode = docTypeCode,
+                    decodedBarcodePayload = decodedPayload
                 )
 
                 val response = result.getOrElse { error ->
@@ -653,4 +670,27 @@ class VerificationViewModel : ViewModel() {
     internal fun getSessionManager(): SessionManager? = sessionManager
     internal fun getCurrentVerification(): Verification? = currentVerification
     internal fun getSelectedCountry(): CountryInfo? = selectedCountry
+
+    /**
+     * Decode a PDF417 barcode from the captured back-side JPEG bytes using
+     * ML Kit. Returns the raw AAMVA payload on success; returns null on any
+     * error (decoding failure, no barcode present, malformed bitmap). All
+     * failures are silent — the server cascade picks up the same image and
+     * retries with its own decoders. We never block upload on this.
+     */
+    private suspend fun decodeBarcodeOrNull(imageData: ByteArray): String? {
+        val bitmap = try {
+            BitmapFactory.decodeByteArray(imageData, 0, imageData.size)
+        } catch (e: Exception) {
+            Log.w("KoraIDV.ViewModel", "bitmap decode failed: ${e.message}")
+            null
+        } ?: return null
+
+        val scanner = BarcodeScanner()
+        return try {
+            scanner.decodePdf417(bitmap)
+        } finally {
+            scanner.close()
+        }
+    }
 }

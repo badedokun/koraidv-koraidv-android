@@ -147,6 +147,52 @@ class ApiIntegrationTest {
         assertThat(request.path).isEqualTo("/api/v1/verifications/ver-123/document/back")
     }
 
+    // Pin the Phase 2 contract: when ML Kit on the device decoded the PDF417,
+    // the payload travels to the server in `decodedBarcodePayload` and the
+    // server skips its own image-decoding cascade. Wire-format regression test.
+    @Test
+    fun `uploadDocumentBack includes decodedBarcodePayload when present`() = runTest {
+        mockServer.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setBody("""{"documentId": "doc-1", "qualityScore": 0.9, "warnings": []}""")
+                .setHeader("Content-Type", "application/json")
+        )
+
+        apiService.uploadDocumentBack(
+            "ver-123",
+            UploadDocumentBackRequest(
+                imageBase64 = "back_image_data",
+                decodedBarcodePayload = "@\n\rANSI 636036040202DL00410269DLDAQA12345..."
+            )
+        )
+
+        val body = mockServer.takeRequest().body.readUtf8()
+        assertThat(body).contains("\"decodedBarcodePayload\"")
+        assertThat(body).contains("DLDAQA12345")
+    }
+
+    // When on-device decode fails (or document has no barcode), the payload
+    // is null. Confirm Gson omits the field entirely so older backends remain
+    // backward-compatible.
+    @Test
+    fun `uploadDocumentBack omits decodedBarcodePayload when null`() = runTest {
+        mockServer.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setBody("""{"documentId": "doc-1", "qualityScore": 0.9, "warnings": []}""")
+                .setHeader("Content-Type", "application/json")
+        )
+
+        apiService.uploadDocumentBack(
+            "ver-123",
+            UploadDocumentBackRequest(imageBase64 = "back_image_data")
+        )
+
+        val body = mockServer.takeRequest().body.readUtf8()
+        assertThat(body).doesNotContain("decodedBarcodePayload")
+    }
+
     // =====================================================================
     // Upload Selfie
     // =====================================================================

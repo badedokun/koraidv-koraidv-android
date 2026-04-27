@@ -27,6 +27,13 @@ data class DocumentDetectionResult(
 class DocumentScanner {
 
     private var lastCorners: List<PointF>? = null
+    // Preview-image dimensions of the most recent successful detection.
+    // Used by getLastBoundsFractional() to express the bounds in 0..1
+    // space so callers can crop the higher-resolution capture bitmap.
+    @Volatile
+    private var lastImageWidth = 0f
+    @Volatile
+    private var lastImageHeight = 0f
     private var stabilityCounter = 0
     private var noDetectionCounter = 0
     private val noDetectionThreshold = 3  // 3 consecutive missed frames before reset
@@ -91,25 +98,22 @@ class DocumentScanner {
                         }
                     }
 
-                    // For single text block, use center-frame heuristic
-                    // assuming ID card aspect ratio 1.586:1 occupying 70% of frame width
-                    if (blockCount == 1) {
-                        val cardWidth = width * 0.70f
-                        val cardHeight = cardWidth / 1.586f
-                        val centerX = width / 2f
-                        val centerY = height / 2f
-                        minX = centerX - cardWidth / 2f
-                        maxX = centerX + cardWidth / 2f
-                        minY = centerY - cardHeight / 2f
-                        maxY = centerY + cardHeight / 2f
-                    } else {
-                        val padX = (maxX - minX) * 0.1f
-                        val padY = (maxY - minY) * 0.1f
-                        minX = (minX - padX).coerceAtLeast(0f)
-                        minY = (minY - padY).coerceAtLeast(0f)
-                        maxX = (maxX + padX).coerceAtMost(width)
-                        maxY = (maxY + padY).coerceAtMost(height)
-                    }
+                    // Use the actual text bounding box across all blocks +
+                    // 10 % padding. This applies equally to single-block
+                    // and multi-block detections.
+                    //
+                    // The previous single-block branch overwrote these
+                    // bounds with a synthesised 70%-wide centred box —
+                    // which made coverage read a constant ~41 % regardless
+                    // of how small the card actually was in the frame.
+                    // That defeated the coverage-based "Move closer" guard
+                    // and let auto-capture fire on far-away cards.
+                    val padX = (maxX - minX) * 0.1f
+                    val padY = (maxY - minY) * 0.1f
+                    minX = (minX - padX).coerceAtLeast(0f)
+                    minY = (minY - padY).coerceAtLeast(0f)
+                    maxX = (maxX + padX).coerceAtMost(width)
+                    maxY = (maxY + padY).coerceAtMost(height)
 
                     val corners = listOf(
                         PointF(minX, minY),
@@ -132,13 +136,21 @@ class DocumentScanner {
                         (0.5f + coverage.coerceAtMost(0.5f)).coerceAtMost(0.99f)
                     }
 
-                    // Compute quality guidance from coverage
+                    // REQ-003 FR-003.4 · Coverage thresholds dictate when
+                    // auto-capture is allowed. Below 35 % the document is
+                    // too small to fill the review frame (user needs to
+                    // move closer); above 85 % the document is likely
+                    // clipped. Previously the lower bound was 5 %, which
+                    // let auto-capture fire on a tiny card and produced
+                    // the "lots of desk visible in review" screenshots.
                     val qualityGuidance = when {
-                        coverage < 0.05f -> "Move closer to the document"
+                        coverage < 0.35f -> "Move closer to the document"
                         coverage > 0.85f -> "Move further from the document"
                         else -> null // All conditions good
                     }
 
+                    lastImageWidth = width
+                    lastImageHeight = height
                     lastDetectionResult = DocumentDetectionResult(
                         corners = corners,
                         boundingBox = boundingBox,
@@ -210,6 +222,80 @@ class DocumentScanner {
 
     fun close() {
         textRecognizer.close()
+    }
+
+    /**
+     * Returns the last detection bounding box in 0..1 coordinates, relative
+     * to the analysis-image dimensions, or null if there is no detection yet.
+     *
+     * REQ-003 FR-003.4 — the capture bitmap and the analysis stream share an
+     * aspect ratio (both derive from the same CameraX use case), so these
+     * fractions map correctly onto the higher-resolution capture by scaling
+     * with the capture dimensions. The caller is responsible for clamping
+     * the result into the bitmap bounds.
+     */
+    fun getLastBoundsFractional(): RectF? {
+        val w = lastImageWidth
+        val h = lastImageHeight
+        val box = lastDetectionResult?.boundingBox
+        if (w <= 0f || h <= 0f || box == null) return null
+        return RectF(
+            (box.left / w).coerceIn(0f, 1f),
+            (box.top / h).coerceIn(0f, 1f),
+            (box.right / w).coerceIn(0f, 1f),
+            (box.bottom / h).coerceIn(0f, 1f),
+        )
+    }
+
+    /**
+     * Produces a tight-cropped bitmap around the most recent detection,
+     * with a small padding. Falls back to a centered ID-1-aspect crop
+     * when no detection is available — the viewfinder already funnels
+     * the user toward a centered document.
+     *
+     * REQ-003 FR-003.4 · "Captured document images must scale to fill the
+     * review frame regardless of original capture size. No empty space
+     * around the document in the review screen."
+     */
+    fun cropToDocument(bitmap: Bitmap, @Suppress("UNUSED_PARAMETER") paddingFraction: Float = 0.05f): Bitmap {
+        // Why not use getLastBoundsFractional()? The ML Kit analysis stream
+        // and the capture stream can arrive in different orientations on
+        // CameraX (analysis = sensor orientation, capture = device-display
+        // orientation), so fractions computed on one don't translate
+        // cleanly onto the other without a rotation-aware transform. The
+        // symptom was a crop strip that cut the card in half horizontally.
+        //
+        // Pragmatic path: the viewfinder already enforces a centred,
+        // horizontally-oriented document at ID-1 (1.586:1). A centred
+        // crop at that ratio, sized to the shorter dimension, reliably
+        // frames the card regardless of the sensor's orientation.
+        val bmpW = bitmap.width
+        val bmpH = bitmap.height
+        val landscape = bmpW >= bmpH
+
+        // Pick the dominant orientation for the crop — horizontal ID card.
+        val targetAspect = 1.586f
+        val targetW: Int
+        val targetH: Int
+        if (landscape) {
+            // Source already horizontal. Use ~95% of height → width = h * aspect.
+            targetH = (bmpH * 0.95f).toInt()
+            targetW = (targetH * targetAspect).toInt().coerceAtMost(bmpW)
+        } else {
+            // Source portrait. The card lives horizontally inside, centred.
+            // Use ~95% of width → height = w / aspect.
+            targetW = (bmpW * 0.95f).toInt()
+            targetH = (targetW / targetAspect).toInt().coerceAtMost(bmpH)
+        }
+        val left = ((bmpW - targetW) / 2).coerceAtLeast(0)
+        val top = ((bmpH - targetH) / 2).coerceAtLeast(0)
+        val width = targetW.coerceAtMost(bmpW - left).coerceAtLeast(1)
+        val height = targetH.coerceAtMost(bmpH - top).coerceAtLeast(1)
+        return try {
+            Bitmap.createBitmap(bitmap, left, top, width, height)
+        } catch (_: IllegalArgumentException) {
+            bitmap
+        }
     }
 
     fun extractDocument(bitmap: Bitmap, corners: List<PointF>): Bitmap {

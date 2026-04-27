@@ -27,6 +27,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.koraidv.sdk.KoraException
+import com.koraidv.sdk.ResultPageMessages
 import com.koraidv.sdk.Verification
 import com.koraidv.sdk.nfc.NfcPassportData
 import com.koraidv.sdk.VerificationStatus
@@ -1054,7 +1055,8 @@ internal fun NfcReadingPlaceholder(
     dateOfBirth: String,
     dateOfExpiry: String,
     onNfcDataReceived: (NfcPassportData) -> Unit,
-    onSkip: () -> Unit
+    onSkip: () -> Unit,
+    showVisualGuides: Boolean = false
 ) {
     // The VerificationActivity observes NfcReading state and launches
     // NfcPassportActivity. This composable just shows a loading state.
@@ -1065,13 +1067,21 @@ internal fun NfcReadingPlaceholder(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        CircularProgressIndicator(
-            modifier = Modifier.size(48.dp),
-            color = MaterialTheme.colorScheme.primary,
-            strokeWidth = 4.dp
-        )
-
-        Spacer(modifier = Modifier.height(24.dp))
+        // REQ-003 · NFC scan visual guide replaces the plain spinner.
+        if (showVisualGuides) {
+            VisualGuide(
+                kind = VisualGuideKind.NFC_SCAN,
+                modifier = Modifier.fillMaxWidth(0.65f),
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+        } else {
+            CircularProgressIndicator(
+                modifier = Modifier.size(48.dp),
+                color = MaterialTheme.colorScheme.primary,
+                strokeWidth = 4.dp
+            )
+            Spacer(modifier = Modifier.height(24.dp))
+        }
 
         Text(
             text = "Preparing NFC Reader",
@@ -1088,5 +1098,171 @@ internal fun NfcReadingPlaceholder(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center
         )
+    }
+}
+
+// ─── Simplified Result Screens (REQ-005) ────────────────────────────────────
+// Used when Configuration.resultPageMode == ResultPageMode.SIMPLIFIED. Shows
+// only the outcome — no scores, no metrics.
+
+@Composable
+fun SimplifiedSuccessScreen(
+    messages: ResultPageMessages?,
+    onDone: () -> Unit
+) {
+    SimplifiedOutcomeLayout(
+        iconBg = Color(0xFF10B98120),
+        iconRingGradient = listOf(Color(0xFF10B981), Color(0xFF059669)),
+        iconVector = Icons.Filled.Check,
+        iconTint = Color.White,
+        title = messages?.successTitle ?: "Verification Successful",
+        message = messages?.successMessage
+            ?: "Your identity has been successfully verified. You can now proceed.",
+        buttonLabel = "Continue",
+        referenceId = null,
+        onButtonClick = onDone
+    )
+}
+
+@Composable
+fun SimplifiedFailedScreen(
+    messages: ResultPageMessages?,
+    onRetry: () -> Unit
+) {
+    SimplifiedOutcomeLayout(
+        iconBg = Color(0xFFDC262620),
+        iconRingGradient = listOf(Color(0xFFDC2626), Color(0xFFB91C1C)),
+        iconVector = Icons.Filled.Close,
+        iconTint = Color.White,
+        title = messages?.failedTitle ?: "Verification Failed",
+        message = messages?.failedMessage
+            ?: "We could not verify your identity. Please try again with a valid document.",
+        buttonLabel = "Try Again",
+        referenceId = null,
+        onButtonClick = onRetry
+    )
+}
+
+@Composable
+fun SimplifiedReviewScreen(
+    verification: Verification,
+    messages: ResultPageMessages?,
+    onDone: () -> Unit
+) {
+    SimplifiedOutcomeLayout(
+        iconBg = Color(0xFFF59E0B20),
+        iconRingGradient = listOf(Color(0xFFF59E0B), Color(0xFFB45309)),
+        iconVector = Icons.Filled.Schedule,
+        iconTint = Color.White,
+        title = messages?.reviewTitle ?: "Verification Under Review",
+        message = messages?.reviewMessage
+            ?: "Your verification requires additional review. We will notify you of the result.",
+        buttonLabel = "Got It",
+        referenceId = verification.id.take(8),
+        onButtonClick = onDone
+    )
+}
+
+@Composable
+private fun SimplifiedOutcomeLayout(
+    iconBg: Color,
+    iconRingGradient: List<Color>,
+    iconVector: androidx.compose.ui.graphics.vector.ImageVector,
+    iconTint: Color,
+    title: String,
+    message: String,
+    buttonLabel: String,
+    referenceId: String?,
+    onButtonClick: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+            .padding(horizontal = 20.dp, vertical = 32.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Spacer(modifier = Modifier.weight(1f))
+
+        Box(
+            modifier = Modifier
+                .size(96.dp)
+                .background(iconBg, CircleShape),
+            contentAlignment = Alignment.Center
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(64.dp)
+                    .background(
+                        androidx.compose.ui.graphics.Brush.linearGradient(iconRingGradient),
+                        CircleShape
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = iconVector,
+                    contentDescription = null,
+                    tint = iconTint,
+                    modifier = Modifier.size(32.dp)
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+        Text(
+            text = title,
+            style = MaterialTheme.typography.headlineSmall,
+            fontWeight = FontWeight.Bold,
+            textAlign = TextAlign.Center
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text = message,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.widthIn(max = 320.dp)
+        )
+
+        if (referenceId != null) {
+            Spacer(modifier = Modifier.height(24.dp))
+            Box(
+                modifier = Modifier
+                    .background(
+                        Color(0xFF0284C710),
+                        RoundedCornerShape(8.dp)
+                    )
+                    .border(
+                        1.dp,
+                        Color(0xFF0284C730),
+                        RoundedCornerShape(8.dp)
+                    )
+                    .padding(horizontal = 24.dp, vertical = 12.dp)
+            ) {
+                Row {
+                    Text(
+                        text = "Reference: ",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = referenceId,
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.weight(1f))
+
+        Button(
+            onClick = onButtonClick,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(52.dp)
+        ) {
+            Text(buttonLabel, fontWeight = FontWeight.SemiBold)
+        }
     }
 }

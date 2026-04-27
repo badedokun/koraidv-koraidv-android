@@ -27,6 +27,7 @@ import androidx.compose.ui.Modifier
 import androidx.core.content.ContextCompat
 import com.koraidv.sdk.KoraException
 import com.koraidv.sdk.KoraIDV
+import com.koraidv.sdk.ResultPageMode
 import com.koraidv.sdk.Verification
 import com.koraidv.sdk.VerificationRequest
 import com.koraidv.sdk.nfc.NfcPassportActivity
@@ -160,7 +161,10 @@ class VerificationActivity : ComponentActivity() {
                         onCancel = { finishCancelled() },
                         onRetry = { viewModel.retry() },
                         sessionManager = viewModel.getSessionManager(),
-                        verificationId = viewModel.getCurrentVerification()?.id
+                        verificationId = viewModel.getCurrentVerification()?.id,
+                        resultPageMode = config?.resultPageMode ?: ResultPageMode.DETAILED,
+                        customMessages = config?.customMessages,
+                        showVisualGuides = config?.showVisualGuides ?: false
                     )
                 }
             }
