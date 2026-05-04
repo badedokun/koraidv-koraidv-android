@@ -30,7 +30,7 @@ dependencyResolutionManagement {
 
 ```kotlin
 dependencies {
-    implementation("com.github.badedokun:koraidv-koraidv-android:v1.1.0")
+    implementation("com.github.badedokun:koraidv-koraidv-android:v1.5.0")
 }
 ```
 
@@ -47,7 +47,7 @@ If using version catalogs, add to `libs.versions.toml`:
 
 ```toml
 [versions]
-koraidv = "v1.1.0"
+koraidv = "v1.5.0"
 
 [libraries]
 koraidv = { group = "com.github.badedokun", name = "koraidv-koraidv-android", version.ref = "koraidv" }
