@@ -243,12 +243,25 @@ The SDK automatically handles runtime camera permission requests.
 
 ## ProGuard Rules
 
-If you're using ProGuard/R8, add these rules to `proguard-rules.pro`:
+The SDK ships a `consumer-rules.pro` that's applied automatically — you don't need to add anything to your own `proguard-rules.pro` for the SDK itself. (It already covers the SDK's models, API interfaces, public types, and OpenCV imports.)
 
-```proguard
--keep class com.koraidv.sdk.** { *; }
--keepclassmembers class com.koraidv.sdk.** { *; }
+## OpenCV (optional dependency for document dewarping)
+
+The SDK includes a `DocumentDewarper` that detects the document quadrilateral in a captured photo and warps it to a frame-filling crop. This is an optional enhancement — **OpenCV is NOT bundled** in the SDK because it adds ~50 MB per ABI and most consumers don't need it.
+
+Behaviour without OpenCV:
+- The SDK builds cleanly (consumer-rules.pro silences the R8 warnings on `org.opencv.*`).
+- At runtime, `DocumentDewarper.dewarp()` calls `OpenCVLoader.initLocal()` inside a try/catch. If OpenCV isn't on the classpath, the call returns `null` and the SDK falls back to the original capture. No crash.
+
+If you want dewarping enabled, add OpenCV to your app's `build.gradle.kts`:
+
+```kotlin
+dependencies {
+    implementation("org.opencv:opencv:4.10.0")
+}
 ```
+
+That's it — the SDK detects OpenCV's presence at runtime and starts dewarping automatically.
 
 ## Localization
 

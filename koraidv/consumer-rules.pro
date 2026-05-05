@@ -78,3 +78,16 @@
 -keepattributes *Annotation*
 -keep class com.google.gson.reflect.TypeToken { *; }
 -keep class * extends com.google.gson.reflect.TypeToken
+
+# === OpenCV (optional runtime dependency) ===
+# DocumentDewarper uses OpenCV for document corner detection + perspective warp.
+# OpenCV is NOT bundled by the SDK — it's an optional dependency. The dewarper
+# guards every call behind OpenCVLoader.initLocal() inside a try/catch, so when
+# the consumer app doesn't include OpenCV, the dewarp call simply returns null
+# (the original capture is used, no crash). But R8/ProGuard sees the imports
+# and warns about unresolved symbols at minification time. Suppress those:
+-dontwarn org.opencv.**
+
+# Consumers who want dewarping should add OpenCV themselves:
+#   implementation("org.opencv:opencv:4.10.0")
+# (See the koraidv-android README for the full optional-OpenCV note.)
