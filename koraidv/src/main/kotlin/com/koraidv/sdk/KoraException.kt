@@ -98,6 +98,31 @@ sealed class KoraException(
         errorCode = "HTTP_ERROR"
     )
 
+    // Response Errors (parity with iOS, Flutter, RN)
+    @Parcelize
+    class InvalidResponse : KoraException(
+        message = "The server returned an invalid response.",
+        errorCode = "INVALID_RESPONSE"
+    )
+
+    @Parcelize
+    class NoData : KoraException(
+        message = "No response data received.",
+        errorCode = "NO_DATA"
+    )
+
+    @Parcelize
+    data class DecodingError(val errorCause: String) : KoraException(
+        message = "Failed to decode response: $errorCause",
+        errorCode = "DECODING_ERROR"
+    )
+
+    @Parcelize
+    data class EncodingError(val errorCause: String) : KoraException(
+        message = "Failed to encode request: $errorCause",
+        errorCode = "ENCODING_ERROR"
+    )
+
     // Capture Errors
     @Parcelize
     class CameraAccessDenied : KoraException(
@@ -145,6 +170,25 @@ sealed class KoraException(
         errorCode = "MRZ_READ_FAILED"
     )
 
+    @Parcelize
+    class NfcNotAvailable : KoraException(
+        message = "NFC is not available on this device.",
+        errorCode = "NFC_NOT_AVAILABLE",
+        recoverySuggestion = "Use a device that supports NFC, or skip the NFC step."
+    )
+
+    @Parcelize
+    data class NfcReadFailed(val reason: String) : KoraException(
+        message = "NFC read failed: $reason",
+        errorCode = "NFC_READ_FAILED",
+        recoverySuggestion = "Hold your device against the passport and keep it still."
+    )
+
+    /**
+     * @deprecated Use [NfcReadFailed] (errorCode "NFC_READ_FAILED") for cross-SDK
+     * parity. This class still fires for backward compatibility but new code paths
+     * should throw NfcReadFailed.
+     */
     @Parcelize
     data class NfcChipReadFailed(val reason: String) : KoraException(
         message = "NFC chip read failed: $reason",

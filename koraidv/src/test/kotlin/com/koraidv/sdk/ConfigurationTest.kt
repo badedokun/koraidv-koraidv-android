@@ -158,13 +158,21 @@ class ConfigurationTest {
     // =====================================================================
 
     @Test
-    fun `production URL is correct`() {
-        assertThat(Environment.PRODUCTION.baseUrl).isEqualTo("https://api.koraidv.com/api/v1")
+    fun `production URL is the unified Korastratum gateway`() {
+        // Production lives at api.korastratum.com /api/v1/idv (gateway routes to
+        // koraidv-identity in the koraidv project). Updated in v1.2.x — earlier
+        // SDKs used the now-defunct api.koraidv.com hostname.
+        assertThat(Environment.PRODUCTION.baseUrl)
+            .isEqualTo("https://api.korastratum.com/api/v1/idv")
     }
 
     @Test
-    fun `sandbox URL is correct`() {
-        assertThat(Environment.SANDBOX.baseUrl).isEqualTo("https://sandbox-api.koraidv.com/api/v1")
+    fun `sandbox URL points at the orokii-platform sandbox Cloud Run service`() {
+        // Sandbox identity-service moved out of the koraidv project to
+        // orokii-platform (project number 626704085312). Iterating directly
+        // on the Cloud Run URL until/unless a sandbox subdomain is wired in.
+        assertThat(Environment.SANDBOX.baseUrl)
+            .isEqualTo("https://koraidv-identity-sandbox-626704085312.us-central1.run.app/api/v1")
     }
 
     // =====================================================================
