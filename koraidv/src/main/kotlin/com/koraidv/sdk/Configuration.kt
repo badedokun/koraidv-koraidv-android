@@ -3,7 +3,7 @@ package com.koraidv.sdk
 /**
  * SDK Configuration.
  *
- * @property apiKey Your API key (starts with ck_live_, ck_sandbox_, kora_live_, or kora_sandbox_)
+ * @property apiKey Your API key. Sandbox keys start with `sk_sandbox_`, production with `sk_live_`.
  * @property tenantId Your tenant ID (UUID)
  * @property environment API environment (auto-detected from API key if not specified)
  * @property baseUrl Custom base URL override (e.g., for self-hosted or Cloud Run deployments)
@@ -61,7 +61,8 @@ data class Configuration(
 
     companion object {
         private fun detectEnvironment(apiKey: String): Environment {
-            return if (apiKey.startsWith("ck_sandbox_") || apiKey.startsWith("kora_sandbox_") || apiKey.startsWith("test_") || apiKey.startsWith("sk_sandbox_")) {
+            // Canonical: sk_sandbox_<slug>_<hex> | sk_live_<slug>_<hex>.
+            return if (apiKey.startsWith("sk_sandbox_")) {
                 Environment.SANDBOX
             } else {
                 Environment.PRODUCTION
