@@ -90,7 +90,14 @@ data class CreateVerificationRequest(
 
 data class UploadDocumentRequest(
     @SerializedName("documentType") val documentType: String,
-    @SerializedName("imageBase64") val imageBase64: String
+    @SerializedName("imageBase64") val imageBase64: String,
+    // Country is the ISO-3166 alpha-2 issuing country the SDK user picked
+    // in the country picker. Sent here rather than at create-time because
+    // createVerification fires at consent-accept, before the picker has
+    // been shown. Backend backfills verification.selectedCountry so the
+    // selected-vs-detected mismatch gate has both halves to compare.
+    // Optional for backwards compat with older backends.
+    @SerializedName("country") val country: String? = null
 )
 
 data class UploadDocumentBackRequest(
@@ -180,6 +187,12 @@ data class VerificationResponse(
     @SerializedName("scores") val scores: VerificationScoresResponse?,
     @SerializedName("riskSignals") val riskSignals: List<RiskSignalResponse>?,
     @SerializedName("riskScore") val riskScore: Int?,
+    // Customer-facing rejection reason from the backend's decision engine —
+    // e.g. "You selected US Passport but the document you uploaded looks
+    // like a US Driver's License…" or "Document has expired". Without this,
+    // RejectedScreen could only show "Some checks didn't meet the required
+    // threshold" + a generic score breakdown.
+    @SerializedName("decisionReason") val decisionReason: String?,
     @SerializedName("createdAt") val createdAt: String,
     @SerializedName("updatedAt") val updatedAt: String,
     @SerializedName("completedAt") val completedAt: String?

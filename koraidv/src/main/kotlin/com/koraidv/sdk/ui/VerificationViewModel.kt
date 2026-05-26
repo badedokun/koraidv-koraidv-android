@@ -350,7 +350,12 @@ class VerificationViewModel : ViewModel() {
                         verificationId = verification.id,
                         imageData = imageData,
                         side = DocumentSide.FRONT,
-                        documentTypeCode = docTypeCode
+                        documentTypeCode = docTypeCode,
+                        // Pass the SDK user's selected country so the backend can
+                        // backfill the verification's selectedCountry and fire the
+                        // mismatch gate at /complete. Only sent on FRONT uploads
+                        // because backfill is conditional on currently-empty fields.
+                        countryCode = selectedCountry?.code
                     )
                 }
             } else {
@@ -398,7 +403,11 @@ class VerificationViewModel : ViewModel() {
                     imageData = imageData,
                     side = side,
                     documentTypeCode = docTypeCode,
-                    decodedBarcodePayload = decodedPayload
+                    decodedBarcodePayload = decodedPayload,
+                    // selectedCountry is only relevant on FRONT uploads but it's
+                    // harmless on back (backfill is a no-op once the field is
+                    // pinned). Sent uniformly to keep the call sites symmetrical.
+                    countryCode = selectedCountry?.code
                 )
 
                 val response = result.getOrElse { error ->

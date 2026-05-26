@@ -31,6 +31,17 @@ data class Verification(
     val riskSignals: List<RiskSignal>? = null,
     /** Overall risk score (0-100) */
     val riskScore: Int? = null,
+    /**
+     * Human-readable explanation of the decision (especially useful for
+     * REJECTED outcomes). Sourced from backend `decisionReason` — already
+     * customer-safe copy. Examples:
+     *   "You selected US Passport but the document you uploaded looks like a US Driver's License…"
+     *   "Document has expired (expiry: 2026-03-20)"
+     *   "Verification score too low. Please use a clearer document photo…"
+     * Surfaced by RejectedScreen so users see why their verification
+     * didn't pass instead of a generic "checks didn't meet threshold".
+     */
+    val decisionReason: String? = null,
     /** Creation timestamp */
     val createdAt: Date,
     /** Last update timestamp */

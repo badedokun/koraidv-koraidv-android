@@ -139,13 +139,18 @@ internal class SessionManager(
      *   back-side uploads on documents that carry a barcode (US/CA DLs, voter
      *   cards, etc.). When non-null the server skips its own barcode decode.
      *   Empty/null = server falls back to its zxing-cpp + pdf417decoder cascade.
+     * @param countryCode ISO-3166 alpha-2 code for the issuing country the user
+     *   picked. Front uploads only — the backend backfills the verification's
+     *   selectedCountry so the selected-vs-detected mismatch gate can fire.
+     *   Null is accepted for backwards compat but reduces gate coverage.
      */
     suspend fun uploadDocument(
         verificationId: String,
         imageData: ByteArray,
         side: DocumentSide,
         documentTypeCode: String,
-        decodedBarcodePayload: String? = null
+        decodedBarcodePayload: String? = null,
+        countryCode: String? = null
     ): Result<DocumentUploadResult> = withContext(Dispatchers.IO) {
         try {
             val base64Image = Base64.encodeToString(imageData, Base64.NO_WRAP)
@@ -156,7 +161,8 @@ internal class SessionManager(
                         verificationId,
                         UploadDocumentRequest(
                             documentType = documentTypeCode,
-                            imageBase64 = base64Image
+                            imageBase64 = base64Image,
+                            country = countryCode
                         )
                     )
                 } else {
@@ -544,6 +550,7 @@ internal class SessionManager(
             },
             riskSignals = response.riskSignals?.map { RiskSignal(it.code, it.severity, it.message) },
             riskScore = response.riskScore,
+            decisionReason = response.decisionReason,
             createdAt = parseDate(response.createdAt),
             updatedAt = parseDate(response.updatedAt),
             completedAt = response.completedAt?.let { parseDate(it) }

@@ -425,8 +425,18 @@ fun RejectedScreen(
                     modifier = Modifier.semantics { heading() }
                 )
                 Spacer(modifier = Modifier.height(4.dp))
+                // Prefer the backend's customer-facing reason when present —
+                // e.g. "You selected US Passport but the document you
+                // uploaded looks like a US Driver's License…". Without this
+                // override every rejection showed the same generic
+                // "Some checks didn't meet the required threshold" line,
+                // hiding the doc-type/country mismatch gate's specific
+                // explanation. Falls back to the generic copy when
+                // decisionReason is empty or null.
+                val rejectionMessage = verification.decisionReason?.takeIf { it.isNotBlank() }
+                    ?: stringResource(R.string.koraidv_result_rejected_subtitle)
                 Text(
-                    text = stringResource(R.string.koraidv_result_rejected_subtitle),
+                    text = rejectionMessage,
                     fontSize = 14.sp,
                     color = KoraColors.TextSecondary,
                     textAlign = TextAlign.Center
