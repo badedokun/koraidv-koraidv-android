@@ -9,22 +9,36 @@ class ConfigurationTest {
     // Environment auto-detection
     // =====================================================================
 
+    // v1.6.0 dropped the legacy ck_sandbox_ and kora_sandbox_ prefixes —
+    // only sk_sandbox_ auto-detects SANDBOX now. Anything else falls
+    // through to PRODUCTION. These tests pin that contract so a future
+    // revert can't quietly resurrect the legacy detection.
+
     @Test
-    fun `sandbox key with ck prefix detects SANDBOX environment`() {
+    fun `sandbox key with sk prefix detects SANDBOX environment`() {
         val config = Configuration(
-            apiKey = "ck_sandbox_abc123",
+            apiKey = "sk_sandbox_abc123",
             tenantId = "test-tenant"
         )
         assertThat(config.environment).isEqualTo(Environment.SANDBOX)
     }
 
     @Test
-    fun `sandbox key with kora prefix detects SANDBOX environment`() {
+    fun `legacy ck_sandbox prefix no longer detects SANDBOX`() {
+        val config = Configuration(
+            apiKey = "ck_sandbox_abc123",
+            tenantId = "test-tenant"
+        )
+        assertThat(config.environment).isEqualTo(Environment.PRODUCTION)
+    }
+
+    @Test
+    fun `legacy kora_sandbox prefix no longer detects SANDBOX`() {
         val config = Configuration(
             apiKey = "kora_sandbox_abc123",
             tenantId = "test-tenant"
         )
-        assertThat(config.environment).isEqualTo(Environment.SANDBOX)
+        assertThat(config.environment).isEqualTo(Environment.PRODUCTION)
     }
 
     @Test
@@ -80,7 +94,7 @@ class ConfigurationTest {
     @Test
     fun `resolvedBaseUrl uses sandbox URL for sandbox key`() {
         val config = Configuration(
-            apiKey = "ck_sandbox_abc123",
+            apiKey = "sk_sandbox_abc123",
             tenantId = "test-tenant"
         )
         assertThat(config.resolvedBaseUrl).isEqualTo(Environment.SANDBOX.baseUrl)

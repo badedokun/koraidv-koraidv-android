@@ -28,6 +28,15 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.asImageBitmap
+// v1.6.3: bitmap decode + dewarp + JPEG encode are all CPU-bound; the
+// previous version ran them inside LaunchedEffect on Dispatchers.Main
+// and froze the UI on mid-tier Android (BanffPay QA report 2026-05-26).
+// Switched to withContext(Dispatchers.Default) so the freeze goes away
+// on slow devices without changing behaviour on fast ones.
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import kotlin.coroutines.resume
+import kotlin.coroutines.suspendCoroutine
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
@@ -91,8 +100,20 @@ fun DocumentCaptureScreen(
     LaunchedEffect(autoCapturePending) {
         if (autoCapturePending && !isCapturing && cameraReady) {
             isCapturing = true
-            cameraManager.capturePhotoOnMain { bytes ->
-                if (bytes != null) {
+
+            // v1.6.3 perf fix: bridge the callback-style
+            // capturePhotoOnMain to a suspending await, then move the
+            // CPU-bound bitmap+dewarp+JPEG-encode work onto
+            // Dispatchers.Default. State updates after `withContext`
+            // automatically return to the LaunchedEffect's main
+            // dispatcher, so capturedImageBytes/capturedBitmap setters
+            // remain Compose-safe.
+            val bytes = suspendCoroutine<ByteArray?> { cont ->
+                cameraManager.capturePhotoOnMain { result -> cont.resume(result) }
+            }
+
+            if (bytes != null) {
+                val encoded = withContext(Dispatchers.Default) {
                     val raw = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
                     if (raw != null) {
                         // FR-003.4 · Detect document quad and warp to ID-1 aspect so the
@@ -103,15 +124,20 @@ fun DocumentCaptureScreen(
                         if (finalBitmap !== raw) raw.recycle()
                         val stream = ByteArrayOutputStream()
                         finalBitmap.compress(Bitmap.CompressFormat.JPEG, 90, stream)
-                        capturedImageBytes = stream.toByteArray()
-                        capturedBitmap = finalBitmap
+                        Pair(stream.toByteArray(), finalBitmap)
                     } else {
-                        qualityGuidance = "Capture failed, retrying..."
+                        null
                     }
                 }
-                isCapturing = false
-                autoCapturePending = false
+                if (encoded != null) {
+                    capturedImageBytes = encoded.first
+                    capturedBitmap = encoded.second
+                } else {
+                    qualityGuidance = "Capture failed, retrying..."
+                }
             }
+            isCapturing = false
+            autoCapturePending = false
         }
     }
 
@@ -604,8 +630,19 @@ fun SelfieCaptureScreen(
     LaunchedEffect(autoCapturePending) {
         if (autoCapturePending && !isCapturing && cameraReady && capturedImageBytes == null) {
             isCapturing = true
-            cameraManager.capturePhotoOnMain { bytes ->
-                if (bytes != null) {
+
+            // v1.6.3 perf fix: same off-main-thread pattern as the doc
+            // capture above — bridge the callback, move bitmap+mirror+
+            // JPEG-encode to Dispatchers.Default, return to main for
+            // state updates. Selfie has the additional matrix transform
+            // (horizontal mirror) which is also non-trivial on mid-tier
+            // hardware.
+            val bytes = suspendCoroutine<ByteArray?> { cont ->
+                cameraManager.capturePhotoOnMain { result -> cont.resume(result) }
+            }
+
+            if (bytes != null) {
+                val encoded = withContext(Dispatchers.Default) {
                     val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
                     if (bitmap != null) {
                         val matrix = Matrix()
@@ -619,16 +656,20 @@ fun SelfieCaptureScreen(
                         // Always show review screen — server-side ML performs real quality assessment
                         val stream = ByteArrayOutputStream()
                         mirrored.compress(Bitmap.CompressFormat.JPEG, 90, stream)
-                        capturedImageBytes = stream.toByteArray()
-                        capturedBitmap = mirrored
+                        Pair(stream.toByteArray(), mirrored)
                     } else {
-                        // Corrupt JPEG — show guidance and let auto-capture retry
-                        guidanceMessage = "Capture failed, retrying..."
+                        null
                     }
                 }
-                isCapturing = false
-                autoCapturePending = false
+                if (encoded != null) {
+                    capturedImageBytes = encoded.first
+                    capturedBitmap = encoded.second
+                } else {
+                    guidanceMessage = "Capture failed, retrying..."
+                }
             }
+            isCapturing = false
+            autoCapturePending = false
         }
     }
 
