@@ -197,14 +197,22 @@ class ChallengeDetector {
     private fun detectTurn(face: Face, isLeft: Boolean): Boolean {
         val yaw = face.headEulerAngleY
 
-        // Fallback baseline: if no pre-countdown baseline was provided, accumulate
-        // from frames 3-5 (original behaviour).
+        // Fallback baseline: only used when LivenessManager couldn't snapshot
+        // a baseline at the end of the countdown (typically because no face
+        // was detected during those 3 seconds). Trimmed from the original
+        // 6-frame window (3 skip + 3 accumulate) to 3 frames (1 skip + 2
+        // accumulate) after BanffPay reported perceptible lag on the turn
+        // L/R challenges on mid-tier hardware 2026-05-28. At ~25 FPS the
+        // fallback now adds ~120ms instead of ~240ms before the detector
+        // starts watching for delta. One-frame skip is enough to discard a
+        // single stale frame from the transition; two accumulated frames
+        // are enough to smooth single-frame jitter.
         if (initialYaw == null) {
             turnBaselineFrames++
-            if (turnBaselineFrames < 3) return false // skip first 3 frames
+            if (turnBaselineFrames < 1) return false
             turnBaselineSum += yaw
             turnBaselineCount++
-            if (turnBaselineFrames < 6) return false // accumulate frames 3-5
+            if (turnBaselineFrames < 3) return false
             initialYaw = turnBaselineSum / turnBaselineCount
             return false
         }
@@ -229,13 +237,18 @@ class ChallengeDetector {
     private fun detectNod(face: Face, isUp: Boolean): Boolean {
         val pitch = face.headEulerAngleX
 
-        // Skip the first few frames to let the user settle, same as turn detection
+        // Fallback baseline — same rationale + trim as detectTurn above.
+        // BanffPay reported 2026-05-28 having to redo the "nod up" gesture
+        // because the first attempt didn't register; the lag came from the
+        // 6-frame fallback being too generous when no countdown-time
+        // baseline was captured. Trimmed to 3 frames (1 skip + 2 accumulate)
+        // matching the turn path.
         if (initialPitch == null) {
             nodBaselineFrames++
-            if (nodBaselineFrames < 3) return false
+            if (nodBaselineFrames < 1) return false
             nodBaselineSum += pitch
             nodBaselineCount++
-            if (nodBaselineFrames < 6) return false
+            if (nodBaselineFrames < 3) return false
             initialPitch = nodBaselineSum / nodBaselineCount
             return false
         }
