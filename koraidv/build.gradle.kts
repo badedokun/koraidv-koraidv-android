@@ -107,7 +107,7 @@ publishing {
         register<MavenPublication>("release") {
             groupId = "com.koraidv"
             artifactId = "sdk"
-            version = "1.7.4"
+            version = "1.7.5"
 
             afterEvaluate {
                 from(components["release"])
