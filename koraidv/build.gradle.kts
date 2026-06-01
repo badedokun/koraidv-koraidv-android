@@ -72,14 +72,24 @@ dependencies {
     implementation(libs.camerax.lifecycle)
     implementation(libs.camerax.view)
 
-    // ML Kit
-    implementation(libs.mlkit.face.detection)
-    implementation(libs.mlkit.text.recognition)
-    implementation(libs.mlkit.document.scanner)
-    implementation(libs.mlkit.barcode.scanning)
+    // ML Kit — exposed as api() so the deps transit to consumer apps.
+    // implementation() does not propagate through the published AAR/pom,
+    // and consumers who hit BarcodeScanner / FaceDetector / TextRecognizer
+    // without the missing dep see a fatal NoClassDefFoundError that tears
+    // down VerificationActivity silently (Stratum Remit Android report,
+    // 2026-06-01: back-of-DL capture crashed because barcode-scanning
+    // was not on the host classpath).
+    api(libs.mlkit.face.detection)
+    api(libs.mlkit.text.recognition)
+    api(libs.mlkit.document.scanner)
+    api(libs.mlkit.barcode.scanning)
 
-    // OpenCV — REQ-003 FR-003.4 document corner detection + perspective warp
-    implementation(libs.opencv)
+    // OpenCV — REQ-003 FR-003.4 document corner detection + perspective warp.
+    // Same api() treatment: DocumentDewarper.ensureInit() has a runtime
+    // fallback if OpenCV is absent, but the missing-class warnings are noisy
+    // and the fallback path is degraded. Cleaner to ship it as a declared
+    // transitive dep.
+    api(libs.opencv)
 
     // Coroutines
     implementation(libs.coroutines.core)
@@ -107,7 +117,7 @@ publishing {
         register<MavenPublication>("release") {
             groupId = "com.koraidv"
             artifactId = "sdk"
-            version = "1.8.4"
+            version = "1.8.5"
 
             afterEvaluate {
                 from(components["release"])
