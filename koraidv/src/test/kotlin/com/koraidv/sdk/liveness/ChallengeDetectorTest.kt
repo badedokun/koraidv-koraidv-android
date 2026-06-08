@@ -26,13 +26,12 @@ class ChallengeDetectorTest {
         val face = mockFace(smilingProbability = 0.8f)
         detector.startDetecting(ChallengeType.SMILE)
 
-        // Need 3 consecutive detections
-        val r1 = detector.process(face, ChallengeType.SMILE)
-        val r2 = detector.process(face, ChallengeType.SMILE)
-        val r3 = detector.process(face, ChallengeType.SMILE)
+        // v1.9.1: needs 5 consecutive detections.
+        repeat(4) { detector.process(face, ChallengeType.SMILE) }
+        val r = detector.process(face, ChallengeType.SMILE)
 
-        assertThat(r3.completed).isTrue()
-        assertThat(r3.progress).isEqualTo(1.0f)
+        assertThat(r.completed).isTrue()
+        assertThat(r.progress).isEqualTo(1.0f)
     }
 
     @Test
@@ -107,12 +106,14 @@ class ChallengeDetectorTest {
     fun `turn left detected when yaw decreases enough`() {
         detector.startDetecting(ChallengeType.TURN_LEFT)
 
-        // Build baseline (6 frames needed: skip 3, average frames 3-5)
+        // Build baseline (3 frames needed: skip 1, average frames 1-2)
         val straightFace = mockFace(headEulerAngleY = 0f)
-        repeat(6) { detector.process(straightFace, ChallengeType.TURN_LEFT) }
+        repeat(3) { detector.process(straightFace, ChallengeType.TURN_LEFT) }
 
-        // Face turns left (negative delta for user's left on front camera)
+        // Face turns left (negative delta for user's left on front camera).
+        // v1.9.1: needs 5 consecutive frames past threshold.
         val turnedFace = mockFace(headEulerAngleY = -20f)
+        repeat(4) { detector.process(turnedFace, ChallengeType.TURN_LEFT) }
         val result = detector.process(turnedFace, ChallengeType.TURN_LEFT)
 
         assertThat(result.completed).isTrue()
@@ -123,9 +124,10 @@ class ChallengeDetectorTest {
         detector.startDetecting(ChallengeType.TURN_RIGHT)
 
         val straightFace = mockFace(headEulerAngleY = 0f)
-        repeat(6) { detector.process(straightFace, ChallengeType.TURN_RIGHT) }
+        repeat(3) { detector.process(straightFace, ChallengeType.TURN_RIGHT) }
 
         val turnedFace = mockFace(headEulerAngleY = 20f)
+        repeat(4) { detector.process(turnedFace, ChallengeType.TURN_RIGHT) }
         val result = detector.process(turnedFace, ChallengeType.TURN_RIGHT)
 
         assertThat(result.completed).isTrue()
@@ -154,9 +156,10 @@ class ChallengeDetectorTest {
         detector.startDetecting(ChallengeType.NOD_UP)
 
         val straightFace = mockFace(headEulerAngleX = 0f)
-        repeat(6) { detector.process(straightFace, ChallengeType.NOD_UP) }
+        repeat(3) { detector.process(straightFace, ChallengeType.NOD_UP) }
 
         val nodUpFace = mockFace(headEulerAngleX = 10f)
+        repeat(4) { detector.process(nodUpFace, ChallengeType.NOD_UP) }
         val result = detector.process(nodUpFace, ChallengeType.NOD_UP)
 
         assertThat(result.completed).isTrue()
@@ -167,9 +170,10 @@ class ChallengeDetectorTest {
         detector.startDetecting(ChallengeType.NOD_DOWN)
 
         val straightFace = mockFace(headEulerAngleX = 0f)
-        repeat(6) { detector.process(straightFace, ChallengeType.NOD_DOWN) }
+        repeat(3) { detector.process(straightFace, ChallengeType.NOD_DOWN) }
 
         val nodDownFace = mockFace(headEulerAngleX = -10f)
+        repeat(4) { detector.process(nodDownFace, ChallengeType.NOD_DOWN) }
         val result = detector.process(nodDownFace, ChallengeType.NOD_DOWN)
 
         assertThat(result.completed).isTrue()
@@ -183,6 +187,7 @@ class ChallengeDetectorTest {
     fun `reset clears all state`() {
         val smilingFace = mockFace(smilingProbability = 0.8f)
         detector.startDetecting(ChallengeType.SMILE)
+        repeat(4) { detector.process(smilingFace, ChallengeType.SMILE) }
         val before = detector.process(smilingFace, ChallengeType.SMILE)
         assertThat(before.completed).isTrue()
 
@@ -316,44 +321,66 @@ class ChallengeDetectorTest {
     // =====================================================================
 
     @Test
-    fun `turn left detected immediately with pre-captured baseline`() {
+    fun `turn left detected with pre-captured baseline after 5 sustained frames`() {
         detector.startDetecting(ChallengeType.TURN_LEFT, baselineYaw = 0f)
 
-        // No baseline frames needed — should detect on first frame
+        // v1.9.1: no baseline frames needed BUT 5 consecutive past-threshold
+        // frames are required. Pre-fix this test passed after ONE frame —
+        // that was the bug. Sustained motion is the new bar.
         val turnedFace = mockFace(headEulerAngleY = -20f)
+        repeat(4) { detector.process(turnedFace, ChallengeType.TURN_LEFT) }
         val result = detector.process(turnedFace, ChallengeType.TURN_LEFT)
 
         assertThat(result.completed).isTrue()
     }
 
     @Test
-    fun `turn right detected immediately with pre-captured baseline`() {
+    fun `turn right detected with pre-captured baseline after 5 sustained frames`() {
         detector.startDetecting(ChallengeType.TURN_RIGHT, baselineYaw = 0f)
 
         val turnedFace = mockFace(headEulerAngleY = 20f)
+        repeat(4) { detector.process(turnedFace, ChallengeType.TURN_RIGHT) }
         val result = detector.process(turnedFace, ChallengeType.TURN_RIGHT)
 
         assertThat(result.completed).isTrue()
     }
 
     // =====================================================================
-    // Cumulative delta (jitter resilience)
+    // Jitter behavior (v1.9.1 — single-frame jitter does NOT lock detection)
     // =====================================================================
 
     @Test
-    fun `turn detection survives momentary jitter after reaching threshold`() {
+    fun `single frame past threshold does NOT complete challenge`() {
+        // The pre-v1.9.1 detector accepted a challenge after ONE frame past
+        // threshold (requiredConsecutiveDetections = 1) AND made it sticky
+        // via maxTurnDelta. Combined, this let any momentary motion satisfy
+        // any direction. v1.9.1 raises the gate to 5 consecutive frames and
+        // drops the sticky max.
         detector.startDetecting(ChallengeType.TURN_LEFT, baselineYaw = 0f)
 
-        // User turns far enough
         val turnedFace = mockFace(headEulerAngleY = -20f)
-        detector.process(turnedFace, ChallengeType.TURN_LEFT)
+        val result = detector.process(turnedFace, ChallengeType.TURN_LEFT)
 
-        // ML Kit jitters back closer to center
-        val jitteredFace = mockFace(headEulerAngleY = -8f)
-        val result = detector.process(jitteredFace, ChallengeType.TURN_LEFT)
+        // Just one frame — must not complete.
+        assertThat(result.completed).isFalse()
+    }
 
-        // maxTurnDelta was 20, so should still be detected
-        assertThat(result.completed).isTrue()
+    @Test
+    fun `momentary spike then return to neutral does NOT complete challenge`() {
+        // A jitter spike that briefly exceeds threshold and then returns is
+        // exactly the false-positive pattern v1.9.1 closes. Under the old
+        // sticky-max behavior this would have stayed "completed."
+        detector.startDetecting(ChallengeType.TURN_LEFT, baselineYaw = 0f)
+
+        val spike = mockFace(headEulerAngleY = -20f)
+        val neutral = mockFace(headEulerAngleY = 0f)
+
+        detector.process(spike, ChallengeType.TURN_LEFT)
+        // Followed by 4 neutral frames — last-5 window has only 1 detection.
+        repeat(4) { detector.process(neutral, ChallengeType.TURN_LEFT) }
+        val result = detector.process(neutral, ChallengeType.TURN_LEFT)
+
+        assertThat(result.completed).isFalse()
     }
 
     // =====================================================================
@@ -376,6 +403,65 @@ class ChallengeDetectorTest {
         detector.startDetecting(ChallengeType.BLINK)
 
         val result = detector.process(face, ChallengeType.BLINK)
+        assertThat(result.completed).isFalse()
+    }
+
+    // =====================================================================
+    // v1.9.1 — security regression: Olabode @ BanffPay 2026-06-08
+    //
+    // Reproduction: SDK asks "turn right" but a user who turns LEFT (or who
+    // simply returns to neutral from a left-offset baseline) is accepted.
+    // Root cause was `requiredConsecutiveDetections = 1` + sticky `maxTurnDelta`
+    // letting a single transient frame past threshold permanently complete the
+    // challenge. These tests pin the fix.
+    // =====================================================================
+
+    @Test
+    fun `turn right NOT completed when user turns left from neutral baseline`() {
+        // Baseline at neutral (yaw = 0). User turns the WRONG direction (left).
+        // Direction-specific check: for TURN_RIGHT, directionalDelta = delta;
+        // delta is negative when turning left → never crosses positive threshold.
+        // Pre-v1.9.1 this would still complete via sticky max if jitter ever
+        // bounced positive briefly; v1.9.1 requires 5 sustained correct frames.
+        detector.startDetecting(ChallengeType.TURN_RIGHT, baselineYaw = 0f)
+
+        val turnedLeft = mockFace(headEulerAngleY = -20f)
+        repeat(10) { detector.process(turnedLeft, ChallengeType.TURN_RIGHT) }
+        val result = detector.process(turnedLeft, ChallengeType.TURN_RIGHT)
+
+        assertThat(result.completed).isFalse()
+    }
+
+    @Test
+    fun `turn left NOT completed when user turns right from neutral baseline`() {
+        detector.startDetecting(ChallengeType.TURN_LEFT, baselineYaw = 0f)
+
+        val turnedRight = mockFace(headEulerAngleY = 20f)
+        repeat(10) { detector.process(turnedRight, ChallengeType.TURN_LEFT) }
+        val result = detector.process(turnedRight, ChallengeType.TURN_LEFT)
+
+        assertThat(result.completed).isFalse()
+    }
+
+    @Test
+    fun `nod up NOT completed when user nods down from neutral baseline`() {
+        detector.startDetecting(ChallengeType.NOD_UP, baselinePitch = 0f)
+
+        val noddedDown = mockFace(headEulerAngleX = -15f)
+        repeat(10) { detector.process(noddedDown, ChallengeType.NOD_UP) }
+        val result = detector.process(noddedDown, ChallengeType.NOD_UP)
+
+        assertThat(result.completed).isFalse()
+    }
+
+    @Test
+    fun `nod down NOT completed when user nods up from neutral baseline`() {
+        detector.startDetecting(ChallengeType.NOD_DOWN, baselinePitch = 0f)
+
+        val noddedUp = mockFace(headEulerAngleX = 15f)
+        repeat(10) { detector.process(noddedUp, ChallengeType.NOD_DOWN) }
+        val result = detector.process(noddedUp, ChallengeType.NOD_DOWN)
+
         assertThat(result.completed).isFalse()
     }
 

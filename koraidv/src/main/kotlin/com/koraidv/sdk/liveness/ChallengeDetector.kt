@@ -22,7 +22,18 @@ class ChallengeDetector {
     private var frameCount = 0
     private var detectionHistory = mutableListOf<Boolean>()
 
-    private val requiredConsecutiveDetections = 1
+    /**
+     * **v1.9.1** — raised from 1 to 5 (matches iOS) after Olabode @ BanffPay
+     * confirmed a wrong-direction-accept bug on 2026-06-08: a single ML Kit
+     * yaw/pitch frame past threshold was enough to complete the challenge,
+     * which combined with the legacy [maxTurnDelta] sticky-max made any
+     * momentary motion (jitter, accidental wobble, return-to-neutral from
+     * a pre-positioned offset) satisfy any direction or nod prompt. With
+     * 5 consecutive frames required (~165ms at 30fps), single-frame outliers
+     * are filtered out and the user has to actually sustain the requested
+     * motion.
+     */
+    private val requiredConsecutiveDetections = 5
 
     // Thresholds — tuned for responsive detection on mobile front cameras
     private val blinkThreshold = 0.3f
@@ -35,7 +46,6 @@ class ChallengeDetector {
     private var blinkDetected = false
     private var initialYaw: Float? = null
     private var turnDetected = false
-    private var maxTurnDelta = 0f
     private var turnBaselineFrames = 0
     private var turnBaselineSum = 0f
     private var turnBaselineCount = 0
@@ -124,7 +134,6 @@ class ChallengeDetector {
         blinkDetected = false
         initialYaw = null
         turnDetected = false
-        maxTurnDelta = 0f
         turnBaselineFrames = 0
         turnBaselineSum = 0f
         turnBaselineCount = 0
@@ -187,26 +196,25 @@ class ChallengeDetector {
      *
      * When a pre-countdown baseline is available (initialYaw already set via
      * startDetecting), we skip the frame-accumulation phase and immediately
-     * compare against the known-good baseline.  This avoids the baseline-drift
+     * compare against the known-good baseline. This avoids the baseline-drift
      * problem where the user starts turning during the countdown.
      *
-     * We track the maximum directional delta seen so far (maxTurnDelta) so that
-     * a momentary jitter in ML Kit's yaw estimate doesn't cause a false negative
-     * after the user has already turned far enough.
+     * **v1.9.1** — direct per-frame directional-delta check (no sticky max).
+     * The legacy `maxTurnDelta` accumulator was removed because it combined
+     * with `requiredConsecutiveDetections = 1` to let a single transient
+     * frame past threshold permanently complete the challenge — confirmed by
+     * Olabode 2026-06-08 to accept wrong-direction motion. With the
+     * 5-consecutive-frame gate at process() level providing jitter resilience,
+     * the sticky max is unnecessary and dangerous.
      */
     private fun detectTurn(face: Face, isLeft: Boolean): Boolean {
         val yaw = face.headEulerAngleY
 
         // Fallback baseline: only used when LivenessManager couldn't snapshot
         // a baseline at the end of the countdown (typically because no face
-        // was detected during those 3 seconds). Trimmed from the original
-        // 6-frame window (3 skip + 3 accumulate) to 3 frames (1 skip + 2
-        // accumulate) after BanffPay reported perceptible lag on the turn
-        // L/R challenges on mid-tier hardware 2026-05-28. At ~25 FPS the
-        // fallback now adds ~120ms instead of ~240ms before the detector
-        // starts watching for delta. One-frame skip is enough to discard a
-        // single stale frame from the transition; two accumulated frames
-        // are enough to smooth single-frame jitter.
+        // was detected during those 3 seconds). 3-frame window (1 skip + 2
+        // accumulate) keeps the fallback responsive (~120ms at 25 FPS) while
+        // smoothing single-frame jitter.
         if (initialYaw == null) {
             turnBaselineFrames++
             if (turnBaselineFrames < 1) return false
@@ -223,11 +231,7 @@ class ChallengeDetector {
         // which is the USER's RIGHT on a front camera. So for the user to turn LEFT,
         // the delta is negative; for the user to turn RIGHT, the delta is positive.
         val directionalDelta = if (isLeft) -delta else delta
-        if (directionalDelta > maxTurnDelta) {
-            maxTurnDelta = directionalDelta
-        }
-
-        turnDetected = maxTurnDelta > turnThreshold
+        turnDetected = directionalDelta > turnThreshold
         return turnDetected
     }
 
