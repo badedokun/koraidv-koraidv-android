@@ -35,7 +35,14 @@ enum class QualityIssueType {
     FACE_TOO_SMALL,
     FACE_OFF_CENTER,
     MULTIPLE_FACES,
-    DOCUMENT_NOT_DETECTED
+    DOCUMENT_NOT_DETECTED,
+    /**
+     * **v1.9.1-rc2** — document image appears to be a photo of a screen
+     * (laptop, phone, monitor) rather than a real physical document.
+     * Detected by [DocumentSpoofCheck] via edge-density coefficient of
+     * variation across spatial blocks of the image.
+     */
+    SUSPECTED_SCREEN,
 }
 
 /**
@@ -94,6 +101,14 @@ class QualityValidator(
 ) {
 
     /**
+     * **v1.9.1-rc2** — client-side document anti-spoof (screen detection).
+     * Catches the egregious "phone pointed at a laptop screen displaying a
+     * document" case via edge-density spatial uniformity. Conservative
+     * thresholds — see [DocumentSpoofCheck] for the algorithm + limits.
+     */
+    private val documentSpoofCheck = DocumentSpoofCheck()
+
+    /**
      * Validate document image quality
      */
     fun validateDocumentImage(bitmap: Bitmap): QualityValidationResult {
@@ -140,6 +155,22 @@ class QualityValidator(
                     type = QualityIssueType.GLARE,
                     message = "Glare detected. Adjust angle to reduce reflections.",
                     severity = QualityIssueSeverity.WARNING
+                )
+            )
+        }
+
+        // **v1.9.1-rc2** — document-side anti-spoof: reject images that
+        // appear to be photos of a screen displaying a document rather
+        // than a real physical document. Runs on the full `bitmap` (not
+        // the downsampled analysis bitmap) so the algorithm has enough
+        // pixels to see the subpixel-grid signal it's looking for.
+        val spoofResult = documentSpoofCheck.analyze(bitmap)
+        if (spoofResult.isLikelyScreen) {
+            issues.add(
+                QualityIssue(
+                    type = QualityIssueType.SUSPECTED_SCREEN,
+                    message = "This looks like a photo of a screen. Please capture the physical document, not an image displayed on another device.",
+                    severity = QualityIssueSeverity.ERROR
                 )
             )
         }
