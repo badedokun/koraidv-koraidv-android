@@ -36,7 +36,9 @@ data class ChallengeResultItem(
     val challenge: LivenessChallenge,
     val passed: Boolean,
     val confidence: Double,
-    val imageData: ByteArray? = null
+    val imageData: ByteArray? = null,
+    /** **v1.9.1-rc3** — flat key=value;key=value diagnostic string. */
+    val diagnostics: String? = null
 )
 
 /**
@@ -238,11 +240,32 @@ class LivenessManager {
                             null
                         }
 
+                        // **v1.9.1-rc3** — server-side diagnostic. Pack the
+                        // last yaw/pitch + baseline + delta + raw face euler
+                        // into a flat string and forward to the backend with
+                        // this challenge submission. Lets the K team read the
+                        // empirical ML Kit sign convention on consumer devices
+                        // without depending on adb logcat access. Removed when
+                        // the wrong-direction-accept investigation is closed.
+                        val diagnostics = buildString {
+                            append("rc=v1.9.1-rc4")
+                            append(";chType=").append(challenge.type)
+                            append(";rawYaw=").append(face.headEulerAngleY)
+                            append(";rawPitch=").append(face.headEulerAngleX)
+                            append(";rawRoll=").append(face.headEulerAngleZ)
+                            append(";baseYaw=").append(challengeDetector.initialYaw)
+                            append(";basePitch=").append(challengeDetector.initialPitch)
+                            append(";yawDelta=").append(challengeDetector.lastYawDelta)
+                            append(";pitchDelta=").append(challengeDetector.lastPitchDelta)
+                            append(";frames=").append(frameCount)
+                        }
+
                         recordChallengeResult(
                             challenge = challenge,
                             passed = true,
                             confidence = detectionResult.confidence.toDouble(),
-                            imageData = capturedBytes
+                            imageData = capturedBytes,
+                            diagnostics = diagnostics
                         )
                     }
                 }
@@ -339,13 +362,15 @@ class LivenessManager {
         challenge: LivenessChallenge,
         passed: Boolean,
         confidence: Double,
-        imageData: ByteArray?
+        imageData: ByteArray?,
+        diagnostics: String? = null
     ) {
         val result = ChallengeResultItem(
             challenge = challenge,
             passed = passed,
             confidence = confidence,
-            imageData = imageData
+            imageData = imageData,
+            diagnostics = diagnostics
         )
         challengeResults.add(result)
 

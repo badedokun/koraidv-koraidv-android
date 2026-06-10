@@ -51,7 +51,7 @@ object KoraIDV {
     /**
      * SDK version
      */
-    const val VERSION = "1.9.1-rc3"
+    const val VERSION = "1.9.1-rc4"
 
     /**
      * Configure the SDK with the provided configuration.

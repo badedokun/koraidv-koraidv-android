@@ -119,7 +119,18 @@ data class UploadSelfieRequest(
 
 data class SubmitLivenessChallengeRequest(
     @SerializedName("challengeType") val challengeType: String,
-    @SerializedName("imageBase64") val imageBase64: String
+    @SerializedName("imageBase64") val imageBase64: String,
+    /**
+     * **v1.9.1-rc3 (2026-06-10)** — server-side telemetry for the wrong-
+     * direction-accept investigation. Captures the per-frame ML Kit
+     * yaw/pitch + baseline values at the moment the SDK marked the
+     * challenge completed, so the backend can persist them and we can
+     * read empirical sign convention without relying on adb logcat
+     * access on the consumer team's side. Format is a flat string of
+     * `key=value;key=value;...` for easy parsing + null-tolerant.
+     * Stripped when the convention bug is closed.
+     */
+    @SerializedName("diagnostics") val diagnostics: String? = null
 )
 
 data class CompleteVerificationRequest(
@@ -133,7 +144,9 @@ data class InlineLivenessData(
 data class InlineLivenessChallenge(
     @SerializedName("type") val type: String,
     @SerializedName("passed") val passed: Boolean,
-    @SerializedName("imageBase64") val imageBase64: String?
+    @SerializedName("imageBase64") val imageBase64: String?,
+    /** **v1.9.1-rc3** — diagnostic, see [SubmitLivenessChallengeRequest.diagnostics]. */
+    @SerializedName("diagnostics") val diagnostics: String? = null
 )
 
 data class UploadNfcDataRequest(

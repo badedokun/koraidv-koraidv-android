@@ -44,17 +44,34 @@ class ChallengeDetector {
     // State tracking
     private var blinkState = BlinkState.OPEN
     private var blinkDetected = false
-    private var initialYaw: Float? = null
+    internal var initialYaw: Float? = null
     private var turnDetected = false
     private var turnBaselineFrames = 0
+
+    /**
+     * **v1.9.1-rc3** — last raw yaw value seen by detectTurn (degrees,
+     * directly from ML Kit). Exposed so LivenessManager can pack into the
+     * per-challenge diagnostic string sent server-side.
+     */
+    internal var lastYawSeen: Float? = null
+
+    /**
+     * **v1.9.1-rc3** — last yaw delta (current − baseline) computed by
+     * detectTurn at the frame that completed the challenge.
+     */
+    internal var lastYawDelta: Float? = null
     private var turnBaselineSum = 0f
     private var turnBaselineCount = 0
-    private var initialPitch: Float? = null
+    internal var initialPitch: Float? = null
     private var nodDetected = false
     private var nodBaselineFrames = 0
     private var nodBaselineSum = 0f
     private var nodBaselineCount = 0
     private var smileDetected = false
+
+    /** **v1.9.1-rc3** — last raw pitch + delta seen by detectNod. */
+    internal var lastPitchSeen: Float? = null
+    internal var lastPitchDelta: Float? = null
 
     private enum class BlinkState {
         OPEN, CLOSING, CLOSED, OPENING
@@ -226,6 +243,8 @@ class ChallengeDetector {
         }
 
         val delta = yaw - (initialYaw ?: 0f)
+        lastYawSeen = yaw
+        lastYawDelta = delta
 
         // ML Kit headEulerAngleY: positive = face rotated left from CAMERA's perspective,
         // which is the USER's RIGHT on a front camera. So for the user to turn LEFT,
@@ -274,6 +293,8 @@ class ChallengeDetector {
         }
 
         val delta = pitch - (initialPitch ?: 0f)
+        lastPitchSeen = pitch
+        lastPitchDelta = delta
 
         nodDetected = if (isUp) {
             delta > nodThreshold

@@ -261,7 +261,8 @@ internal class SessionManager(
     suspend fun submitLivenessChallenge(
         verificationId: String,
         challenge: LivenessChallenge,
-        imageData: ByteArray
+        imageData: ByteArray,
+        diagnostics: String? = null
     ): Result<LivenessChallengeResult> = withContext(Dispatchers.IO) {
         try {
             val base64Image = Base64.encodeToString(imageData, Base64.NO_WRAP)
@@ -271,7 +272,8 @@ internal class SessionManager(
                     verificationId,
                     SubmitLivenessChallengeRequest(
                         challengeType = challenge.type.value,
-                        imageBase64 = base64Image
+                        imageBase64 = base64Image,
+                        diagnostics = diagnostics
                     )
                 )
             }
@@ -356,7 +358,8 @@ internal class SessionManager(
                         passed = challenge.passed,
                         imageBase64 = challenge.imageData?.let {
                             Base64.encodeToString(it, Base64.NO_WRAP)
-                        }
+                        },
+                        diagnostics = challenge.diagnostics
                     )
                 }
                 CompleteVerificationRequest(
