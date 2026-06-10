@@ -246,10 +246,26 @@ class ChallengeDetector {
         lastYawSeen = yaw
         lastYawDelta = delta
 
-        // ML Kit headEulerAngleY: positive = face rotated left from CAMERA's perspective,
-        // which is the USER's RIGHT on a front camera. So for the user to turn LEFT,
-        // the delta is negative; for the user to turn RIGHT, the delta is positive.
-        val directionalDelta = if (isLeft) -delta else delta
+        // **v1.9.1-rc5 (2026-06-10) — polarity flip.** SR captured the
+        // rc4 server-side diagnostic on Pixel 9 Pro XL / Android 16
+        // (verification f4b15520, 2026-06-10 19:59 UTC): a TURN_RIGHT
+        // challenge where the user turned LEFT produced yawDelta = +13.78
+        // (positive). Under the pre-rc5 convention assumption ("positive
+        // yaw = user's right turn"), a LEFT turn would produce NEGATIVE
+        // delta. Empirically it is the opposite on this device/OS combo:
+        // **positive ML Kit yaw = user's LEFT turn**, not right. Whether
+        // this is from a newer Google ML Kit version, an Android 16
+        // camera-pipeline change, or a Pixel-specific frame orientation,
+        // the field evidence is unambiguous. Same inversion confirmed for
+        // pitch in detectNod below (NOD_UP challenge with the user
+        // nodding DOWN produced pitchDelta = +18.54). Fix: flip the
+        // `if (isLeft)` polarity (and the symmetric flip in detectNod).
+        // Original code lived from v1.5.0 → v1.9.1-rc4; pre-rc5 testing
+        // missed this because users naturally over-rotate during real
+        // liveness flows and accidentally satisfy the threshold in the
+        // first few frames before the 5-consecutive-frame gate could
+        // catch the inversion.
+        val directionalDelta = if (isLeft) delta else -delta
         turnDetected = directionalDelta > turnThreshold
 
         // **v1.9.1-rc3 diagnostic (2026-06-10)** — SR confirmed wrong-direction
@@ -296,10 +312,18 @@ class ChallengeDetector {
         lastPitchSeen = pitch
         lastPitchDelta = delta
 
+        // **v1.9.1-rc5 — polarity flip.** Same empirical inversion as
+        // detectTurn: on the Pixel 9 Pro XL / Android 16 test device,
+        // ML Kit positive headEulerAngleX corresponds to the user
+        // nodding DOWN, not up. NOD_UP rc4 diagnostic showed
+        // pitchDelta = +18.54 when the user nodded down. Flip the
+        // comparison polarity so an UP motion (which produces a
+        // negative delta under the actual convention) satisfies nod_up,
+        // and a DOWN motion (positive delta) satisfies nod_down.
         nodDetected = if (isUp) {
-            delta > nodThreshold
-        } else {
             delta < -nodThreshold
+        } else {
+            delta > nodThreshold
         }
 
         // **v1.9.1-rc3 diagnostic** — same as detectTurn: captures empirical

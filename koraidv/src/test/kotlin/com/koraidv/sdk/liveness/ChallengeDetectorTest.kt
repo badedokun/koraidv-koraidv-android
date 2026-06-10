@@ -103,16 +103,19 @@ class ChallengeDetectorTest {
     // =====================================================================
 
     @Test
-    fun `turn left detected when yaw decreases enough`() {
+    fun `turn left detected when yaw increases enough`() {
         detector.startDetecting(ChallengeType.TURN_LEFT)
 
         // Build baseline (3 frames needed: skip 1, average frames 1-2)
         val straightFace = mockFace(headEulerAngleY = 0f)
         repeat(3) { detector.process(straightFace, ChallengeType.TURN_LEFT) }
 
-        // Face turns left (negative delta for user's left on front camera).
-        // v1.9.1: needs 5 consecutive frames past threshold.
-        val turnedFace = mockFace(headEulerAngleY = -20f)
+        // v1.9.1-rc5: ML Kit headEulerAngleY on Pixel 9 Pro XL / Android 16
+        // produces POSITIVE values when the user turns LEFT (opposite of
+        // what the pre-rc5 code comment assumed — see SR diagnostic
+        // verification f4b15520, 2026-06-10). turn_left now requires
+        // positive yaw delta.
+        val turnedFace = mockFace(headEulerAngleY = 20f)
         repeat(4) { detector.process(turnedFace, ChallengeType.TURN_LEFT) }
         val result = detector.process(turnedFace, ChallengeType.TURN_LEFT)
 
@@ -120,13 +123,15 @@ class ChallengeDetectorTest {
     }
 
     @Test
-    fun `turn right detected when yaw increases enough`() {
+    fun `turn right detected when yaw decreases enough`() {
         detector.startDetecting(ChallengeType.TURN_RIGHT)
 
         val straightFace = mockFace(headEulerAngleY = 0f)
         repeat(3) { detector.process(straightFace, ChallengeType.TURN_RIGHT) }
 
-        val turnedFace = mockFace(headEulerAngleY = 20f)
+        // v1.9.1-rc5: user turning RIGHT produces NEGATIVE ML Kit yaw delta
+        // on this device/OS combo (post-empirical-correction).
+        val turnedFace = mockFace(headEulerAngleY = -20f)
         repeat(4) { detector.process(turnedFace, ChallengeType.TURN_RIGHT) }
         val result = detector.process(turnedFace, ChallengeType.TURN_RIGHT)
 
@@ -152,13 +157,15 @@ class ChallengeDetectorTest {
     // =====================================================================
 
     @Test
-    fun `nod up detected when pitch increases enough`() {
+    fun `nod up detected when pitch decreases enough`() {
         detector.startDetecting(ChallengeType.NOD_UP)
 
         val straightFace = mockFace(headEulerAngleX = 0f)
         repeat(3) { detector.process(straightFace, ChallengeType.NOD_UP) }
 
-        val nodUpFace = mockFace(headEulerAngleX = 10f)
+        // v1.9.1-rc5: ML Kit headEulerAngleX on this device/OS produces
+        // NEGATIVE values when the user nods UP (positive = nods DOWN).
+        val nodUpFace = mockFace(headEulerAngleX = -10f)
         repeat(4) { detector.process(nodUpFace, ChallengeType.NOD_UP) }
         val result = detector.process(nodUpFace, ChallengeType.NOD_UP)
 
@@ -166,13 +173,14 @@ class ChallengeDetectorTest {
     }
 
     @Test
-    fun `nod down detected when pitch decreases enough`() {
+    fun `nod down detected when pitch increases enough`() {
         detector.startDetecting(ChallengeType.NOD_DOWN)
 
         val straightFace = mockFace(headEulerAngleX = 0f)
         repeat(3) { detector.process(straightFace, ChallengeType.NOD_DOWN) }
 
-        val nodDownFace = mockFace(headEulerAngleX = -10f)
+        // v1.9.1-rc5: user nodding DOWN produces POSITIVE ML Kit pitch.
+        val nodDownFace = mockFace(headEulerAngleX = 10f)
         repeat(4) { detector.process(nodDownFace, ChallengeType.NOD_DOWN) }
         val result = detector.process(nodDownFace, ChallengeType.NOD_DOWN)
 
@@ -274,7 +282,8 @@ class ChallengeDetectorTest {
         val straightFace = mockFace(headEulerAngleY = 0f)
         repeat(6) { detector.process(straightFace, ChallengeType.TURN_LEFT) }
 
-        val wrongDirection = mockFace(headEulerAngleY = 20f)
+        // v1.9.1-rc5: user turning RIGHT produces NEGATIVE yaw.
+        val wrongDirection = mockFace(headEulerAngleY = -20f)
         repeat(3) { detector.process(wrongDirection, ChallengeType.TURN_LEFT) }
         val result = detector.process(wrongDirection, ChallengeType.TURN_LEFT)
         assertThat(result.completed).isFalse()
@@ -286,7 +295,8 @@ class ChallengeDetectorTest {
         val straightFace = mockFace(headEulerAngleY = 0f)
         repeat(6) { detector.process(straightFace, ChallengeType.TURN_RIGHT) }
 
-        val wrongDirection = mockFace(headEulerAngleY = -20f)
+        // v1.9.1-rc5: user turning LEFT produces POSITIVE yaw.
+        val wrongDirection = mockFace(headEulerAngleY = 20f)
         repeat(3) { detector.process(wrongDirection, ChallengeType.TURN_RIGHT) }
         val result = detector.process(wrongDirection, ChallengeType.TURN_RIGHT)
         assertThat(result.completed).isFalse()
@@ -298,7 +308,8 @@ class ChallengeDetectorTest {
         val straightFace = mockFace(headEulerAngleX = 0f)
         repeat(6) { detector.process(straightFace, ChallengeType.NOD_UP) }
 
-        val nodDown = mockFace(headEulerAngleX = -10f)
+        // v1.9.1-rc5: user nodding DOWN produces POSITIVE pitch.
+        val nodDown = mockFace(headEulerAngleX = 10f)
         repeat(3) { detector.process(nodDown, ChallengeType.NOD_UP) }
         val result = detector.process(nodDown, ChallengeType.NOD_UP)
         assertThat(result.completed).isFalse()
@@ -310,7 +321,8 @@ class ChallengeDetectorTest {
         val straightFace = mockFace(headEulerAngleX = 0f)
         repeat(6) { detector.process(straightFace, ChallengeType.NOD_DOWN) }
 
-        val nodUp = mockFace(headEulerAngleX = 10f)
+        // v1.9.1-rc5: user nodding UP produces NEGATIVE pitch.
+        val nodUp = mockFace(headEulerAngleX = -10f)
         repeat(3) { detector.process(nodUp, ChallengeType.NOD_DOWN) }
         val result = detector.process(nodUp, ChallengeType.NOD_DOWN)
         assertThat(result.completed).isFalse()
@@ -324,10 +336,8 @@ class ChallengeDetectorTest {
     fun `turn left detected with pre-captured baseline after 5 sustained frames`() {
         detector.startDetecting(ChallengeType.TURN_LEFT, baselineYaw = 0f)
 
-        // v1.9.1: no baseline frames needed BUT 5 consecutive past-threshold
-        // frames are required. Pre-fix this test passed after ONE frame —
-        // that was the bug. Sustained motion is the new bar.
-        val turnedFace = mockFace(headEulerAngleY = -20f)
+        // v1.9.1-rc5: positive yaw delta = user turned LEFT on this device.
+        val turnedFace = mockFace(headEulerAngleY = 20f)
         repeat(4) { detector.process(turnedFace, ChallengeType.TURN_LEFT) }
         val result = detector.process(turnedFace, ChallengeType.TURN_LEFT)
 
@@ -338,7 +348,8 @@ class ChallengeDetectorTest {
     fun `turn right detected with pre-captured baseline after 5 sustained frames`() {
         detector.startDetecting(ChallengeType.TURN_RIGHT, baselineYaw = 0f)
 
-        val turnedFace = mockFace(headEulerAngleY = 20f)
+        // v1.9.1-rc5: negative yaw delta = user turned RIGHT.
+        val turnedFace = mockFace(headEulerAngleY = -20f)
         repeat(4) { detector.process(turnedFace, ChallengeType.TURN_RIGHT) }
         val result = detector.process(turnedFace, ChallengeType.TURN_RIGHT)
 
@@ -418,14 +429,13 @@ class ChallengeDetectorTest {
 
     @Test
     fun `turn right NOT completed when user turns left from neutral baseline`() {
-        // Baseline at neutral (yaw = 0). User turns the WRONG direction (left).
-        // Direction-specific check: for TURN_RIGHT, directionalDelta = delta;
-        // delta is negative when turning left → never crosses positive threshold.
-        // Pre-v1.9.1 this would still complete via sticky max if jitter ever
-        // bounced positive briefly; v1.9.1 requires 5 sustained correct frames.
+        // v1.9.1-rc5: user turning LEFT produces POSITIVE ML Kit yaw on this
+        // device/OS (opposite of the pre-rc5 code-comment assumption).
+        // turn_right requires NEGATIVE yaw delta. Sustained positive delta
+        // must NOT pass turn_right.
         detector.startDetecting(ChallengeType.TURN_RIGHT, baselineYaw = 0f)
 
-        val turnedLeft = mockFace(headEulerAngleY = -20f)
+        val turnedLeft = mockFace(headEulerAngleY = 20f)
         repeat(10) { detector.process(turnedLeft, ChallengeType.TURN_RIGHT) }
         val result = detector.process(turnedLeft, ChallengeType.TURN_RIGHT)
 
@@ -436,7 +446,8 @@ class ChallengeDetectorTest {
     fun `turn left NOT completed when user turns right from neutral baseline`() {
         detector.startDetecting(ChallengeType.TURN_LEFT, baselineYaw = 0f)
 
-        val turnedRight = mockFace(headEulerAngleY = 20f)
+        // v1.9.1-rc5: user turning RIGHT produces NEGATIVE yaw.
+        val turnedRight = mockFace(headEulerAngleY = -20f)
         repeat(10) { detector.process(turnedRight, ChallengeType.TURN_LEFT) }
         val result = detector.process(turnedRight, ChallengeType.TURN_LEFT)
 
@@ -447,7 +458,8 @@ class ChallengeDetectorTest {
     fun `nod up NOT completed when user nods down from neutral baseline`() {
         detector.startDetecting(ChallengeType.NOD_UP, baselinePitch = 0f)
 
-        val noddedDown = mockFace(headEulerAngleX = -15f)
+        // v1.9.1-rc5: user nodding DOWN produces POSITIVE pitch.
+        val noddedDown = mockFace(headEulerAngleX = 15f)
         repeat(10) { detector.process(noddedDown, ChallengeType.NOD_UP) }
         val result = detector.process(noddedDown, ChallengeType.NOD_UP)
 
@@ -458,7 +470,8 @@ class ChallengeDetectorTest {
     fun `nod down NOT completed when user nods up from neutral baseline`() {
         detector.startDetecting(ChallengeType.NOD_DOWN, baselinePitch = 0f)
 
-        val noddedUp = mockFace(headEulerAngleX = 15f)
+        // v1.9.1-rc5: user nodding UP produces NEGATIVE pitch.
+        val noddedUp = mockFace(headEulerAngleX = -15f)
         repeat(10) { detector.process(noddedUp, ChallengeType.NOD_DOWN) }
         val result = detector.process(noddedUp, ChallengeType.NOD_DOWN)
 
