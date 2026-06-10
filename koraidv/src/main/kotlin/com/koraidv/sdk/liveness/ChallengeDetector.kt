@@ -232,6 +232,22 @@ class ChallengeDetector {
         // the delta is negative; for the user to turn RIGHT, the delta is positive.
         val directionalDelta = if (isLeft) -delta else delta
         turnDetected = directionalDelta > turnThreshold
+
+        // **v1.9.1-rc3 diagnostic (2026-06-10)** — SR confirmed wrong-direction
+        // motion still passes on Pixel 9 Pro XL / Android 16 with all rc2 fixes
+        // in place. Hypothesis: ML Kit's yaw sign convention differs from what
+        // the code comment above assumes on this device/OS combo. This log lets
+        // SR capture empirical ground truth: the user knows which way they're
+        // turning; we just need to see whether yaw goes positive or negative.
+        // Pass-when-wrong-direction means the convention is inverted from the
+        // code, and the fix is to flip the directionalDelta sign in the
+        // `if (isLeft)` line above. Stripped in v1.9.2.
+        android.util.Log.i(
+            "KoraIDV-Diag",
+            "detectTurn isLeft=$isLeft yaw=$yaw initialYaw=$initialYaw delta=$delta " +
+                "directionalDelta=$directionalDelta threshold=$turnThreshold detected=$turnDetected"
+        )
+
         return turnDetected
     }
 
@@ -264,6 +280,14 @@ class ChallengeDetector {
         } else {
             delta < -nodThreshold
         }
+
+        // **v1.9.1-rc3 diagnostic** — same as detectTurn: captures empirical
+        // sign of ML Kit pitch on the failing device/OS combo.
+        android.util.Log.i(
+            "KoraIDV-Diag",
+            "detectNod isUp=$isUp pitch=$pitch initialPitch=$initialPitch delta=$delta " +
+                "threshold=$nodThreshold detected=$nodDetected"
+        )
 
         return nodDetected
     }
