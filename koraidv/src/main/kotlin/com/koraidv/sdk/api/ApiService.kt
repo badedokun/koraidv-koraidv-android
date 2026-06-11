@@ -145,6 +145,9 @@ data class InlineLivenessChallenge(
     @SerializedName("type") val type: String,
     @SerializedName("passed") val passed: Boolean,
     @SerializedName("imageBase64") val imageBase64: String?,
+    /** **v1.9.1-rc15** — additive multi-frame anti-spoof; backend keeps the max.
+     * Strictly non-regressing (completion frame always included). */
+    @SerializedName("frameImages") val frameImages: List<String>? = null,
     /** **v1.9.1-rc3** — diagnostic, see [SubmitLivenessChallengeRequest.diagnostics]. */
     @SerializedName("diagnostics") val diagnostics: String? = null
 )

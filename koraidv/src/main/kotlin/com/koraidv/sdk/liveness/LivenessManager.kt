@@ -37,6 +37,10 @@ data class ChallengeResultItem(
     val passed: Boolean,
     val confidence: Double,
     val imageData: ByteArray? = null,
+    /** **v1.9.1-rc15** — additive frontal frame captured at the start of the
+     * challenge window, submitted ALONGSIDE imageData; backend best-of-N keeps
+     * the higher anti-spoof score. */
+    val frontalImageData: ByteArray? = null,
     /** **v1.9.1-rc3** — flat key=value;key=value diagnostic string. */
     val diagnostics: String? = null
 )
@@ -104,6 +108,12 @@ class LivenessManager {
     private var challengeResults = mutableListOf<ChallengeResultItem>()
     private var isProcessing = false
     private var frameCount = 0
+
+    /** **v1.9.1-rc15** — additive frontal frame for the current challenge (reset
+     * per challenge). Captured from the first active frame still near the
+     * baseline, submitted alongside the completion frame. Purely additive. */
+    private var frontalBytes: ByteArray? = null
+    private val frontalCaptureMaxDeltaDeg = 8f
     private var lastDetectedYaw: Float? = null
     private var lastDetectedPitch: Float? = null
     private val maxFramesPerChallenge = 300
@@ -241,6 +251,27 @@ class LivenessManager {
                     val face = faces.first()
                     lastDetectedYaw = face.headEulerAngleY
                     lastDetectedPitch = face.headEulerAngleX
+
+                    // **v1.9.1-rc15** — capture ONE near-frontal frame early in the
+                    // window (head still within frontalCaptureMaxDeltaDeg of the
+                    // median baseline, before the gesture turns/tilts it).
+                    // Submitted additively so best-of-N can score the cleaner pose.
+                    val baseY = challengeDetector.initialYaw
+                    val baseP = challengeDetector.initialPitch
+                    if (frontalBytes == null && baseY != null && baseP != null) {
+                        val yawOff = kotlin.math.abs(face.headEulerAngleY - baseY)
+                        val pitchOff = kotlin.math.abs(face.headEulerAngleX - baseP)
+                        if (yawOff <= frontalCaptureMaxDeltaDeg && pitchOff <= frontalCaptureMaxDeltaDeg) {
+                            frontalBytes = try {
+                                val fb = imageProxy.toBitmap()
+                                val s = ByteArrayOutputStream()
+                                fb.compress(Bitmap.CompressFormat.JPEG, 85, s)
+                                fb.recycle()
+                                s.toByteArray()
+                            } catch (e: Exception) { null }
+                        }
+                    }
+
                     val detectionResult = challengeDetector.process(face, challenge.type)
 
                     _state.value = LivenessState.InProgress(challenge, detectionResult.progress)
@@ -282,7 +313,7 @@ class LivenessManager {
                         // without depending on adb logcat access. Removed when
                         // the wrong-direction-accept investigation is closed.
                         val diagnostics = buildString {
-                            append("rc=v1.9.1-rc14")
+                            append("rc=v1.9.1-rc16")
                             append(";chType=").append(challenge.type)
                             append(";rawYaw=").append(face.headEulerAngleY)
                             append(";rawPitch=").append(face.headEulerAngleX)
@@ -303,6 +334,7 @@ class LivenessManager {
                             passed = true,
                             confidence = detectionResult.confidence.toDouble(),
                             imageData = capturedBytes,
+                            frontalData = frontalBytes,
                             diagnostics = diagnostics
                         )
                     }
@@ -370,6 +402,7 @@ class LivenessManager {
         // so the baseline median reflects the user's settled pose right before
         // this gesture, not the prior gesture's return motion.
         synchronized(neutralLock) { neutralYawSamples.clear(); neutralPitchSamples.clear() }
+        frontalBytes = null // **v1.9.1-rc15** — fresh frontal frame per challenge
 
         // REQ-003 FR-003.5 · Pacing. Previous 500ms-per-beat countdown (1500ms
         // total) was too fast to read the instruction and prepare. Industry
@@ -411,6 +444,7 @@ class LivenessManager {
         passed: Boolean,
         confidence: Double,
         imageData: ByteArray?,
+        frontalData: ByteArray? = null,
         diagnostics: String? = null
     ) {
         val result = ChallengeResultItem(
@@ -418,6 +452,7 @@ class LivenessManager {
             passed = passed,
             confidence = confidence,
             imageData = imageData,
+            frontalImageData = frontalData,
             diagnostics = diagnostics
         )
         challengeResults.add(result)

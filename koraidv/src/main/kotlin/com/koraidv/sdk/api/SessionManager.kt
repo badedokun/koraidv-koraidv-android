@@ -359,6 +359,11 @@ internal class SessionManager(
                         imageBase64 = challenge.imageData?.let {
                             Base64.encodeToString(it, Base64.NO_WRAP)
                         },
+                        // **v1.9.1-rc15** — frontal frame + completion frame; backend keeps the max.
+                        frameImages = listOfNotNull(
+                            challenge.frontalImageData?.let { Base64.encodeToString(it, Base64.NO_WRAP) },
+                            challenge.imageData?.let { Base64.encodeToString(it, Base64.NO_WRAP) },
+                        ).ifEmpty { null },
                         diagnostics = challenge.diagnostics
                     )
                 }
