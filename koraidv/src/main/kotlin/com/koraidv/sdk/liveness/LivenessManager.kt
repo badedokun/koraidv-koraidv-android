@@ -108,6 +108,21 @@ class LivenessManager {
     private var lastDetectedPitch: Float? = null
     private val maxFramesPerChallenge = 300
 
+    /**
+     * **v1.9.1-rc13 — neutral telemetry only (no behaviour change).** rc5's
+     * image capture and direction detection are left exactly as-is (the proven
+     * working build). We additionally learn the user's neutral head pose from a
+     * median of resting-pose samples gathered during countdowns / between-
+     * challenge holds, and send it as neutralYaw/neutralPitch in the diagnostics.
+     * The server's recenter check compares the completion pose (rawYaw, already
+     * sent) to this neutral and rejects a wrong-direction-recenter — server-side,
+     * so the client image/gesture path is untouched.
+     */
+    private val neutralYawSamples = ArrayDeque<Float>()
+    private val neutralPitchSamples = ArrayDeque<Float>()
+    private val maxNeutralSamples = 90
+    private val neutralLock = Any()
+
     val currentChallenge: LivenessChallenge?
         get() {
             val session = session ?: return null
@@ -125,11 +140,30 @@ class LivenessManager {
         this.challengeResults.clear()
         this.isProcessing = false
         this.frameCount = 0
+        synchronized(neutralLock) { neutralYawSamples.clear(); neutralPitchSamples.clear() }
 
         // Re-create the face detector in case stop() closed the previous one
         faceDetector = FaceDetection.getClient(faceDetectorOptions)
         challengeDetector.reset()
         startNextChallenge()
+    }
+
+    /** **v1.9.1-rc13** — record a resting-pose sample for neutral telemetry. */
+    private fun recordNeutralSample(yaw: Float, pitch: Float) {
+        synchronized(neutralLock) {
+            neutralYawSamples.addLast(yaw)
+            if (neutralYawSamples.size > maxNeutralSamples) neutralYawSamples.removeFirst()
+            neutralPitchSamples.addLast(pitch)
+            if (neutralPitchSamples.size > maxNeutralSamples) neutralPitchSamples.removeFirst()
+        }
+    }
+
+    /** **v1.9.1-rc13** — median of resting-pose samples (the user's neutral). */
+    private fun neutralMedian(samples: ArrayDeque<Float>): Float? = synchronized(neutralLock) {
+        if (samples.isEmpty()) return@synchronized null
+        val sorted = samples.sorted()
+        val mid = sorted.size / 2
+        if (sorted.size % 2 == 1) sorted[mid] else (sorted[mid - 1] + sorted[mid]) / 2f
     }
 
     /**
@@ -248,13 +282,17 @@ class LivenessManager {
                         // without depending on adb logcat access. Removed when
                         // the wrong-direction-accept investigation is closed.
                         val diagnostics = buildString {
-                            append("rc=v1.9.1-rc5")
+                            append("rc=v1.9.1-rc13")
                             append(";chType=").append(challenge.type)
                             append(";rawYaw=").append(face.headEulerAngleY)
                             append(";rawPitch=").append(face.headEulerAngleX)
                             append(";rawRoll=").append(face.headEulerAngleZ)
                             append(";baseYaw=").append(challengeDetector.initialYaw)
                             append(";basePitch=").append(challengeDetector.initialPitch)
+                            // **v1.9.1-rc13** — the user's neutral, for the server
+                            // recenter check (completion rawYaw vs this).
+                            append(";neutralYaw=").append(neutralMedian(neutralYawSamples))
+                            append(";neutralPitch=").append(neutralMedian(neutralPitchSamples))
                             append(";yawDelta=").append(challengeDetector.lastYawDelta)
                             append(";pitchDelta=").append(challengeDetector.lastPitchDelta)
                             append(";frames=").append(frameCount)
@@ -308,6 +346,10 @@ class LivenessManager {
                     val face = faces.first()
                     lastDetectedYaw = face.headEulerAngleY
                     lastDetectedPitch = face.headEulerAngleX
+                    // **v1.9.1-rc13** — this path runs only while transitioning
+                    // (countdown / between-challenge hold), i.e. the user is at
+                    // rest — clean neutral-telemetry samples.
+                    recordNeutralSample(face.headEulerAngleY, face.headEulerAngleX)
                 }
             }
             .addOnCompleteListener(workerExecutor) {
