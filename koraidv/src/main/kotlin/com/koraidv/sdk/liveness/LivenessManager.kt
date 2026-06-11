@@ -282,7 +282,7 @@ class LivenessManager {
                         // without depending on adb logcat access. Removed when
                         // the wrong-direction-accept investigation is closed.
                         val diagnostics = buildString {
-                            append("rc=v1.9.1-rc13")
+                            append("rc=v1.9.1-rc14")
                             append(";chType=").append(challenge.type)
                             append(";rawYaw=").append(face.headEulerAngleY)
                             append(";rawPitch=").append(face.headEulerAngleX)
@@ -366,6 +366,10 @@ class LivenessManager {
 
         challengeDetector.reset()
         frameCount = 0
+        // **v1.9.1-rc14** — fresh neutral samples for THIS challenge's countdown,
+        // so the baseline median reflects the user's settled pose right before
+        // this gesture, not the prior gesture's return motion.
+        synchronized(neutralLock) { neutralYawSamples.clear(); neutralPitchSamples.clear() }
 
         // REQ-003 FR-003.5 · Pacing. Previous 500ms-per-beat countdown (1500ms
         // total) was too fast to read the instruction and prepare. Industry
@@ -383,13 +387,15 @@ class LivenessManager {
         }, 2000)
 
         mainHandler.postDelayed({
-            // Snapshot the baseline pose at the *end* of the countdown, after
-            // the user has had 3s to recover to neutral. updatePoseOnly()
-            // refreshes lastDetectedYaw/Pitch on every frame during the
-            // countdown, so these are current — not inherited from the last
-            // frame of the previous challenge.
-            val baselineYaw = lastDetectedYaw
-            val baselinePitch = lastDetectedPitch
+            // **v1.9.1-rc14** — baseline is the MEDIAN of the countdown's
+            // resting-pose samples, not a single frame. ML Kit yaw on this
+            // device jumps frame-to-frame (observed 2026-06-11: one countdown-end
+            // frame read 21° while the user's neutral was −11°, so a normal left
+            // turn never cleared threshold). The median is robust to those
+            // single-frame jumps. Falls back to the last frame if no samples
+            // (no face seen during the countdown).
+            val baselineYaw = neutralMedian(neutralYawSamples) ?: lastDetectedYaw
+            val baselinePitch = neutralMedian(neutralPitchSamples) ?: lastDetectedPitch
             isTransitioning = false
             challengeDetector.startDetecting(
                 challenge.type,
