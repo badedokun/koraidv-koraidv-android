@@ -132,6 +132,10 @@ class LivenessManager {
     private val neutralPitchSamples = ArrayDeque<Float>()
     private val maxNeutralSamples = 90
     private val neutralLock = Any()
+    // **v1.9.1-rc17 (ported from rc8)** — stability gate for neutral sampling.
+    private var prevPoseYaw: Float? = null
+    private var prevPosePitch: Float? = null
+    private val poseStabilityThresholdDeg = 3f
 
     val currentChallenge: LivenessChallenge?
         get() {
@@ -158,8 +162,24 @@ class LivenessManager {
         startNextChallenge()
     }
 
-    /** **v1.9.1-rc13** — record a resting-pose sample for neutral telemetry. */
+    /**
+     * **v1.9.1-rc17 (ported from rc8)** — record a resting-pose sample for
+     * neutral calibration, but ONLY when the head is settled: frame-to-frame
+     * angular velocity must be below [poseStabilityThresholdDeg] on both axes.
+     * This skips jitter spikes and, crucially, the high-velocity return-to-centre
+     * right after a gesture — those polluted the ungated median (rc13/rc16) and
+     * produced an offset baseline that misread a return-to-neutral as a turn.
+     */
     private fun recordNeutralSample(yaw: Float, pitch: Float) {
+        val py = prevPoseYaw
+        val pp = prevPosePitch
+        prevPoseYaw = yaw
+        prevPosePitch = pitch
+        if (py == null || pp == null) return
+        if (kotlin.math.abs(yaw - py) >= poseStabilityThresholdDeg ||
+            kotlin.math.abs(pitch - pp) >= poseStabilityThresholdDeg) {
+            return
+        }
         synchronized(neutralLock) {
             neutralYawSamples.addLast(yaw)
             if (neutralYawSamples.size > maxNeutralSamples) neutralYawSamples.removeFirst()
@@ -313,7 +333,7 @@ class LivenessManager {
                         // without depending on adb logcat access. Removed when
                         // the wrong-direction-accept investigation is closed.
                         val diagnostics = buildString {
-                            append("rc=v1.9.1-rc16")
+                            append("rc=v1.9.1-rc17")
                             append(";chType=").append(challenge.type)
                             append(";rawYaw=").append(face.headEulerAngleY)
                             append(";rawPitch=").append(face.headEulerAngleX)
@@ -398,10 +418,11 @@ class LivenessManager {
 
         challengeDetector.reset()
         frameCount = 0
-        // **v1.9.1-rc14** — fresh neutral samples for THIS challenge's countdown,
-        // so the baseline median reflects the user's settled pose right before
-        // this gesture, not the prior gesture's return motion.
-        synchronized(neutralLock) { neutralYawSamples.clear(); neutralPitchSamples.clear() }
+        // **v1.9.1-rc17** — do NOT clear neutral samples per challenge. The
+        // stability-gated calibration accumulates the user's settled neutral
+        // across the whole session (bounded ring buffer), like rc8/rc11, giving
+        // a stable, accurate baseline. Clearing per-challenge (rc14) left too few
+        // samples and produced the offset baseline that broke direction.
         frontalBytes = null // **v1.9.1-rc15** — fresh frontal frame per challenge
 
         // REQ-003 FR-003.5 · Pacing. Previous 500ms-per-beat countdown (1500ms
