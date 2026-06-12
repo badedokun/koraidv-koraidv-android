@@ -312,18 +312,18 @@ class ChallengeDetector {
         lastPitchSeen = pitch
         lastPitchDelta = delta
 
-        // **v1.9.1-rc5 — polarity flip.** Same empirical inversion as
-        // detectTurn: on the Pixel 9 Pro XL / Android 16 test device,
-        // ML Kit positive headEulerAngleX corresponds to the user
-        // nodding DOWN, not up. NOD_UP rc4 diagnostic showed
-        // pitchDelta = +18.54 when the user nodded down. Flip the
-        // comparison polarity so an UP motion (which produces a
-        // negative delta under the actual convention) satisfies nod_up,
-        // and a DOWN motion (positive delta) satisfies nod_down.
+        // **v1.9.1-rc18 — pitch polarity re-flip (confirmed by field data).**
+        // With rc8's stability-gated calibration giving a correct baseline,
+        // rc17 field data (2026-06-11, Pixel 9 Pro XL) showed the pitch axis
+        // is now the OPPOSITE of rc5's assumption: head-DOWN *decreases* pitch
+        // (NOD_UP challenge, user head-down → rawPitch −36 vs basePitch +7) and
+        // head-UP *increases* it. (The yaw axis was unaffected — turns are
+        // correct.) So an UP motion (positive delta) satisfies nod_up, and a
+        // DOWN motion (negative delta) satisfies nod_down.
         nodDetected = if (isUp) {
-            delta < -nodThreshold
-        } else {
             delta > nodThreshold
+        } else {
+            delta < -nodThreshold
         }
 
         // **v1.9.1-rc3 diagnostic** — same as detectTurn: captures empirical

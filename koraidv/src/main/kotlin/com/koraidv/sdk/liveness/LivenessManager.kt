@@ -333,7 +333,7 @@ class LivenessManager {
                         // without depending on adb logcat access. Removed when
                         // the wrong-direction-accept investigation is closed.
                         val diagnostics = buildString {
-                            append("rc=v1.9.1-rc17")
+                            append("rc=v1.9.1-rc18")
                             append(";chType=").append(challenge.type)
                             append(";rawYaw=").append(face.headEulerAngleY)
                             append(";rawPitch=").append(face.headEulerAngleX)
