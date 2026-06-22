@@ -38,6 +38,13 @@ class DocumentScanner {
     private var noDetectionCounter = 0
     private val noDetectionThreshold = 3  // 3 consecutive missed frames before reset
     private val stabilityThreshold = 1    // single stable frame suffices (user gets review screen)
+
+    // Live-preview lighting bounds (mean luma of the Y plane, 0-255). A too-dark
+    // or over-exposed frame degrades backend document-auth/OCR, so coach the user
+    // out of bad lighting BEFORE capture (BanffPay robustness, 2026-06-20).
+    // Slightly wider than the selfie bounds — documents tolerate more range.
+    private val minDocBrightness = 65.0
+    private val maxDocBrightness = 230.0
     private val stabilityTolerance = 0.10f // 10% tolerance for natural hand movement
 
     private val textRecognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
@@ -69,6 +76,10 @@ class DocumentScanner {
             imageProxy.close()
             return lastDetectionResult
         }
+
+        // Frame brightness (Y plane) for the proactive lighting gate below —
+        // read while the buffer is valid, before the async ML Kit hop.
+        val brightness = meanLuma(imageProxy)
 
         isAnalyzing = true
 
@@ -146,6 +157,11 @@ class DocumentScanner {
                     val qualityGuidance = when {
                         coverage < 0.35f -> "Move closer to the document"
                         coverage > 0.85f -> "Move further from the document"
+                        // Framing is fine but lighting is poor — coach the user
+                        // rather than let a dim/over-exposed doc reach docauth/OCR
+                        // (BanffPay robustness, 2026-06-20; mirrors iOS bounds).
+                        brightness < minDocBrightness -> "Too dark — move to brighter, even lighting"
+                        brightness > maxDocBrightness -> "Too much glare — reduce direct light on the document"
                         else -> null // All conditions good
                     }
 
@@ -180,6 +196,40 @@ class DocumentScanner {
             }
 
         return lastDetectionResult
+    }
+
+    /**
+     * Mean luma (0-255) of the Y plane, sub-sampled on a stride for negligible
+     * cost. Uses absolute buffer reads so it never disturbs the buffer position
+     * ML Kit reads from. Returns a neutral 128.0 if the plane can't be read so a
+     * read failure never blocks capture.
+     */
+    @androidx.camera.core.ExperimentalGetImage
+    private fun meanLuma(imageProxy: ImageProxy): Double {
+        val plane = imageProxy.planes.getOrNull(0) ?: return 128.0
+        val buffer = plane.buffer
+        val rowStride = plane.rowStride
+        val pixelStride = plane.pixelStride
+        val width = imageProxy.width
+        val height = imageProxy.height
+        val step = 16
+        var sum = 0L
+        var count = 0
+        var y = 0
+        while (y < height) {
+            val rowStart = y * rowStride
+            var x = 0
+            while (x < width) {
+                val idx = rowStart + x * pixelStride
+                if (idx in 0 until buffer.limit()) {
+                    sum += (buffer.get(idx).toInt() and 0xFF).toLong()
+                    count++
+                }
+                x += step
+            }
+            y += step
+        }
+        return if (count > 0) sum.toDouble() / count else 128.0
     }
 
     private fun checkStability(corners: List<PointF>): Boolean {

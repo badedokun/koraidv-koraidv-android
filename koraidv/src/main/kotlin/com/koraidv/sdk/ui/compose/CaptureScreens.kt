@@ -784,10 +784,16 @@ fun SelfieCaptureScreen(
                                                             firstFaceDetectedTime = null
                                                         }
 
+                                                        // guidanceMessage == null also gates auto-capture so the
+                                                        // proactive lighting check (too dark / too bright) actually
+                                                        // blocks the shutter, not just displays. No-op for the
+                                                        // framing flags — those already imply guidanceMessage==null —
+                                                        // it only adds the lighting gate (BanffPay robustness, 2026-06-20).
                                                         val ready = result.faceDetected &&
                                                                 result.isCentered &&
                                                                 result.isSizedCorrectly &&
-                                                                result.isStable
+                                                                result.isStable &&
+                                                                result.guidanceMessage == null
                                                         faceReady = ready
 
                                                         // Force capture after 5s deadline if face is detected

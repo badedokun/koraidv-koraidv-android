@@ -49,6 +49,20 @@ class FaceScanner {
     // Face centering: within 20% of center
     private val centerTolerance = 0.20f
 
+    // Proactive lighting coaching (BanffPay robustness, 2026-06-20). Measured on
+    // the CENTER region (where the oval guides the face), NOT the whole frame —
+    // a bright window beside the user pulls the whole-frame average to a "fine"
+    // value while the face sits in shadow. `minFaceBrightness`/`maxFaceBrightness`
+    // gate the face's own exposure; `backlightBlownFraction` catches BACKLIGHT —
+    // a large blown-out region (window) that throws harsh shadows across the face
+    // and tanks face-match even when the average looks fine. Matches the iOS
+    // SelfieCapture signals for cross-platform parity.
+    private val minFaceBrightness = 70.0
+    private val maxFaceBrightness = 235.0
+    // 0.08 sits in the wide empty gap between evenly-lit selfies (blown ≈ 0.00)
+    // and backlit ones (blown ≈ 0.14–0.15, measured on-device 2026-06-20).
+    private val backlightBlownFraction = 0.08
+
     /**
      * Detect face in image proxy for real-time guidance.
      * Takes ownership of imageProxy and closes it.
@@ -68,6 +82,11 @@ class FaceScanner {
 
         val width = imageProxy.width.toFloat()
         val height = imageProxy.height.toFloat()
+
+        // Read frame brightness now (Y plane), while the buffer is valid and
+        // before the async ML Kit hop closes the proxy. Captured by the success
+        // listener for the proactive lighting gate.
+        val lighting = lightingStats(imageProxy)
 
         isAnalyzing = true
 
@@ -134,6 +153,9 @@ class FaceScanner {
                     faceFraction < minFaceFraction -> "Move closer"
                     faceFraction > maxFaceFraction -> "Move further away"
                     !isCentered -> "Center your face"
+                    lighting.center < minFaceBrightness -> "More light on your face — turn toward the light"
+                    lighting.center > maxFaceBrightness -> "Too bright — reduce glare or direct light"
+                    lighting.blown > backlightBlownFraction -> "Strong light behind you — turn to face the light"
                     !isStable -> "Hold steady..."
                     else -> null // All conditions met
                 }
@@ -159,6 +181,54 @@ class FaceScanner {
             }
 
         return lastResult
+    }
+
+    /** Center-region mean luma + whole-frame blown-highlight fraction. */
+    private data class Lighting(val center: Double, val blown: Double)
+
+    /**
+     * Lighting stats from the Y plane, sub-sampled on a stride for negligible
+     * cost. Returns the mean luma of the CENTER region (the face, per the oval
+     * guide) and the fraction of near-white ("blown") pixels over the whole frame
+     * (a strong-backlight signal). Uses absolute buffer reads so it never
+     * disturbs the buffer position ML Kit reads from. Returns neutral values if
+     * the plane can't be read so a read failure never blocks capture.
+     */
+    private fun lightingStats(imageProxy: ImageProxy): Lighting {
+        val plane = imageProxy.planes.getOrNull(0) ?: return Lighting(128.0, 0.0)
+        val buffer = plane.buffer
+        val rowStride = plane.rowStride
+        val pixelStride = plane.pixelStride
+        val width = imageProxy.width
+        val height = imageProxy.height
+        // Center box ≈ where the oval guides the face.
+        val cx0 = (width * 0.3).toInt(); val cx1 = (width * 0.7).toInt()
+        val cy0 = (height * 0.3).toInt(); val cy1 = (height * 0.7).toInt()
+        val step = 16
+        var centerSum = 0L; var centerCount = 0
+        var total = 0; var blown = 0
+        var y = 0
+        while (y < height) {
+            val rowStart = y * rowStride
+            var x = 0
+            while (x < width) {
+                val idx = rowStart + x * pixelStride
+                if (idx in 0 until buffer.limit()) {
+                    val luma = buffer.get(idx).toInt() and 0xFF
+                    total++
+                    if (luma > 235) blown++
+                    if (x in cx0 until cx1 && y in cy0 until cy1) {
+                        centerSum += luma
+                        centerCount++
+                    }
+                }
+                x += step
+            }
+            y += step
+        }
+        val center = if (centerCount > 0) centerSum.toDouble() / centerCount else 128.0
+        val blownFraction = if (total > 0) blown.toDouble() / total else 0.0
+        return Lighting(center, blownFraction)
     }
 
     private fun checkStability(center: PointF): Boolean {

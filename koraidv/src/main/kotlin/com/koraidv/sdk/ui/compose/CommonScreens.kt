@@ -362,8 +362,11 @@ fun SuccessScreen(
                         label = stringResource(R.string.koraidv_score_selfie_match),
                         score = scores.selfieMatch,
                         icon = Icons.Default.Person,
-                        status = if (scores.selfieMatch >= 70) MetricStatus.PASS
-                                else if (scores.selfieMatch >= 50) MetricStatus.BORDERLINE
+                        // Pass floor is 60 (not 70); 45-60 is the manual-review band.
+                        // Match iOS so a passed (>=60) selfie isn't shown sub-green
+                        // (cross-platform parity, BanffPay 2026-06-22).
+                        status = if (scores.selfieMatch >= 60) MetricStatus.PASS
+                                else if (scores.selfieMatch >= 45) MetricStatus.BORDERLINE
                                 else MetricStatus.FAIL
                     )
                 )
