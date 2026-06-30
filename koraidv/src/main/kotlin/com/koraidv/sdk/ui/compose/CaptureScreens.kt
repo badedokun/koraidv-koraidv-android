@@ -39,7 +39,7 @@ import kotlin.coroutines.resume
 import kotlin.coroutines.suspendCoroutine
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -816,31 +816,29 @@ fun SelfieCaptureScreen(
                     )
                 }
 
-                // Animated rotating ring
-                val infiniteTransition = rememberInfiniteTransition(label = "selfie_ring")
-                val rotation by infiniteTransition.animateFloat(
-                    initialValue = 0f,
-                    targetValue = 360f,
-                    animationSpec = infiniteRepeatable(
-                        animation = tween(3000, easing = LinearEasing)
-                    ),
-                    label = "ring_rotation"
-                )
-
+                // Steady oval border (continuously-rotating "swirl" ring
+                // removed 2026-06-29 — iOS selfie parity). The constant 3s
+                // rotation read as a distracting swirl; replace it with a calm
+                // detector signal that matches iOS: grey while scanning, dashed
+                // teal once a face is detected, solid teal when ready to snap.
+                val borderColor = if (faceReady) KoraColors.Teal else KoraColors.WhiteAlpha50
                 Canvas(
                     modifier = Modifier
                         .width(246.dp)
                         .height(306.dp)
                 ) {
-                    rotate(rotation) {
-                        val strokeWidth = 3.dp.toPx()
-                        drawOval(
-                            color = KoraColors.Teal,
-                            style = Stroke(width = strokeWidth, cap = StrokeCap.Round),
-                            topLeft = Offset(strokeWidth / 2, strokeWidth / 2),
-                            size = Size(size.width - strokeWidth, size.height - strokeWidth)
-                        )
+                    val strokeWidth = (if (faceReady) 5.dp else 3.dp).toPx()
+                    val pathEffect = if (faceDetected && !faceReady) {
+                        PathEffect.dashPathEffect(floatArrayOf(30f, 24f), 0f)
+                    } else {
+                        null
                     }
+                    drawOval(
+                        color = borderColor,
+                        style = Stroke(width = strokeWidth, cap = StrokeCap.Round, pathEffect = pathEffect),
+                        topLeft = Offset(strokeWidth / 2, strokeWidth / 2),
+                        size = Size(size.width - strokeWidth, size.height - strokeWidth)
+                    )
                 }
             }
         }
@@ -1325,16 +1323,22 @@ internal fun LivenessScreen(
                         )
                     }
 
-                    // Progress ring
-                    val progress = when (val state = livenessState) {
-                        is LivenessState.InProgress -> state.progress
-                        is LivenessState.ChallengeComplete -> 1f
-                        else -> 0f
-                    }
-                    val ringColor = when {
+                    // Oval border.
+                    //
+                    // **Sweeping progress arc removed (BanffPay 2026-06-29 — iOS
+                    // parity).** The circumferential arc swept 0→360° as the
+                    // gesture progressed (jumping straight to a full ring on
+                    // ChallengeComplete). For a fast gesture like smile that
+                    // sweep completes near-instantly and reads as a quick
+                    // "swirl" right at challenge completion. Completion stays
+                    // clearly signalled by the checkmark + the bottom challenge
+                    // step pills, so the sweep was redundant. Matches the iOS
+                    // LivenessView fix (74f4ea3) — keep the oval calm: camera +
+                    // a steady border that turns teal/red on pass/fail.
+                    val borderColor = when {
                         isChallengeComplete && challengePassed -> KoraColors.TealBright
                         isChallengeComplete -> KoraColors.ErrorRed
-                        else -> KoraColors.Teal
+                        else -> KoraColors.WhiteAlpha15
                     }
 
                     Canvas(
@@ -1344,22 +1348,11 @@ internal fun LivenessScreen(
                     ) {
                         val strokeWidth = 4.dp.toPx()
                         drawOval(
-                            color = KoraColors.WhiteAlpha15,
+                            color = borderColor,
                             style = Stroke(width = strokeWidth),
                             topLeft = Offset(strokeWidth / 2, strokeWidth / 2),
                             size = Size(size.width - strokeWidth, size.height - strokeWidth)
                         )
-                        if (progress > 0f) {
-                            drawArc(
-                                color = ringColor,
-                                startAngle = -90f,
-                                sweepAngle = 360f * progress,
-                                useCenter = false,
-                                style = Stroke(width = strokeWidth, cap = StrokeCap.Round),
-                                topLeft = Offset(strokeWidth / 2, strokeWidth / 2),
-                                size = Size(size.width - strokeWidth, size.height - strokeWidth)
-                            )
-                        }
                     }
 
                     // Nod arrows (above/below oval)

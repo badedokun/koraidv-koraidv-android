@@ -157,15 +157,16 @@ class ChallengeDetectorTest {
     // =====================================================================
 
     @Test
-    fun `nod up detected when pitch decreases enough`() {
+    fun `nod up detected when pitch increases enough`() {
         detector.startDetecting(ChallengeType.NOD_UP)
 
         val straightFace = mockFace(headEulerAngleX = 0f)
         repeat(3) { detector.process(straightFace, ChallengeType.NOD_UP) }
 
-        // v1.9.1-rc5: ML Kit headEulerAngleX on this device/OS produces
-        // NEGATIVE values when the user nods UP (positive = nods DOWN).
-        val nodUpFace = mockFace(headEulerAngleX = -10f)
+        // v1.9.1-rc18 (field-confirmed on Pixel 9 Pro XL): an UP head motion
+        // produces a POSITIVE pitch delta, which satisfies NOD_UP. (Supersedes
+        // the rc5 assumption that nod-up read negative — the axis re-flipped.)
+        val nodUpFace = mockFace(headEulerAngleX = 10f)
         repeat(4) { detector.process(nodUpFace, ChallengeType.NOD_UP) }
         val result = detector.process(nodUpFace, ChallengeType.NOD_UP)
 
@@ -173,14 +174,15 @@ class ChallengeDetectorTest {
     }
 
     @Test
-    fun `nod down detected when pitch increases enough`() {
+    fun `nod down detected when pitch decreases enough`() {
         detector.startDetecting(ChallengeType.NOD_DOWN)
 
         val straightFace = mockFace(headEulerAngleX = 0f)
         repeat(3) { detector.process(straightFace, ChallengeType.NOD_DOWN) }
 
-        // v1.9.1-rc5: user nodding DOWN produces POSITIVE ML Kit pitch.
-        val nodDownFace = mockFace(headEulerAngleX = 10f)
+        // v1.9.1-rc18 (field-confirmed on Pixel 9 Pro XL): a DOWN head motion
+        // produces a NEGATIVE pitch delta, which satisfies NOD_DOWN.
+        val nodDownFace = mockFace(headEulerAngleX = -10f)
         repeat(4) { detector.process(nodDownFace, ChallengeType.NOD_DOWN) }
         val result = detector.process(nodDownFace, ChallengeType.NOD_DOWN)
 
@@ -458,8 +460,10 @@ class ChallengeDetectorTest {
     fun `nod up NOT completed when user nods down from neutral baseline`() {
         detector.startDetecting(ChallengeType.NOD_UP, baselinePitch = 0f)
 
-        // v1.9.1-rc5: user nodding DOWN produces POSITIVE pitch.
-        val noddedDown = mockFace(headEulerAngleX = 15f)
+        // v1.9.1-rc18 (Pixel 9 Pro XL): nodding DOWN produces a NEGATIVE pitch
+        // delta — the wrong direction for NOD_UP (which needs positive), so it
+        // must NOT complete.
+        val noddedDown = mockFace(headEulerAngleX = -15f)
         repeat(10) { detector.process(noddedDown, ChallengeType.NOD_UP) }
         val result = detector.process(noddedDown, ChallengeType.NOD_UP)
 
@@ -470,8 +474,10 @@ class ChallengeDetectorTest {
     fun `nod down NOT completed when user nods up from neutral baseline`() {
         detector.startDetecting(ChallengeType.NOD_DOWN, baselinePitch = 0f)
 
-        // v1.9.1-rc5: user nodding UP produces NEGATIVE pitch.
-        val noddedUp = mockFace(headEulerAngleX = -15f)
+        // v1.9.1-rc18 (Pixel 9 Pro XL): nodding UP produces a POSITIVE pitch
+        // delta — the wrong direction for NOD_DOWN (which needs negative), so
+        // it must NOT complete.
+        val noddedUp = mockFace(headEulerAngleX = 15f)
         repeat(10) { detector.process(noddedUp, ChallengeType.NOD_DOWN) }
         val result = detector.process(noddedUp, ChallengeType.NOD_DOWN)
 
