@@ -126,6 +126,16 @@ fun ConsentScreen(
                     title = stringResource(R.string.koraidv_consent_item_liveness_title),
                     subtitle = stringResource(R.string.koraidv_consent_item_liveness_subtitle)
                 )
+                // Eyewear requirement — sunglasses / tinted / mirrored lenses are
+                // enforced (rejected) at capture, so surface it up front on the
+                // SDK's first screen (BanffPay 2026-06-30).
+                ConsentItem(
+                    icon = Icons.Default.VisibilityOff,
+                    iconBg = KoraColors.WarningAmberLight,
+                    iconTint = KoraColors.WarningAmber,
+                    title = stringResource(R.string.koraidv_consent_item_eyewear_title),
+                    subtitle = stringResource(R.string.koraidv_consent_item_eyewear_subtitle)
+                )
             }
         }
 

@@ -39,7 +39,9 @@ internal fun VerificationFlow(
     customMessages: ResultPageMessages? = null,
     // REQ-003 — rich visual onboarding guides (demo-gated until production
     // sign-off). When false, the existing minimal-icon UI is used.
-    showVisualGuides: Boolean = false
+    showVisualGuides: Boolean = false,
+    // Eyeglasses policy Phase 1 — coach removal of glasses for the selfie.
+    showEyewearGuidance: Boolean = true
 ) {
     AnimatedContent(
         targetState = state,
@@ -98,7 +100,8 @@ internal fun VerificationFlow(
                 SelfieCaptureScreen(
                     onCaptured = onSelfieCaptured,
                     onCancel = onCancel,
-                    showVisualGuides = showVisualGuides
+                    showVisualGuides = showVisualGuides,
+                    showEyewearGuidance = showEyewearGuidance
                 )
             }
             is VerificationState.LivenessCheck -> {

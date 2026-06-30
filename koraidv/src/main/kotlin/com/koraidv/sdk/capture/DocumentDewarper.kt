@@ -10,6 +10,7 @@ import org.opencv.core.MatOfPoint2f
 import org.opencv.core.Point
 import org.opencv.core.Size
 import org.opencv.imgproc.Imgproc
+import kotlin.math.hypot
 import kotlin.math.max
 
 /**
@@ -112,9 +113,18 @@ object DocumentDewarper {
             }
             quad.release()
 
-            // ID-1 long edge fixed to OUTPUT_WIDTH; height derived from aspect
+            // **Preserve the document's REAL aspect ratio (passport stretch
+            // fix, BanffPay v1.9.7 retest, 2026-06-30).** Forcing the output to
+            // ID-1 (1.586:1) is correct for cards but stretches a passport data
+            // page (~1.42:1) horizontally. Derive the output height from the
+            // detected quad's own edge lengths so any document type keeps its
+            // true proportions; long edge still pinned to OUTPUT_WIDTH.
+            val tl = orderedScaled[0]; val tr = orderedScaled[1]
+            val br = orderedScaled[2]; val bl = orderedScaled[3]
+            val realW = max(hypot(tr.x - tl.x, tr.y - tl.y), hypot(br.x - bl.x, br.y - bl.y))
+            val realH = max(hypot(bl.x - tl.x, bl.y - tl.y), hypot(br.x - tr.x, br.y - tr.y))
             val outW = OUTPUT_WIDTH.toDouble()
-            val outH = (OUTPUT_WIDTH / ID1_ASPECT).toDouble()
+            val outH = if (realW > 0) OUTPUT_WIDTH * realH / realW else OUTPUT_WIDTH / ID1_ASPECT.toDouble()
 
             val srcPts = MatOfPoint2f(
                 orderedScaled[0], orderedScaled[1],

@@ -610,7 +610,8 @@ private fun FlipDocumentScreen(
 fun SelfieCaptureScreen(
     onCaptured: (ByteArray) -> Unit,
     onCancel: () -> Unit,
-    showVisualGuides: Boolean = false
+    showVisualGuides: Boolean = false,
+    showEyewearGuidance: Boolean = true
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -626,9 +627,13 @@ fun SelfieCaptureScreen(
     var capturedBitmap by remember { mutableStateOf<Bitmap?>(null) }
     var autoCapturePending by remember { mutableStateOf(false) }
     var firstFaceDetectedTime by remember { mutableStateOf<Long?>(null) }
+    // Eye-visibility rejection (sunglasses / tinted / mirrored lenses). Drives
+    // the prominent rejection overlay and PAUSES auto-capture until the user
+    // removes the glasses and taps Retake, so the same reject can't loop-fire.
+    var rejectionReason by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(autoCapturePending) {
-        if (autoCapturePending && !isCapturing && cameraReady && capturedImageBytes == null) {
+        if (autoCapturePending && !isCapturing && cameraReady && capturedImageBytes == null && rejectionReason == null) {
             isCapturing = true
 
             // v1.6.3 perf fix: same off-main-thread pattern as the doc
@@ -662,8 +667,19 @@ fun SelfieCaptureScreen(
                     }
                 }
                 if (encoded != null) {
-                    capturedImageBytes = encoded.first
-                    capturedBitmap = encoded.second
+                    // Enforce eye visibility (sunglasses policy). Reject
+                    // sunglasses / tinted / mirrored lenses before the selfie is
+                    // accepted — the SDK does not rely on the user removing them.
+                    val eyes = com.koraidv.sdk.capture.EyeVisibilityChecker.check(encoded.second)
+                    if (eyes.rejects) {
+                        encoded.second.recycle()
+                        rejectionReason = context.getString(R.string.koraidv_selfie_remove_sunglasses)
+                        // Do NOT set capturedImageBytes — the prominent overlay
+                        // requires the user to remove the glasses and tap Retake.
+                    } else {
+                        capturedImageBytes = encoded.first
+                        capturedBitmap = encoded.second
+                    }
                 } else {
                     guidanceMessage = "Capture failed, retrying..."
                 }
@@ -705,6 +721,29 @@ fun SelfieCaptureScreen(
         return
     }
 
+    // ── Eye-visibility rejection (sunglasses / tinted / mirrored lenses) ──────
+    // Prominent, persistent reason that pauses auto-capture until the user
+    // removes the glasses and taps Retake — matches the iOS SDK behaviour.
+    val reason = rejectionReason
+    if (reason != null) {
+        SelfieRejectionScreen(
+            reason = reason,
+            onRetake = {
+                rejectionReason = null
+                cameraReady = false
+                isCapturing = false
+                faceDetected = false
+                faceReady = false
+                guidanceMessage = "Position your face in the oval"
+                autoCapturePending = false
+                firstFaceDetectedTime = null
+                faceScanner.resetStability()
+            },
+            onCancel = onCancel
+        )
+        return
+    }
+
     // ── Camera capture mode ──────────────────────────────────────────────────
     Column(
         modifier = Modifier
@@ -738,6 +777,18 @@ fun SelfieCaptureScreen(
                 fontSize = 14.sp,
                 color = KoraColors.WhiteAlpha50
             )
+            // Eyeglasses coaching (Phase 1 of the eyeglasses policy). The issued
+            // ID portrait is glasses-free by government standard, so a
+            // glasses-free selfie maximizes match reliability. Soft prompt only.
+            if (showEyewearGuidance) {
+                Spacer(modifier = Modifier.height(6.dp))
+                Text(
+                    text = stringResource(R.string.koraidv_selfie_remove_glasses),
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.W500,
+                    color = KoraColors.Teal
+                )
+            }
         }
 
         // Oval viewfinder with animated ring
@@ -801,7 +852,7 @@ fun SelfieCaptureScreen(
                                                         val forceCapture = result.faceDetected && deadline != null &&
                                                                 (System.currentTimeMillis() - deadline) >= 5000L
 
-                                                        if ((ready || forceCapture) && !isCapturing && capturedImageBytes == null) {
+                                                        if ((ready || forceCapture) && !isCapturing && capturedImageBytes == null && rejectionReason == null) {
                                                             autoCapturePending = true
                                                         }
                                                     }
@@ -983,6 +1034,72 @@ private fun SelfieReviewScreen(
                     modifier = Modifier.weight(1f)
                 )
             }
+        }
+    }
+}
+
+/**
+ * Selfie eye-visibility rejection screen — sunglasses / tinted / mirrored
+ * lenses. A clear, unambiguous reason with a single Retake action, matching the
+ * iOS SDK's "We can't see your eyes" overlay.
+ */
+@Composable
+private fun SelfieRejectionScreen(
+    reason: String,
+    onRetake: () -> Unit,
+    onCancel: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(KoraColors.DarkBg)
+    ) {
+        StepProgressBar(total = 5, current = 4, isDark = true)
+        DarkScreenHeader(title = stringResource(R.string.koraidv_selfie_title), onClose = onCancel)
+
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth()
+                .padding(horizontal = 32.dp),
+            verticalArrangement = Arrangement.Center,
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Icon(
+                imageVector = Icons.Default.VisibilityOff,
+                contentDescription = null,
+                tint = KoraColors.Teal,
+                modifier = Modifier.size(56.dp)
+            )
+            Spacer(modifier = Modifier.height(20.dp))
+            Text(
+                text = stringResource(R.string.koraidv_selfie_eyes_blocked_title),
+                fontSize = 22.sp,
+                fontWeight = FontWeight.W700,
+                color = Color.White,
+                textAlign = TextAlign.Center
+            )
+            Spacer(modifier = Modifier.height(10.dp))
+            Text(
+                text = reason,
+                fontSize = 15.sp,
+                color = Color.White.copy(alpha = 0.75f),
+                textAlign = TextAlign.Center,
+                lineHeight = 21.sp
+            )
+        }
+
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp)
+                .padding(bottom = 40.dp)
+        ) {
+            KoraButton(
+                text = stringResource(R.string.koraidv_selfie_retake),
+                onClick = onRetake,
+                modifier = Modifier.fillMaxWidth()
+            )
         }
     }
 }

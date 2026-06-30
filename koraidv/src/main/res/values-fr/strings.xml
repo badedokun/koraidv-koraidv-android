@@ -29,6 +29,8 @@
     <string name="koraidv_consent_item_selfie_subtitle">Un selfie rapide pour correspondre à votre pièce d\'identité</string>
     <string name="koraidv_consent_item_liveness_title">Vérification de vivacité</string>
     <string name="koraidv_consent_item_liveness_subtitle">Une courte vidéo pour confirmer que c\'est bien vous</string>
+    <string name="koraidv_consent_item_eyewear_title">Retirez vos lunettes de soleil</string>
+    <string name="koraidv_consent_item_eyewear_subtitle">Vos yeux doivent être clairement visibles — retirez vos lunettes de soleil ou teintées pour le selfie</string>
     <string name="koraidv_consent_button">Commencer</string>
     <string name="koraidv_consent_privacy">En continuant, vous acceptez notre politique de confidentialité et consentez au traitement biométrique.</string>
     <string name="koraidv_consent_description">Nous devons vérifier votre identité pour nous conformer aux réglementations et sécuriser votre compte.</string>
@@ -107,6 +109,9 @@
     <string name="koraidv_selfie_title">Prenez un selfie</string>
     <string name="koraidv_selfie_face_camera">Regardez la caméra</string>
     <string name="koraidv_selfie_neutral">Gardez une expression neutre</string>
+    <string name="koraidv_selfie_remove_glasses">Retirez vos lunettes pour une meilleure correspondance</string>
+    <string name="koraidv_selfie_remove_sunglasses">Retirez vos lunettes de soleil — vos yeux doivent être clairement visibles</string>
+    <string name="koraidv_selfie_eyes_blocked_title">Nous ne voyons pas vos yeux</string>
     <string name="koraidv_selfie_instruction">Positionnez votre visage dans l\'ovale.\nGardez une expression neutre. Capture automatique quand prêt.</string>
     <string name="koraidv_selfie_review_title">Vérifiez le selfie</string>
     <string name="koraidv_selfie_review_question">Est-ce que cela vous ressemble ?</string>

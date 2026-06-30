@@ -46,7 +46,16 @@ data class Configuration(
      * UI already in place on the liveness screen. No behavioural change
      * for existing integrations.
      */
-    val showVisualGuides: Boolean = false
+    val showVisualGuides: Boolean = false,
+
+    /**
+     * Eyeglasses policy (Phase 1) — coach the user to remove glasses for the
+     * selfie. Defaults to true: the issued ID portrait is glasses-free by
+     * government standard, so a glasses-free selfie maximizes face-match
+     * reliability and closes the document↔selfie asymmetry. Set false to hide
+     * the prompt. A per-tenant, session-driven policy supersedes this later.
+     */
+    val showEyewearGuidance: Boolean = true
 ) {
     init {
         require(apiKey.isNotBlank()) { "apiKey must not be blank" }

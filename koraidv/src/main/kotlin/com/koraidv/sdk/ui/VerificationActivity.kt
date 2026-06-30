@@ -164,7 +164,8 @@ class VerificationActivity : ComponentActivity() {
                         verificationId = viewModel.getCurrentVerification()?.id,
                         resultPageMode = config?.resultPageMode ?: ResultPageMode.DETAILED,
                         customMessages = config?.customMessages,
-                        showVisualGuides = config?.showVisualGuides ?: false
+                        showVisualGuides = config?.showVisualGuides ?: false,
+                        showEyewearGuidance = config?.showEyewearGuidance ?: true
                     )
                 }
             }
