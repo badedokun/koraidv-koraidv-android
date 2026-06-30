@@ -58,7 +58,7 @@ class KoraIDVTest {
     fun `VERSION matches the published SDK release`() {
         // Pin to current release. Bump in lockstep with build.gradle.kts
         // publish version and KoraIDV.kt VERSION constant.
-        assertThat(KoraIDV.VERSION).isEqualTo("1.10.0")
+        assertThat(KoraIDV.VERSION).isEqualTo("1.10.1")
     }
 
     @Test

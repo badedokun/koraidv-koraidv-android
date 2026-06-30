@@ -41,13 +41,19 @@ object EyeVisibilityChecker {
 
     enum class Outcome {
         CLEAR, SUNGLASSES, REFLECTIVE, TINTED, OBSCURED, NO_FACE;
-        val rejects: Boolean get() = this != CLEAR && this != NO_FACE
+        // FAIL CLOSED: anything that isn't a confirmed-clear eye blocks the
+        // capture — including NO_FACE. The old fail-open on NO_FACE let
+        // sunglasses through whenever face detection blipped on a frame (cold
+        // first capture / rapid retakes) — the "hammer it enough and it slips
+        // through" pattern (BanffPay 2026-06-30).
+        val rejects: Boolean get() = this != CLEAR
     }
 
-    private const val DARK_RATIO_REJECT = 0.62    // eyes < 62% of face brightness → dark lenses
+    // TIGHTENED to fail closed (BanffPay 2026-06-30) — see iOS EyeVisibilityChecker.
+    private const val DARK_RATIO_REJECT = 0.78    // eyes < 78% of face brightness → lens (was 0.62)
     private const val BRIGHT_RATIO_REJECT = 1.08  // eyes > 108% of face brightness → bright reflective
-    private const val SPECULAR_FRAC_REJECT = 0.035 // ≥3.5% blown-out pixels → mirrored reflections
-    private const val SAT_LOW_REJECT = 0.85       // eye colour << face → neutral reflective/dark lens
+    private const val SPECULAR_FRAC_REJECT = 0.025 // ≥2.5% blown-out pixels → reflections (was 0.035)
+    private const val SAT_LOW_REJECT = 0.95       // eye colour < 95% of face → neutral lens (was 0.85)
     private const val SAT_HIGH_REJECT = 1.6       // eye colour >> face → colour tint
     private const val SAT_HIGH_ABS = 0.30         // …and absolutely colourful
     private const val MIN_EYE_CONTRAST = 0.10     // eye-region std below this → flat tint
@@ -66,10 +72,25 @@ object EyeVisibilityChecker {
         )
     }
 
-    suspend fun check(bitmap: Bitmap): Outcome = suspendCoroutine { cont ->
+    suspend fun check(bitmap: Bitmap): Outcome {
+        // Retry detection (transient failures / cold first call). A real selfie
+        // always has a face — the capture auto-fired on a stable one — so if we
+        // still can't find it the frame is unusable and we FAIL CLOSED (→ retake)
+        // rather than pass it unchecked.
+        repeat(3) {
+            val faces = try { detectOnce(bitmap) } catch (_: Exception) { emptyList() }
+            if (faces.isNotEmpty()) return evaluate(bitmap, faces)
+        }
+        lastDebug = "eye: no face after retries → reject (fail-closed)"
+        val dbg = try { com.koraidv.sdk.KoraIDV.getConfiguration().debugLogging } catch (_: Exception) { false }
+        if (dbg) Log.d("KoraIDV", lastDebug)
+        return Outcome.NO_FACE
+    }
+
+    private suspend fun detectOnce(bitmap: Bitmap): List<Face> = suspendCoroutine { cont ->
         detector.process(InputImage.fromBitmap(bitmap, 0))
-            .addOnSuccessListener { faces -> cont.resume(evaluate(bitmap, faces)) }
-            .addOnFailureListener { cont.resume(Outcome.NO_FACE) }   // fail-open
+            .addOnSuccessListener { faces -> cont.resume(faces) }
+            .addOnFailureListener { cont.resume(emptyList()) }
     }
 
     private fun evaluate(bitmap: Bitmap, faces: List<Face>): Outcome {
