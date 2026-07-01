@@ -112,6 +112,7 @@
     <string name="koraidv_selfie_remove_glasses">Retirez vos lunettes pour une meilleure correspondance</string>
     <string name="koraidv_selfie_remove_sunglasses">Retirez vos lunettes de soleil — vos yeux doivent être clairement visibles</string>
     <string name="koraidv_selfie_eyes_blocked_title">Nous ne voyons pas vos yeux</string>
+    <string name="koraidv_selfie_too_dark">Trop sombre pour vérifier vos yeux — reprenez avec un meilleur éclairage</string>
     <string name="koraidv_selfie_instruction">Positionnez votre visage dans l\'ovale.\nGardez une expression neutre. Capture automatique quand prêt.</string>
     <string name="koraidv_selfie_review_title">Vérifiez le selfie</string>
     <string name="koraidv_selfie_review_question">Est-ce que cela vous ressemble ?</string>

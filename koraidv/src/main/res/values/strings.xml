@@ -117,6 +117,7 @@
     <string name="koraidv_selfie_remove_glasses">Remove eyeglasses for the best match</string>
     <string name="koraidv_selfie_remove_sunglasses">Remove sunglasses — your eyes must be clearly visible</string>
     <string name="koraidv_selfie_eyes_blocked_title">We can\'t see your eyes</string>
+    <string name="koraidv_selfie_too_dark">Too dark to verify your eyes — please retake in better lighting</string>
     <string name="koraidv_selfie_instruction">Position your face within the oval.\nKeep a neutral expression. Auto-capture when ready.</string>
     <string name="koraidv_selfie_review_title">Review selfie</string>
     <string name="koraidv_selfie_review_question">Does this look like you?</string>

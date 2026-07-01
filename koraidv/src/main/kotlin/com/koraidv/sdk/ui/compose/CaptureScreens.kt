@@ -673,7 +673,9 @@ fun SelfieCaptureScreen(
                     val eyes = com.koraidv.sdk.capture.EyeVisibilityChecker.check(encoded.second)
                     if (eyes.rejects) {
                         encoded.second.recycle()
-                        rejectionReason = context.getString(R.string.koraidv_selfie_remove_sunglasses)
+                        val msgRes = if (eyes == com.koraidv.sdk.capture.EyeVisibilityChecker.Outcome.TOO_DARK)
+                            R.string.koraidv_selfie_too_dark else R.string.koraidv_selfie_remove_sunglasses
+                        rejectionReason = context.getString(msgRes)
                         // Do NOT set capturedImageBytes — the prominent overlay
                         // requires the user to remove the glasses and tap Retake.
                     } else {

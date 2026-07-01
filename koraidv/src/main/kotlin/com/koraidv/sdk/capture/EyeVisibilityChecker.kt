@@ -40,7 +40,7 @@ import kotlin.math.sqrt
 object EyeVisibilityChecker {
 
     enum class Outcome {
-        CLEAR, SUNGLASSES, REFLECTIVE, TINTED, OBSCURED, NO_FACE;
+        CLEAR, SUNGLASSES, REFLECTIVE, TINTED, OBSCURED, NO_FACE, TOO_DARK;
         // FAIL CLOSED: anything that isn't a confirmed-clear eye blocks the
         // capture — including NO_FACE. The old fail-open on NO_FACE let
         // sunglasses through whenever face detection blipped on a frame (cold
@@ -57,6 +57,10 @@ object EyeVisibilityChecker {
     private const val SAT_HIGH_REJECT = 1.6       // eye colour >> face → colour tint
     private const val SAT_HIGH_ABS = 0.30         // …and absolutely colourful
     private const val MIN_EYE_CONTRAST = 0.10     // eye-region std below this → flat tint
+    // Low-light fail-closed (BanffPay night test) — night captures fMean 0.27–0.28
+    // (sunglasses AND bare eyes), usable dim selfie ≈ 0.36. Too dark to confirm
+    // eyes → retake in better light. See iOS EyeVisibilityChecker.
+    private const val LOW_LIGHT_FLOOR = 0.30      // face-region mean luma below this → too dark
 
     @Volatile
     var lastDebug: String = ""
@@ -111,6 +115,7 @@ object EyeVisibilityChecker {
         val satRatio = eye.satMean / max(faceRef.satMean, 0.01)
 
         val outcome = when {
+            faceRef.lumaMean < LOW_LIGHT_FLOOR -> Outcome.TOO_DARK
             ratio < DARK_RATIO_REJECT -> Outcome.SUNGLASSES
             ratio > BRIGHT_RATIO_REJECT || eye.brightFraction > SPECULAR_FRAC_REJECT -> Outcome.REFLECTIVE
             satRatio < SAT_LOW_REJECT -> Outcome.REFLECTIVE
@@ -119,8 +124,8 @@ object EyeVisibilityChecker {
             else -> Outcome.CLEAR
         }
 
-        lastDebug = "eye lumaR=%.2f std=%.2f bright=%.2f eyeSat=%.2f faceSat=%.2f satR=%.2f → %s"
-            .format(ratio, eye.lumaStd, eye.brightFraction, eye.satMean, faceRef.satMean, satRatio, outcome)
+        lastDebug = "eye lumaR=%.2f std=%.2f bright=%.2f satR=%.2f fMean=%.2f eMean=%.2f → %s"
+            .format(ratio, eye.lumaStd, eye.brightFraction, satRatio, faceRef.lumaMean, eye.lumaMean, outcome)
         val debug = try { com.koraidv.sdk.KoraIDV.getConfiguration().debugLogging } catch (_: Exception) { false }
         if (debug) Log.d("KoraIDV", lastDebug)
         return outcome
