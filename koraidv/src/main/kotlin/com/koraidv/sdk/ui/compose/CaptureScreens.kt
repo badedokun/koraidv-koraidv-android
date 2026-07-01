@@ -667,21 +667,15 @@ fun SelfieCaptureScreen(
                     }
                 }
                 if (encoded != null) {
-                    // Enforce eye visibility (sunglasses policy). Reject
-                    // sunglasses / tinted / mirrored lenses before the selfie is
-                    // accepted — the SDK does not rely on the user removing them.
-                    val eyes = com.koraidv.sdk.capture.EyeVisibilityChecker.check(encoded.second)
-                    if (eyes.rejects) {
-                        encoded.second.recycle()
-                        val msgRes = if (eyes == com.koraidv.sdk.capture.EyeVisibilityChecker.Outcome.TOO_DARK)
-                            R.string.koraidv_selfie_too_dark else R.string.koraidv_selfie_remove_sunglasses
-                        rejectionReason = context.getString(msgRes)
-                        // Do NOT set capturedImageBytes — the prominent overlay
-                        // requires the user to remove the glasses and tap Retake.
-                    } else {
-                        capturedImageBytes = encoded.first
-                        capturedBitmap = encoded.second
-                    }
+                    // Eye-visibility (sunglasses policy) is enforced server-side:
+                    // a pretrained, face-independent sunglasses classifier in
+                    // koraidv-ml, surfaced through identity-service as an
+                    // auto-reject. The old on-device luma/specular heuristic
+                    // overfit a single face (false-rejecting bare eyes / false-
+                    // accepting tinted lenses across users), so we no longer
+                    // hard-block capture here. Consent still instructs removal.
+                    capturedImageBytes = encoded.first
+                    capturedBitmap = encoded.second
                 } else {
                     guidanceMessage = "Capture failed, retrying..."
                 }
