@@ -3,6 +3,8 @@ package com.koraidv.sdk.ui.theme
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
+import com.koraidv.sdk.ui.compose.KoraColors
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -52,6 +54,13 @@ fun KoraIDVTheme(
     theme: KoraTheme = KoraTheme(),
     content: @Composable () -> Unit
 ) {
+    // Re-brand the shared KoraColors tokens (used by the SDK's custom buttons/
+    // accents, which aren't part of the Material colorScheme) from the integrator's
+    // primaryColor — once per theme (BanffPay theming, 2026-07-02).
+    remember(theme.primaryColor, theme.successColor, theme.errorColor) {
+        KoraColors.applyTheme(theme.primaryColor, theme.successColor, theme.errorColor)
+    }
+
     val colorScheme = createColorScheme(theme)
 
     MaterialTheme(

@@ -441,7 +441,7 @@ fun RejectedScreen(
                 Text(
                     text = rejectionMessage,
                     fontSize = 14.sp,
-                    color = KoraColors.TextSecondary,
+                    color = KoraColors.ErrorRed,
                     textAlign = TextAlign.Center
                 )
             }
@@ -501,7 +501,13 @@ fun RejectedScreen(
                         status = if (scores.documentQuality >= 70) MetricStatus.PASS else MetricStatus.FAIL
                     )
                 )
-                val selfieStatus = if (scores.selfieMatch >= 70) MetricStatus.PASS else MetricStatus.FAIL
+                // Pass floor is 60 (45-60 = borderline), matching iOS — a passed
+                // (>=60) selfie must not show sub-green even on a rejected result.
+                val selfieStatus = when {
+                    scores.selfieMatch >= 60 -> MetricStatus.PASS
+                    scores.selfieMatch >= 45 -> MetricStatus.BORDERLINE
+                    else -> MetricStatus.FAIL
+                }
                 ScoreMetricRow(
                     metric = ScoreMetric(
                         label = stringResource(R.string.koraidv_score_selfie_match),
@@ -840,8 +846,8 @@ fun ManualReviewScreen(
                     )
                 )
                 val selfieStatus = when {
-                    scores.selfieMatch >= 70 -> MetricStatus.PASS
-                    scores.selfieMatch >= 50 -> MetricStatus.BORDERLINE
+                    scores.selfieMatch >= 60 -> MetricStatus.PASS
+                    scores.selfieMatch >= 45 -> MetricStatus.BORDERLINE
                     else -> MetricStatus.FAIL
                 }
                 ScoreMetricRow(

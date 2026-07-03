@@ -40,24 +40,53 @@ import com.koraidv.sdk.R
 // ─── Color Tokens ────────────────────────────────────────────────────────────
 
 object KoraColors {
-    val Teal = Color(0xFF0D9488)
-    val TealDark = Color(0xFF0F766E)
-    val Cyan = Color(0xFF06B6D4)
-    val TealBright = Color(0xFF2DD4BF)
+    // Brand accent — injected from the integrator's KoraTheme.primaryColor at flow
+    // start via applyTheme(). Defaults to Kora teal. Every primary button/accent
+    // reads Teal / TealGradient, so setting these once re-brands the whole SDK UI
+    // without touching call sites (BanffPay theming, 2026-07-02).
+    var brandPrimary: Color = Color(0xFF0D9488)
+    var brandPrimaryDark: Color = Color(0xFF0F766E)
 
-    val TealGradient = Brush.linearGradient(listOf(Teal, TealDark))
-    val TealGradient135 = Brush.linearGradient(
-        listOf(Teal, TealDark),
+    val Teal: Color get() = brandPrimary
+    val TealDark: Color get() = brandPrimaryDark
+    val Cyan = Color(0xFF06B6D4)
+    // Bright brand accent (liveness ring, guidance pills, challenge dots) — a
+    // lightened brandPrimary so it follows the integrator theme instead of a fixed
+    // teal-green (BanffPay theming 2026-07-03).
+    val TealBright: Color get() = Color(
+        red = brandPrimary.red + (1f - brandPrimary.red) * 0.30f,
+        green = brandPrimary.green + (1f - brandPrimary.green) * 0.30f,
+        blue = brandPrimary.blue + (1f - brandPrimary.blue) * 0.30f,
+        alpha = brandPrimary.alpha
+    )
+
+    val TealGradient: Brush get() = Brush.linearGradient(listOf(brandPrimary, brandPrimaryDark))
+    val TealGradient135: Brush get() = Brush.linearGradient(
+        listOf(brandPrimary, brandPrimaryDark),
         start = Offset(0f, 0f),
         end = Offset(Float.POSITIVE_INFINITY, Float.POSITIVE_INFINITY)
     )
 
-    val SuccessGreen = Color(0xFF16A34A)
+    /** Applies the integrator's theme brand color to the shared tokens. Call once
+     *  at flow start; every KoraColors.Teal / TealGradient usage follows. */
+    fun applyTheme(primaryColor: Long, successColor: Long, errorColor: Long) {
+        val c = Color(primaryColor)
+        brandPrimary = c
+        brandPrimaryDark = Color(
+            red = c.red * 0.86f, green = c.green * 0.86f, blue = c.blue * 0.86f, alpha = c.alpha
+        )
+        // Semantic tokens follow the theme's slots. Their defaults equal these
+        // values, so pass/fail stays green/red unless the integrator customizes them.
+        SuccessGreen = Color(successColor)
+        ErrorRed = Color(errorColor)
+    }
+
+    var SuccessGreen = Color(0xFF16A34A)
     val SuccessGreenDark = Color(0xFF15803D)
     val SuccessGreenLight = Color(0xFFDCFCE7)
     val SuccessGreenBorder = Color(0xFFBBF7D0)
 
-    val ErrorRed = Color(0xFFDC2626)
+    var ErrorRed = Color(0xFFDC2626)
     val ErrorRedDark = Color(0xFFB91C1C)
     val ErrorRedLight = Color(0xFFFEF2F2)
     val ErrorRedBorder = Color(0xFFFECACA)
