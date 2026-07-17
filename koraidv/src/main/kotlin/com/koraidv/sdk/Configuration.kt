@@ -84,7 +84,11 @@ data class Configuration(
  * API Environment.
  */
 enum class Environment(val baseUrl: String) {
-    PRODUCTION("https://api.korastratum.com/api/v1/idv"),
+    // Raw-API-key IDV endpoint (same model as sandbox: the SDK talks to identity
+    // directly). NOT api.korastratum.com — that is the console's JWT gateway and
+    // rejects raw SDK keys with 401. Overridable per integration via
+    // `Configuration.baseUrl` if this ever changes.
+    PRODUCTION("https://idv.korastratum.com/api/v1/idv"),
     SANDBOX("https://koraidv-identity-sandbox-626704085312.us-central1.run.app/api/v1")
 }
 

@@ -173,11 +173,12 @@ class ConfigurationTest {
 
     @Test
     fun `production URL is the unified Korastratum gateway`() {
-        // Production lives at api.korastratum.com /api/v1/idv (gateway routes to
-        // koraidv-identity in the koraidv project). Updated in v1.2.x — earlier
-        // SDKs used the now-defunct api.koraidv.com hostname.
+        // Production lives at idv.korastratum.com /api/v1/idv — the raw-API-key
+        // IDV endpoint (SDK talks to identity directly, same model as sandbox).
+        // NOT api.korastratum.com, which is the console's JWT gateway and rejects
+        // raw SDK keys with 401.
         assertThat(Environment.PRODUCTION.baseUrl)
-            .isEqualTo("https://api.korastratum.com/api/v1/idv")
+            .isEqualTo("https://idv.korastratum.com/api/v1/idv")
     }
 
     @Test
