@@ -69,6 +69,8 @@ data class ScoreBreakdown(
     val liveness: Int,
     val screening: Int,
     val nameMatch: Int,
+    /** False when name match was not evaluated (no expected name) — render "N/A". */
+    val nameMatchEvaluated: Boolean,
     val documentQuality: Int,
     val selfieMatch: Int,
     val overallScore: Int
@@ -310,6 +312,7 @@ class VerificationViewModel : ViewModel() {
                 liveness = liveness,
                 screening = screening,
                 nameMatch = nameMatch,
+                nameMatchEvaluated = scores?.nameMatchEvaluated ?: true,
                 documentQuality = documentQuality,
                 selfieMatch = selfieMatch,
                 overallScore = overall.coerceIn(0, 100)

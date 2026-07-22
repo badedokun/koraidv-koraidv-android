@@ -371,7 +371,10 @@ data class ScoreMetric(
     val score: Int,
     val icon: ImageVector,
     val status: MetricStatus,
-    val errorMessage: String? = null
+    val errorMessage: String? = null,
+    /** When true the metric was not evaluated (e.g. name match with no expected name):
+     *  render "N/A" with a neutral style instead of a percentage/pass-fail. */
+    val notApplicable: Boolean = false
 )
 
 @Composable
@@ -384,17 +387,17 @@ fun ScoreMetricRow(
         MetricStatus.FAIL -> KoraColors.ErrorRedLight
         MetricStatus.BORDERLINE -> Color(0xFFFFFBEB)
     }
-    val iconBgColor = when (metric.status) {
+    val iconBgColor = if (metric.notApplicable) KoraColors.BorderLight else when (metric.status) {
         MetricStatus.PASS -> KoraColors.SuccessGreenLight
         MetricStatus.FAIL -> KoraColors.ErrorRedBorder
         MetricStatus.BORDERLINE -> KoraColors.WarningAmberLight
     }
-    val iconColor = when (metric.status) {
+    val iconColor = if (metric.notApplicable) KoraColors.TextSecondary else when (metric.status) {
         MetricStatus.PASS -> KoraColors.SuccessGreen
         MetricStatus.FAIL -> KoraColors.ErrorRed
         MetricStatus.BORDERLINE -> KoraColors.WarningAmber
     }
-    val scoreColor = when (metric.status) {
+    val scoreColor = if (metric.notApplicable) KoraColors.TextSecondary else when (metric.status) {
         MetricStatus.PASS -> KoraColors.SuccessGreen
         MetricStatus.FAIL -> KoraColors.ErrorRed
         MetricStatus.BORDERLINE -> KoraColors.WarningAmber
@@ -460,7 +463,7 @@ fun ScoreMetricRow(
                     color = KoraColors.TextPrimary
                 )
                 Text(
-                    text = "${metric.score}%",
+                    text = if (metric.notApplicable) "N/A" else "${metric.score}%",
                     fontSize = 16.sp,
                     fontWeight = FontWeight.W700,
                     color = scoreColor
@@ -479,7 +482,7 @@ fun ScoreMetricRow(
                 Box(
                     modifier = Modifier
                         .fillMaxHeight()
-                        .fillMaxWidth(metric.score / 100f)
+                        .fillMaxWidth(if (metric.notApplicable) 0f else metric.score / 100f)
                         .clip(RoundedCornerShape(2.dp))
                         .background(barFillColor)
                 )

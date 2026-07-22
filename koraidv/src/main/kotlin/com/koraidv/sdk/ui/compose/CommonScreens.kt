@@ -346,7 +346,8 @@ fun SuccessScreen(
                         label = stringResource(R.string.koraidv_score_name_match),
                         score = scores.nameMatch,
                         icon = Icons.Default.Check,
-                        status = if (scores.nameMatch >= 70) MetricStatus.PASS else MetricStatus.BORDERLINE
+                        status = if (!scores.nameMatchEvaluated || scores.nameMatch >= 70) MetricStatus.PASS else MetricStatus.BORDERLINE,
+                        notApplicable = !scores.nameMatchEvaluated
                     )
                 )
                 ScoreMetricRow(
@@ -490,7 +491,8 @@ fun RejectedScreen(
                         label = stringResource(R.string.koraidv_score_name_match),
                         score = scores.nameMatch,
                         icon = Icons.Default.Check,
-                        status = if (scores.nameMatch >= 70) MetricStatus.PASS else MetricStatus.FAIL
+                        status = if (!scores.nameMatchEvaluated || scores.nameMatch >= 70) MetricStatus.PASS else MetricStatus.FAIL,
+                        notApplicable = !scores.nameMatchEvaluated
                     )
                 )
                 ScoreMetricRow(
@@ -834,7 +836,8 @@ fun ManualReviewScreen(
                         label = stringResource(R.string.koraidv_score_name_match),
                         score = scores.nameMatch,
                         icon = Icons.Default.Check,
-                        status = if (scores.nameMatch >= 70) MetricStatus.PASS else MetricStatus.BORDERLINE
+                        status = if (!scores.nameMatchEvaluated || scores.nameMatch >= 70) MetricStatus.PASS else MetricStatus.BORDERLINE,
+                        notApplicable = !scores.nameMatchEvaluated
                     )
                 )
                 ScoreMetricRow(

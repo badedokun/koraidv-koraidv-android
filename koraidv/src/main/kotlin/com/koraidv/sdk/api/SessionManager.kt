@@ -551,6 +551,7 @@ internal class SessionManager(
                     faceMatch = it.faceMatch ?: 0.0,
                     liveness = it.liveness ?: 0.0,
                     nameMatch = it.nameMatch ?: 0.0,
+                    nameMatchEvaluated = it.nameMatchResult?.hasExpectedNames ?: true,
                     dataConsistency = it.dataConsistency ?: 0.0,
                     screening = it.complianceScore ?: 0.0,
                     overall = it.overall ?: 0.0

@@ -220,9 +220,19 @@ data class VerificationScoresResponse(
     @SerializedName("faceMatch") val faceMatch: Double?,
     @SerializedName("liveness") val liveness: Double?,
     @SerializedName("nameMatch") val nameMatch: Double?,
+    @SerializedName("nameMatchResult") val nameMatchResult: NameMatchResultResponse? = null,
     @SerializedName("dataConsistency") val dataConsistency: Double?,
     @SerializedName("complianceScore") val complianceScore: Double?,
     @SerializedName("overall") val overall: Double?
+)
+
+/**
+ * Name-comparison detail. When [hasExpectedNames] is false, no expected name was
+ * supplied to compare against, so [VerificationScoresResponse.nameMatch] is an OCR
+ * extraction proxy (not a match) and must be shown as "N/A".
+ */
+data class NameMatchResultResponse(
+    @SerializedName("hasExpectedNames") val hasExpectedNames: Boolean?
 )
 
 data class DocumentVerificationResponse(

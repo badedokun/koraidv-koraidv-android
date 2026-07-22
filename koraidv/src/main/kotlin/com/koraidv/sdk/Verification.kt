@@ -146,6 +146,9 @@ data class VerificationScores(
     val faceMatch: Double,
     val liveness: Double,
     val nameMatch: Double,
+    /** False when no expected name was supplied (nameMatch is an extraction proxy, not a
+     *  match) — result screens render name match as "N/A". Defaults true for legacy backends. */
+    val nameMatchEvaluated: Boolean = true,
     val dataConsistency: Double,
     val screening: Double,
     val overall: Double
