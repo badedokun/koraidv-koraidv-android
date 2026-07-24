@@ -134,7 +134,15 @@ class VerificationViewModel : ViewModel() {
             result.fold(
                 onSuccess = { verification ->
                     currentVerification = verification
-                    _state.value = mapStatusToState(verification)
+                    // A DOCUMENT_REQUIRED verification (created, no document captured yet) must
+                    // land IN document capture — matching iOS determineCurrentStep, which maps
+                    // documentRequired -> countrySelection. Mapping it to a bare Loading state
+                    // stranded the SDK on "Preparing verification…" and never advanced.
+                    if (verification.status == VerificationStatus.DOCUMENT_REQUIRED) {
+                        loadCountries()
+                    } else {
+                        _state.value = mapStatusToState(verification)
+                    }
                 },
                 onFailure = { error ->
                     _state.value = VerificationState.Error(
@@ -148,6 +156,8 @@ class VerificationViewModel : ViewModel() {
     private fun mapStatusToState(verification: Verification): VerificationState {
         return when (verification.status) {
             VerificationStatus.PENDING -> VerificationState.Consent
+            // DOCUMENT_REQUIRED is intercepted in initializeForResume() -> loadCountries();
+            // this Loading is only a defensive fallback and must never be terminal for it.
             VerificationStatus.DOCUMENT_REQUIRED -> {
                 VerificationState.Loading
             }
@@ -165,8 +175,24 @@ class VerificationViewModel : ViewModel() {
         viewModelScope.launch {
             _state.value = VerificationState.Loading
 
-            val req = request ?: return@launch
             val manager = sessionManager ?: return@launch
+
+            // Resume mode: the verification was already created by the tenant's backend, so
+            // `request` is null (only startVerification sets it). Reuse the existing
+            // verification and go straight to document capture — do NOT mint a duplicate.
+            // Without this, "Get Started" on a resumed PENDING verification set Loading and
+            // bailed at `request ?: return`, hanging the SDK on "Preparing verification…".
+            val req = request
+            if (req == null) {
+                if (currentVerification != null) {
+                    loadCountries()
+                } else {
+                    _state.value = VerificationState.Error(
+                        KoraException.Unknown("No verification to resume")
+                    )
+                }
+                return@launch
+            }
 
             val result = manager.createVerification(
                 externalId = req.externalId,
