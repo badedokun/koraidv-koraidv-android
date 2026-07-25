@@ -627,6 +627,11 @@ fun SelfieCaptureScreen(
     var capturedBitmap by remember { mutableStateOf<Bitmap?>(null) }
     var autoCapturePending by remember { mutableStateOf(false) }
     var firstFaceDetectedTime by remember { mutableStateOf<Long?>(null) }
+    // Selfie pre-capture countdown (v1.10.12, parity with the liveness countdown): once the
+    // face is stable, run a visible 3-2-1 before the shutter so the user can pose. readySince
+    // = when the face became capture-ready; selfieCountdown = seconds shown over the oval.
+    var readySince by remember { mutableStateOf<Long?>(null) }
+    var selfieCountdown by remember { mutableStateOf<Int?>(null) }
     // Eye-visibility rejection (sunglasses / tinted / mirrored lenses). Drives
     // the prominent rejection overlay and PAUSES auto-capture until the user
     // removes the glasses and taps Retake, so the same reject can't loop-fire.
@@ -843,13 +848,33 @@ fun SelfieCaptureScreen(
                                                                 result.guidanceMessage == null
                                                         faceReady = ready
 
-                                                        // Force capture after 5s deadline if face is detected
+                                                        // Force capture after the deadline if face is detected (bumped
+                                                        // 5s→8s so the 3s countdown completes first for a normal pose).
                                                         val deadline = firstFaceDetectedTime
                                                         val forceCapture = result.faceDetected && deadline != null &&
-                                                                (System.currentTimeMillis() - deadline) >= 5000L
+                                                                (System.currentTimeMillis() - deadline) >= 8000L
 
-                                                        if ((ready || forceCapture) && !isCapturing && capturedImageBytes == null && rejectionReason == null) {
-                                                            autoCapturePending = true
+                                                        if (!isCapturing && capturedImageBytes == null && rejectionReason == null) {
+                                                            if (forceCapture) {
+                                                                selfieCountdown = null
+                                                                autoCapturePending = true
+                                                            } else if (ready) {
+                                                                // Face stable → visible 3-2-1 countdown so the user can pose
+                                                                // before the shutter fires (v1.10.12). Capture at zero.
+                                                                val now = System.currentTimeMillis()
+                                                                if (readySince == null) readySince = now
+                                                                val remaining = 3000L - (now - readySince!!)
+                                                                if (remaining <= 0L) {
+                                                                    selfieCountdown = null
+                                                                    autoCapturePending = true
+                                                                } else {
+                                                                    selfieCountdown = ((remaining + 999L) / 1000L).toInt()
+                                                                }
+                                                            } else {
+                                                                // face no longer ready → abandon the countdown, restart fresh
+                                                                readySince = null
+                                                                selfieCountdown = null
+                                                            }
                                                         }
                                                     }
                                                 }
@@ -885,6 +910,17 @@ fun SelfieCaptureScreen(
                         style = Stroke(width = strokeWidth, cap = StrokeCap.Round, pathEffect = pathEffect),
                         topLeft = Offset(strokeWidth / 2, strokeWidth / 2),
                         size = Size(size.width - strokeWidth, size.height - strokeWidth)
+                    )
+                }
+
+                // Pre-capture countdown over the oval (3…2…1) so the user can pose before
+                // the shutter fires — parity with the liveness countdown (v1.10.12).
+                selfieCountdown?.let { n ->
+                    Text(
+                        text = "$n",
+                        color = Color.White,
+                        fontSize = 72.sp,
+                        fontWeight = FontWeight.W700
                     )
                 }
             }
