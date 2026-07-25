@@ -163,7 +163,13 @@ class VerificationViewModel : ViewModel() {
             }
             VerificationStatus.SELFIE_REQUIRED -> VerificationState.SelfieCapture
             VerificationStatus.LIVENESS_REQUIRED -> VerificationState.LivenessCheck
-            VerificationStatus.PROCESSING -> VerificationState.Complete(verification)
+            // PROCESSING = document captured but NOT yet decided (the backend uses
+            // `processing` for the whole mid-capture phase). Resuming such a verification
+            // must let the user CONTINUE capture — NOT show a terminal result. Mapping it
+            // to Complete rendered a false "Verification approved" at 0% (scores are null
+            // until /complete decides it). Route to the selfie step, which the existing
+            // document satisfies as a precondition. See project_banffpay_v11010_retest_defects.
+            VerificationStatus.PROCESSING -> VerificationState.SelfieCapture
             VerificationStatus.APPROVED -> VerificationState.Complete(verification)
             VerificationStatus.REJECTED -> VerificationState.Complete(verification)
             VerificationStatus.REVIEW_REQUIRED -> VerificationState.ManualReview(verification)

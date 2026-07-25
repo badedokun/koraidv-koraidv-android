@@ -67,7 +67,13 @@ internal class SessionManager(
     }
 
     private fun isRetryableStatusCode(statusCode: Int): Boolean {
-        return statusCode == 429 || statusCode in 500..599
+        // Retry ONLY 429 (rate limited — the request was rejected, not processed, so a
+        // backed-off retry is safe). Do NOT retry 5xx: these calls are non-idempotent
+        // POST uploads with no idempotency key, so a server fault that may have partially
+        // applied must not be re-fired — that multi-MB retry storm crashed the app on a
+        // restart-onto-a-finished-verification. Client/state errors are now 4xx (server
+        // hardening) and were never retryable. Matches the iOS SDK's POST-exclusion.
+        return statusCode == 429
     }
 
     private fun calculateRetryDelay(attempt: Int): Long {

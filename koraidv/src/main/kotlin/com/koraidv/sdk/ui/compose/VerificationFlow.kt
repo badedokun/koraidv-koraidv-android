@@ -145,13 +145,19 @@ internal fun VerificationFlow(
                             )
                         }
                     else ->
+                        // A Complete state that is neither APPROVED nor REJECTED is an
+                        // undecided/interim status (e.g. PROCESSING). It must NEVER render as
+                        // "Verification approved" — that was the false Approved-0% (scores are
+                        // null until decided). Fall back to the neutral under-review screen,
+                        // which is honest and never claims a passed identity check.
                         if (simplified) {
-                            SimplifiedSuccessScreen(
+                            SimplifiedReviewScreen(
+                                verification = verification,
                                 messages = customMessages,
                                 onDone = { onComplete(verification) }
                             )
                         } else {
-                            SuccessScreen(
+                            ManualReviewScreen(
                                 verification = verification,
                                 onDone = { onComplete(verification) }
                             )
