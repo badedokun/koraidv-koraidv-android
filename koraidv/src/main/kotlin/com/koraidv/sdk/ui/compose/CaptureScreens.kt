@@ -34,6 +34,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 // Switched to withContext(Dispatchers.Default) so the freeze goes away
 // on slow devices without changing behaviour on fast ones.
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import kotlin.coroutines.resume
 import kotlin.coroutines.suspendCoroutine
@@ -1203,6 +1204,12 @@ internal fun LivenessScreen(
                 // completeVerification() endpoint scores the full verification
                 // including liveness.  Per-challenge images are captured in the
                 // result for the backend if needed in the future.
+                //
+                // Hold on the completed-liveness state (the final challenge's ✓ stays up)
+                // for a beat before advancing to the Processing screen, so the flow doesn't
+                // jump to "Verifying" the instant the final challenge (smile) registers.
+                // Kept consistent with iOS livenessCompleteHold (BanffPay 2026-07-26). 2500ms.
+                delay(2500L)
                 onComplete(state.result)
             }
             else -> {}
