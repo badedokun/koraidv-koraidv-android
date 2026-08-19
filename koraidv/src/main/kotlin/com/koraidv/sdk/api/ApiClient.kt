@@ -28,10 +28,13 @@ internal class ApiClient(private val configuration: Configuration) {
     }
 
     private fun buildOkHttpClient(): OkHttpClient {
+        // Connect/read timeout is environment-aware (see Configuration): 60s on
+        // sandbox to absorb scale-to-zero cold starts, 30s on production.
+        val timeoutSecs = configuration.resolvedNetworkTimeoutSeconds
         val builder = OkHttpClient.Builder()
-            .connectTimeout(30, TimeUnit.SECONDS)
-            .readTimeout(30, TimeUnit.SECONDS)
-            .writeTimeout(60, TimeUnit.SECONDS)
+            .connectTimeout(timeoutSecs, TimeUnit.SECONDS)
+            .readTimeout(timeoutSecs, TimeUnit.SECONDS)
+            .writeTimeout(maxOf(timeoutSecs, 60L), TimeUnit.SECONDS)
             .addInterceptor(authInterceptor())
 
         // Certificate pinning for production API endpoints.

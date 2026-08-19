@@ -13,6 +13,7 @@ package com.koraidv.sdk
  * @property locale Locale for localization (default: system locale)
  * @property timeout Session timeout in seconds (default: 600)
  * @property debugLogging Enable debug logging (default: false)
+ * @property networkTimeoutSeconds HTTP connect/read timeout in seconds; null = env-aware (60s sandbox, 30s production)
  */
 data class Configuration(
     val apiKey: String,
@@ -55,7 +56,20 @@ data class Configuration(
      * reliability and closes the document↔selfie asymmetry. Set false to hide
      * the prompt. A per-tenant, session-driven policy supersedes this later.
      */
-    val showEyewearGuidance: Boolean = true
+    val showEyewearGuidance: Boolean = true,
+
+    /**
+     * Maximum time (seconds) the SDK waits for an API response before giving up,
+     * applied to the OkHttp connect and read timeouts.
+     *
+     * `null` (default) = environment-aware: **60s for [Environment.SANDBOX]** and
+     * **30s for [Environment.PRODUCTION]**. Sandbox is cost-optimised to scale to
+     * zero, so the first request after an idle period incurs a cold start (up to
+     * ~30s); the longer sandbox default lets that first call complete instead of
+     * the SDK dropping it (a stuck "Preparing verification…"). Production is kept
+     * warm, so it fails fast. Set an explicit value to override either default.
+     */
+    val networkTimeoutSeconds: Long? = null
 ) {
     init {
         require(apiKey.isNotBlank()) { "apiKey must not be blank" }
@@ -67,6 +81,14 @@ data class Configuration(
      */
     val resolvedBaseUrl: String
         get() = baseUrl ?: environment.baseUrl
+
+    /**
+     * Resolved network (connect + read) timeout in seconds: explicit
+     * [networkTimeoutSeconds] if set, otherwise 60s on SANDBOX (cold-start
+     * tolerant) and 30s on PRODUCTION (kept warm, fail-fast).
+     */
+    val resolvedNetworkTimeoutSeconds: Long
+        get() = networkTimeoutSeconds ?: if (environment == Environment.SANDBOX) 60L else 30L
 
     companion object {
         private fun detectEnvironment(apiKey: String): Environment {
