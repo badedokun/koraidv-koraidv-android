@@ -399,6 +399,16 @@ fun DocumentCaptureScreen(
                 lineHeight = 18.sp
             )
 
+            // Lighting tip — cuts retries from low light / glare (parity with web/iOS SDKs).
+            Spacer(modifier = Modifier.height(6.dp))
+            Text(
+                text = stringResource(R.string.koraidv_capture_lighting),
+                fontSize = 13.sp,
+                color = KoraColors.WhiteAlpha40,
+                textAlign = TextAlign.Center,
+                lineHeight = 18.sp
+            )
+
             Spacer(modifier = Modifier.height(16.dp))
 
             // Step pills (Front/Back)
@@ -776,6 +786,13 @@ fun SelfieCaptureScreen(
             Spacer(modifier = Modifier.height(4.dp))
             Text(
                 text = stringResource(R.string.koraidv_selfie_neutral),
+                fontSize = 14.sp,
+                color = KoraColors.WhiteAlpha50
+            )
+            // Lighting tip — cuts retries from low light (parity with web/iOS SDKs).
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(
+                text = stringResource(R.string.koraidv_selfie_lighting),
                 fontSize = 14.sp,
                 color = KoraColors.WhiteAlpha50
             )

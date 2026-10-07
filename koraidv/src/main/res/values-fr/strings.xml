@@ -90,6 +90,7 @@
     <string name="koraidv_capture_retry">Capture échouée, nouvelle tentative…</string>
     <string name="koraidv_capture_instruction_front">Tenez votre pièce d\'identité à plat avec un bon éclairage.\nCapture automatique quand prêt.</string>
     <string name="koraidv_capture_instruction_back">Assurez-vous que le code-barres est clairement visible.\nCapture automatique quand prêt.</string>
+    <string name="koraidv_capture_lighting">Trouvez un éclairage uniforme et évitez les reflets sur la carte.</string>
     <string name="koraidv_capture_review_title">Vérifiez votre photo</string>
     <string name="koraidv_capture_review_quality">Bonne qualité</string>
     <string name="koraidv_capture_review_sharp">Net</string>
@@ -109,6 +110,7 @@
     <string name="koraidv_selfie_title">Prenez un selfie</string>
     <string name="koraidv_selfie_face_camera">Regardez la caméra</string>
     <string name="koraidv_selfie_neutral">Gardez une expression neutre</string>
+    <string name="koraidv_selfie_lighting">Placez-vous face à une fenêtre ou une lampe pour un bon éclairage.</string>
     <string name="koraidv_selfie_remove_glasses">Retirez vos lunettes pour une meilleure correspondance</string>
     <string name="koraidv_selfie_remove_sunglasses">Retirez vos lunettes de soleil — vos yeux doivent être clairement visibles</string>
     <string name="koraidv_selfie_eyes_blocked_title">Nous ne voyons pas vos yeux</string>
