@@ -22,7 +22,13 @@ mockwebserver = "4.12.0"
 truth = "1.4.2"
 coroutinesTest = "1.8.1"
 desugarJdkLibs = "2.0.4"
-opencv = "4.10.0"
+# 4.12.0, NOT 4.11.0: Android 15 requires 16 KB page alignment. 4.10.0 ships both
+# libopencv_java4.so AND libc++_shared.so at 4 KB (fails). 4.11.0 aligns
+# libopencv_java4.so but STILL ships a 4 KB libc++_shared.so — insufficient.
+# 4.12.0 ships BOTH at 16 KB (verified against the Maven Central artifact).
+# These are OpenCV's only native libs here; the SDK's other .so (MLKit, CameraX,
+# barhopper) are already 16 KB-aligned.
+opencv = "4.12.0"
 
 [libraries]
 # AndroidX
